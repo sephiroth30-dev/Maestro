@@ -18,7 +18,7 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
-  CORS_ORIGIN: z.string().url('CORS_ORIGIN must be a valid URL'),
+  CORS_ORIGIN: z.string().url('CORS_ORIGIN must be a valid URL').default('*'),
   LOG_LEVEL: z
     .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])
     .default('info'),
