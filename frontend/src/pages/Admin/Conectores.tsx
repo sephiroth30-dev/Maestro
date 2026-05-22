@@ -1,0 +1,1174 @@
+import React, { useState } from 'react';
+import {
+  Plus,
+  Database,
+  Globe,
+  Server,
+  CheckCircle,
+  XCircle,
+  Clock,
+  RefreshCw,
+  Activity,
+  Edit2,
+  Trash2,
+  ChevronRight,
+  X,
+  Loader2,
+  AlertCircle,
+  History,
+} from 'lucide-react';
+import {
+  useConnectors,
+  useCreateConnector,
+  useUpdateConnector,
+  useDeleteConnector,
+  useTestConnector,
+  useTestNewConnector,
+  useTriggerSync,
+  useSyncHistory,
+  type Conector,
+  type TipoConector,
+  type FrecuenciaSync,
+  type Sincronizacion,
+  type ConnectionTestResult,
+  type CreateConnectorInput,
+  type UpdateConnectorInput,
+} from '../../api/connectors.js';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(dateStr: string | null): string {
+  if (!dateStr) return 'Nunca';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Hace un momento';
+  if (mins < 60) return `Hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `Hace ${days} día${days > 1 ? 's' : ''}`;
+}
+
+const FRECUENCIA_LABELS: Record<FrecuenciaSync, string> = {
+  '30min': 'Cada 30 min',
+  '1h': 'Cada hora',
+  '4h': 'Cada 4 horas',
+  'daily': 'Diario 8pm',
+  'manual': 'Manual',
+};
+
+const TIPO_ICONS: Record<TipoConector, React.ReactNode> = {
+  GOOGLE_SHEETS: <Database size={22} className="text-emerald-600" />,
+  REST_API: <Globe size={22} className="text-blue-600" />,
+  POSTGRESQL: <Server size={22} className="text-purple-600" />,
+  CSV: <Database size={22} className="text-slate-600" />,
+};
+
+const TIPO_BADGE_CLASSES: Record<TipoConector, string> = {
+  GOOGLE_SHEETS: 'badge badge--emerald',
+  REST_API: 'badge badge--blue',
+  POSTGRESQL: 'badge badge--purple',
+  CSV: 'badge badge--slate',
+};
+
+const TIPO_LABELS: Record<TipoConector, string> = {
+  GOOGLE_SHEETS: 'Google Sheets',
+  REST_API: 'REST API',
+  POSTGRESQL: 'PostgreSQL',
+  CSV: 'CSV',
+};
+
+const ESTADO_CLASSES: Record<string, string> = {
+  COMPLETADA: 'badge badge--emerald',
+  EN_PROCESO: 'badge badge--blue',
+  FALLIDA: 'badge badge--red',
+  PARCIAL: 'badge badge--yellow',
+};
+
+const ESTADO_LABELS: Record<string, string> = {
+  COMPLETADA: 'Completada',
+  EN_PROCESO: 'En proceso',
+  FALLIDA: 'Fallida',
+  PARCIAL: 'Parcial',
+};
+
+// ─── ConnectorCard ────────────────────────────────────────────────────────────
+
+interface ConnectorCardProps {
+  conector: Conector;
+  onEdit: (c: Conector) => void;
+  onDelete: (c: Conector) => void;
+  onHistory: (c: Conector) => void;
+}
+
+function ConnectorCard({
+  conector,
+  onEdit,
+  onDelete,
+  onHistory,
+}: ConnectorCardProps): React.ReactElement {
+  const testMutation = useTestConnector();
+  const syncMutation = useTriggerSync();
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+
+  const handleTest = async (): Promise<void> => {
+    setTestResult(null);
+    try {
+      const result = await testMutation.mutateAsync(conector.id);
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Error al probar conexión' });
+    }
+  };
+
+  const handleSync = async (): Promise<void> => {
+    try {
+      await syncMutation.mutateAsync(conector.id);
+    } catch {
+      // error handled by mutation state
+    }
+  };
+
+  return (
+    <div className={`connector-card ${!conector.activo ? 'connector-card--inactive' : ''}`}>
+      <div className="connector-card-header">
+        <div className="connector-card-icon">{TIPO_ICONS[conector.tipo]}</div>
+        <div className="connector-card-meta">
+          <h3 className="connector-card-name">{conector.nombre}</h3>
+          <div className="connector-card-badges">
+            <span className={TIPO_BADGE_CLASSES[conector.tipo]}>
+              {TIPO_LABELS[conector.tipo]}
+            </span>
+            <span className={`badge ${conector.activo ? 'badge--emerald' : 'badge--slate'}`}>
+              {conector.activo ? (
+                <>
+                  <span className="badge-dot badge-dot--green" />
+                  Activo
+                </>
+              ) : (
+                <>
+                  <span className="badge-dot badge-dot--gray" />
+                  Inactivo
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="connector-card-info">
+        <div className="connector-info-row">
+          <Clock size={14} className="connector-info-icon" />
+          <span className="connector-info-label">Última sync:</span>
+          <span className="connector-info-value">
+            {formatRelativeTime(conector.ultimaSync)}
+          </span>
+        </div>
+        <div className="connector-info-row">
+          <Activity size={14} className="connector-info-icon" />
+          <span className="connector-info-label">Frecuencia:</span>
+          <span className="connector-info-value">
+            {FRECUENCIA_LABELS[conector.frecuenciaSync] ?? conector.frecuenciaSync}
+          </span>
+        </div>
+      </div>
+
+      {/* Test result inline */}
+      {testResult && (
+        <div
+          className={`connector-test-result ${
+            testResult.success
+              ? 'connector-test-result--success'
+              : 'connector-test-result--error'
+          }`}
+        >
+          {testResult.success ? (
+            <CheckCircle size={14} />
+          ) : (
+            <XCircle size={14} />
+          )}
+          <span>{testResult.message}</span>
+          {testResult.latencyMs !== undefined && testResult.success && (
+            <span className="connector-test-latency">{testResult.latencyMs}ms</span>
+          )}
+        </div>
+      )}
+
+      {/* Sync error */}
+      {syncMutation.isError && (
+        <div className="connector-test-result connector-test-result--error">
+          <XCircle size={14} />
+          <span>Error al sincronizar</span>
+        </div>
+      )}
+      {syncMutation.isSuccess && syncMutation.data && (
+        <div
+          className={`connector-test-result ${
+            syncMutation.data.success
+              ? 'connector-test-result--success'
+              : 'connector-test-result--error'
+          }`}
+        >
+          {syncMutation.data.success ? (
+            <CheckCircle size={14} />
+          ) : (
+            <XCircle size={14} />
+          )}
+          <span>
+            {syncMutation.data.success
+              ? `Sincronizado: ${syncMutation.data.rowsRead} filas`
+              : syncMutation.data.error ?? 'Error de sincronización'}
+          </span>
+        </div>
+      )}
+
+      <div className="connector-card-actions">
+        <button
+          type="button"
+          className="btn btn--sm btn--primary"
+          onClick={() => { void handleSync(); }}
+          disabled={syncMutation.isPending || !conector.activo}
+          title="Sincronizar ahora"
+        >
+          {syncMutation.isPending ? (
+            <Loader2 size={13} className="spin" />
+          ) : (
+            <RefreshCw size={13} />
+          )}
+          Sincronizar
+        </button>
+
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          onClick={() => { void handleTest(); }}
+          disabled={testMutation.isPending || !conector.activo}
+          title="Probar conexión"
+        >
+          {testMutation.isPending ? (
+            <Loader2 size={13} className="spin" />
+          ) : (
+            <Activity size={13} />
+          )}
+          Probar
+        </button>
+
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost"
+          onClick={() => onHistory(conector)}
+          title="Ver historial"
+        >
+          <History size={13} />
+          Historial
+        </button>
+
+        <div className="connector-card-actions-right">
+          <button
+            type="button"
+            className="btn btn--sm btn--icon"
+            onClick={() => onEdit(conector)}
+            title="Editar"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--icon btn--icon-danger"
+            onClick={() => onDelete(conector)}
+            title="Eliminar"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SyncHistoryDrawer ────────────────────────────────────────────────────────
+
+interface SyncHistoryDrawerProps {
+  conector: Conector;
+  onClose: () => void;
+}
+
+function SyncHistoryDrawer({
+  conector,
+  onClose,
+}: SyncHistoryDrawerProps): React.ReactElement {
+  const { data: history, isLoading } = useSyncHistory(conector.id);
+
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <div
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Historial de sincronizaciones"
+      >
+        <div className="drawer-header">
+          <div>
+            <h2 className="drawer-title">Historial de sincronizaciones</h2>
+            <p className="drawer-subtitle">{conector.nombre}</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn--sm btn--icon"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="drawer-body">
+          {isLoading ? (
+            <div className="drawer-loading">
+              <Loader2 size={24} className="spin text-blue-500" />
+              <span>Cargando historial...</span>
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="drawer-empty">
+              <History size={40} className="text-slate-300" />
+              <p>No hay sincronizaciones registradas</p>
+            </div>
+          ) : (
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Filas leídas</th>
+                  <th>Filas nuevas</th>
+                  <th>Duración</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((s: Sincronizacion) => {
+                  const duration =
+                    s.finalizadaAt
+                      ? `${Math.round(
+                          (new Date(s.finalizadaAt).getTime() -
+                            new Date(s.iniciadaAt).getTime()) /
+                            1000
+                        )}s`
+                      : '—';
+                  return (
+                    <tr key={s.id}>
+                      <td>
+                        {new Date(s.iniciadaAt).toLocaleString('es-CO', {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </td>
+                      <td>
+                        <span className={ESTADO_CLASSES[s.estado] ?? 'badge badge--slate'}>
+                          {ESTADO_LABELS[s.estado] ?? s.estado}
+                        </span>
+                      </td>
+                      <td>{s.filasLeidas}</td>
+                      <td>{s.filasNuevas}</td>
+                      <td>{duration}</td>
+                      <td>
+                        {s.errores ? (
+                          <span
+                            className="history-error"
+                            title={JSON.stringify(s.errores)}
+                          >
+                            <AlertCircle size={14} />
+                            {(s.errores as Record<string, string>)['message'] ?? 'Ver detalle'}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ConnectorForm (step-by-step modal) ──────────────────────────────────────
+
+type FormStep = 1 | 2;
+
+interface ConnectorFormState {
+  nombre: string;
+  tipo: TipoConector | '';
+  frecuenciaSync: FrecuenciaSync;
+  // Sheets fields
+  spreadsheetId: string;
+  credentialsJson: string;
+  // REST fields
+  baseUrl: string;
+  authType: 'none' | 'bearer' | 'basic';
+  authValue: string;
+  headers: Array<{ key: string; value: string }>;
+}
+
+const DEFAULT_FORM: ConnectorFormState = {
+  nombre: '',
+  tipo: '',
+  frecuenciaSync: 'daily',
+  spreadsheetId: '',
+  credentialsJson: '',
+  baseUrl: '',
+  authType: 'none',
+  authValue: '',
+  headers: [],
+};
+
+interface ConnectorModalProps {
+  editing: Conector | null;
+  onClose: () => void;
+}
+
+function ConnectorModal({
+  editing,
+  onClose,
+}: ConnectorModalProps): React.ReactElement {
+  const createMutation = useCreateConnector();
+  const updateMutation = useUpdateConnector();
+  const testNewMutation = useTestNewConnector();
+  const testExistingMutation = useTestConnector();
+
+  const [step, setStep] = useState<FormStep>(editing ? 2 : 1);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+
+  // Init form from editing conector
+  const initFormFromEditing = (): ConnectorFormState => {
+    if (!editing) return DEFAULT_FORM;
+    const cfg = editing.config as Record<string, unknown>;
+    const base: ConnectorFormState = {
+      nombre: editing.nombre,
+      tipo: editing.tipo,
+      frecuenciaSync: editing.frecuenciaSync,
+      spreadsheetId: '',
+      credentialsJson: '',
+      baseUrl: '',
+      authType: 'none',
+      authValue: '',
+      headers: [],
+    };
+    if (editing.tipo === 'GOOGLE_SHEETS') {
+      base.spreadsheetId = (cfg['spreadsheetId'] as string) ?? '';
+      base.credentialsJson =
+        typeof cfg['credentials'] === 'object'
+          ? JSON.stringify(cfg['credentials'], null, 2)
+          : (cfg['credentials'] as string) ?? '';
+    } else if (editing.tipo === 'REST_API') {
+      base.baseUrl = (cfg['baseUrl'] as string) ?? '';
+      base.authType = (cfg['authType'] as 'none' | 'bearer' | 'basic') ?? 'none';
+      base.authValue = (cfg['authValue'] as string) ?? '';
+      const hdrs = cfg['headers'] as Record<string, string> | undefined;
+      if (hdrs) {
+        base.headers = Object.entries(hdrs).map(([key, value]) => ({ key, value }));
+      }
+    }
+    return base;
+  };
+
+  const [form, setForm] = useState<ConnectorFormState>(initFormFromEditing);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const setField = <K extends keyof ConnectorFormState>(
+    key: K,
+    value: ConnectorFormState[K]
+  ): void => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: '' }));
+    setTestResult(null);
+  };
+
+  // Build config object from form
+  const buildConfig = (): Record<string, unknown> => {
+    if (form.tipo === 'GOOGLE_SHEETS') {
+      let credentials: unknown;
+      try {
+        credentials = JSON.parse(form.credentialsJson);
+      } catch {
+        credentials = form.credentialsJson;
+      }
+      return {
+        spreadsheetId: form.spreadsheetId,
+        credentials,
+      };
+    }
+    if (form.tipo === 'REST_API') {
+      const headersObj: Record<string, string> = {};
+      for (const h of form.headers) {
+        if (h.key.trim()) headersObj[h.key.trim()] = h.value;
+      }
+      return {
+        baseUrl: form.baseUrl,
+        ...(Object.keys(headersObj).length > 0 && { headers: headersObj }),
+        authType: form.authType,
+        ...(form.authValue && { authValue: form.authValue }),
+      };
+    }
+    return {};
+  };
+
+  const validateStep2 = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!form.nombre.trim()) errs['nombre'] = 'El nombre es requerido';
+    if (form.tipo === 'GOOGLE_SHEETS') {
+      if (!form.spreadsheetId.trim()) errs['spreadsheetId'] = 'El ID de la hoja es requerido';
+      if (!form.credentialsJson.trim()) errs['credentialsJson'] = 'Las credenciales son requeridas';
+    }
+    if (form.tipo === 'REST_API') {
+      if (!form.baseUrl.trim()) errs['baseUrl'] = 'La URL base es requerida';
+      try {
+        new URL(form.baseUrl);
+      } catch {
+        errs['baseUrl'] = 'URL inválida';
+      }
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleTest = async (): Promise<void> => {
+    if (!validateStep2()) return;
+    setTestResult(null);
+    try {
+      const config = buildConfig();
+      if (editing) {
+        const result = await testExistingMutation.mutateAsync(editing.id);
+        setTestResult(result);
+      } else {
+        const result = await testNewMutation.mutateAsync({
+          nombre: form.nombre,
+          tipo: form.tipo as TipoConector,
+          config,
+        });
+        setTestResult(result);
+      }
+    } catch {
+      setTestResult({ success: false, message: 'Error al probar conexión' });
+    }
+  };
+
+  const handleSave = async (): Promise<void> => {
+    if (!validateStep2()) return;
+    const config = buildConfig();
+
+    try {
+      if (editing) {
+        const input: UpdateConnectorInput = {
+          nombre: form.nombre,
+          config,
+          frecuenciaSync: form.frecuenciaSync,
+        };
+        await updateMutation.mutateAsync({ id: editing.id, input });
+      } else {
+        const input: CreateConnectorInput = {
+          nombre: form.nombre,
+          tipo: form.tipo as TipoConector,
+          config,
+          frecuenciaSync: form.frecuenciaSync,
+        };
+        await createMutation.mutateAsync(input);
+      }
+      onClose();
+    } catch (err) {
+      setErrors({
+        save:
+          err instanceof Error
+            ? err.message
+            : 'Error al guardar conector',
+      });
+    }
+  };
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isTesting = testNewMutation.isPending || testExistingMutation.isPending;
+
+  const TIPO_OPTIONS: Array<{
+    tipo: TipoConector;
+    label: string;
+    desc: string;
+    icon: React.ReactNode;
+    disabled?: boolean;
+  }> = [
+    {
+      tipo: 'GOOGLE_SHEETS',
+      label: 'Google Sheets',
+      desc: 'Conecta con hojas de cálculo de Google',
+      icon: <Database size={32} className="text-emerald-500" />,
+    },
+    {
+      tipo: 'REST_API',
+      label: 'REST API',
+      desc: 'Conecta con cualquier API HTTP/REST',
+      icon: <Globe size={32} className="text-blue-500" />,
+    },
+    {
+      tipo: 'POSTGRESQL',
+      label: 'PostgreSQL',
+      desc: 'Conexión directa a base de datos',
+      icon: <Server size={32} className="text-purple-400" />,
+      disabled: true,
+    },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="presentation">
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? 'Editar fuente' : 'Nueva fuente'}
+      >
+        <div className="modal-header">
+          <div>
+            <h2 className="modal-title">
+              {editing ? 'Editar fuente' : 'Nueva fuente de datos'}
+            </h2>
+            {!editing && (
+              <p className="modal-step-indicator">
+                Paso {step} de 2
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn btn--sm btn--icon"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {/* Step 1: Select type */}
+          {step === 1 && (
+            <div>
+              <p className="modal-section-label">Selecciona el tipo de fuente</p>
+              <div className="tipo-grid">
+                {TIPO_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.tipo}
+                    type="button"
+                    className={[
+                      'tipo-card',
+                      form.tipo === opt.tipo ? 'tipo-card--selected' : '',
+                      opt.disabled ? 'tipo-card--disabled' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => {
+                      if (!opt.disabled) setField('tipo', opt.tipo);
+                    }}
+                    disabled={opt.disabled}
+                  >
+                    <div className="tipo-card-icon">{opt.icon}</div>
+                    <div className="tipo-card-label">{opt.label}</div>
+                    <div className="tipo-card-desc">{opt.desc}</div>
+                    {opt.disabled && (
+                      <span className="tipo-card-soon">Próximamente</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Configure */}
+          {step === 2 && (
+            <div className="form-stack">
+              {/* Nombre */}
+              <div className="form-group">
+                <label className="form-label" htmlFor="conn-nombre">
+                  Nombre
+                </label>
+                <input
+                  id="conn-nombre"
+                  type="text"
+                  className={`form-input ${errors['nombre'] ? 'form-input--error' : ''}`}
+                  value={form.nombre}
+                  onChange={(e) => setField('nombre', e.target.value)}
+                  placeholder="Ej: Reportes mensuales"
+                  autoFocus
+                />
+                {errors['nombre'] && (
+                  <span className="form-error">{errors['nombre']}</span>
+                )}
+              </div>
+
+              {/* Google Sheets fields */}
+              {form.tipo === 'GOOGLE_SHEETS' && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="conn-sheet-id">
+                      Spreadsheet ID
+                    </label>
+                    <input
+                      id="conn-sheet-id"
+                      type="text"
+                      className={`form-input ${errors['spreadsheetId'] ? 'form-input--error' : ''}`}
+                      value={form.spreadsheetId}
+                      onChange={(e) => setField('spreadsheetId', e.target.value)}
+                      placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                    />
+                    <p className="form-hint">
+                      El ID está en la URL de Google Sheets:{' '}
+                      <code>docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</code>
+                    </p>
+                    {errors['spreadsheetId'] && (
+                      <span className="form-error">{errors['spreadsheetId']}</span>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="conn-credentials">
+                      Credenciales (Service Account JSON)
+                    </label>
+                    <textarea
+                      id="conn-credentials"
+                      className={`form-input form-textarea ${errors['credentialsJson'] ? 'form-input--error' : ''}`}
+                      value={form.credentialsJson}
+                      onChange={(e) => setField('credentialsJson', e.target.value)}
+                      placeholder='{"type": "service_account", "project_id": "...", ...}'
+                      rows={6}
+                    />
+                    <p className="form-hint form-hint--warning">
+                      Las credenciales se almacenan encriptadas y nunca se muestran en logs.
+                    </p>
+                    {errors['credentialsJson'] && (
+                      <span className="form-error">{errors['credentialsJson']}</span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* REST API fields */}
+              {form.tipo === 'REST_API' && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="conn-base-url">
+                      URL Base
+                    </label>
+                    <input
+                      id="conn-base-url"
+                      type="url"
+                      className={`form-input ${errors['baseUrl'] ? 'form-input--error' : ''}`}
+                      value={form.baseUrl}
+                      onChange={(e) => setField('baseUrl', e.target.value)}
+                      placeholder="https://api.ejemplo.com/v1"
+                    />
+                    {errors['baseUrl'] && (
+                      <span className="form-error">{errors['baseUrl']}</span>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      Autenticación
+                    </label>
+                    <select
+                      className="form-input form-select"
+                      value={form.authType}
+                      onChange={(e) =>
+                        setField('authType', e.target.value as 'none' | 'bearer' | 'basic')
+                      }
+                    >
+                      <option value="none">Sin autenticación</option>
+                      <option value="bearer">Bearer token</option>
+                      <option value="basic">Basic auth</option>
+                    </select>
+                  </div>
+
+                  {form.authType !== 'none' && (
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-auth-value">
+                        {form.authType === 'bearer' ? 'Token' : 'Credenciales (base64)'}
+                      </label>
+                      <input
+                        id="conn-auth-value"
+                        type="password"
+                        className="form-input"
+                        value={form.authValue}
+                        onChange={(e) => setField('authValue', e.target.value)}
+                        placeholder={
+                          form.authType === 'bearer'
+                            ? 'eyJhbGciOi...'
+                            : 'dXNlcjpwYXNz'
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {/* Headers */}
+                  <div className="form-group">
+                    <div className="form-label-row">
+                      <label className="form-label">
+                        Headers adicionales
+                      </label>
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--ghost"
+                        onClick={() =>
+                          setField('headers', [
+                            ...form.headers,
+                            { key: '', value: '' },
+                          ])
+                        }
+                      >
+                        <Plus size={12} /> Agregar
+                      </button>
+                    </div>
+                    {form.headers.map((h, idx) => (
+                      <div key={idx} className="header-row">
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Header"
+                          value={h.key}
+                          onChange={(e) => {
+                            const updated = [...form.headers];
+                            updated[idx] = { ...h, key: e.target.value };
+                            setField('headers', updated);
+                          }}
+                        />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Valor"
+                          value={h.value}
+                          onChange={(e) => {
+                            const updated = [...form.headers];
+                            updated[idx] = { ...h, value: e.target.value };
+                            setField('headers', updated);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--icon btn--icon-danger"
+                          onClick={() => {
+                            const updated = form.headers.filter(
+                              (_, i) => i !== idx
+                            );
+                            setField('headers', updated);
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Frecuencia */}
+              <div className="form-group">
+                <label className="form-label" htmlFor="conn-frecuencia">
+                  Frecuencia de sincronización
+                </label>
+                <select
+                  id="conn-frecuencia"
+                  className="form-input form-select"
+                  value={form.frecuenciaSync}
+                  onChange={(e) =>
+                    setField('frecuenciaSync', e.target.value as FrecuenciaSync)
+                  }
+                >
+                  {Object.entries(FRECUENCIA_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Test connection button */}
+              <div className="form-group">
+                <button
+                  type="button"
+                  className="btn btn--outline btn--full"
+                  onClick={() => { void handleTest(); }}
+                  disabled={isTesting}
+                >
+                  {isTesting ? (
+                    <Loader2 size={15} className="spin" />
+                  ) : (
+                    <Activity size={15} />
+                  )}
+                  Probar conexión
+                </button>
+
+                {testResult && (
+                  <div
+                    className={`test-result-box ${
+                      testResult.success
+                        ? 'test-result-box--success'
+                        : 'test-result-box--error'
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle size={16} />
+                    ) : (
+                      <XCircle size={16} />
+                    )}
+                    <div>
+                      <p className="test-result-msg">{testResult.message}</p>
+                      {testResult.latencyMs !== undefined && testResult.success && (
+                        <p className="test-result-latency">
+                          Latencia: {testResult.latencyMs}ms
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Save error */}
+              {errors['save'] && (
+                <div className="test-result-box test-result-box--error">
+                  <AlertCircle size={16} />
+                  <p>{errors['save']}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="modal-footer">
+          {step === 1 ? (
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={onClose}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!form.tipo}
+                onClick={() => setStep(2)}
+              >
+                Continuar
+                <ChevronRight size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              {!editing && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setStep(1)}
+                >
+                  Atrás
+                </button>
+              )}
+              {editing && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={onClose}
+                >
+                  Cancelar
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => { void handleSave(); }}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 size={15} className="spin" />
+                ) : null}
+                {editing ? 'Guardar cambios' : 'Crear fuente'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DeleteConfirmModal ───────────────────────────────────────────────────────
+
+interface DeleteConfirmProps {
+  conector: Conector;
+  onClose: () => void;
+}
+
+function DeleteConfirmModal({
+  conector,
+  onClose,
+}: DeleteConfirmProps): React.ReactElement {
+  const deleteMutation = useDeleteConnector();
+
+  const handleDelete = async (): Promise<void> => {
+    await deleteMutation.mutateAsync(conector.id);
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="presentation">
+      <div
+        className="modal modal--sm"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="modal-body" style={{ textAlign: 'center', padding: '2rem' }}>
+          <div className="delete-icon-wrap">
+            <Trash2 size={32} className="text-red-500" />
+          </div>
+          <h2 className="modal-title" style={{ marginBottom: '0.5rem' }}>
+            ¿Eliminar fuente?
+          </h2>
+          <p className="modal-subtitle">
+            Se desactivará <strong>{conector.nombre}</strong>. El historial de
+            sincronizaciones se conservará.
+          </p>
+        </div>
+        <div className="modal-footer">
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn--danger"
+            onClick={() => { void handleDelete(); }}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? (
+              <Loader2 size={14} className="spin" />
+            ) : null}
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function Conectores(): React.ReactElement {
+  const { data: conectores, isLoading, error } = useConnectors();
+  const [showModal, setShowModal] = useState(false);
+  const [editingConector, setEditingConector] = useState<Conector | null>(null);
+  const [deletingConector, setDeletingConector] = useState<Conector | null>(null);
+  const [historyConector, setHistoryConector] = useState<Conector | null>(null);
+
+  const handleEdit = (c: Conector): void => {
+    setEditingConector(c);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = (): void => {
+    setShowModal(false);
+    setEditingConector(null);
+  };
+
+  return (
+    <div className="page">
+      {/* Page header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Fuentes de Datos</h1>
+          <p className="page-subtitle">
+            Gestiona las conexiones a tus fuentes de información
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={() => setShowModal(true)}
+        >
+          <Plus size={16} />
+          Nueva fuente
+        </button>
+      </div>
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="page-loading">
+          <Loader2 size={32} className="spin text-blue-500" />
+          <span>Cargando fuentes de datos...</span>
+        </div>
+      ) : error ? (
+        <div className="page-error">
+          <AlertCircle size={32} className="text-red-500" />
+          <p>Error al cargar fuentes de datos</p>
+          <p className="page-error-detail">
+            {error instanceof Error ? error.message : 'Error desconocido'}
+          </p>
+        </div>
+      ) : !conectores || conectores.length === 0 ? (
+        <div className="page-empty">
+          <Database size={48} className="text-slate-300" />
+          <h2 className="page-empty-title">Sin fuentes configuradas</h2>
+          <p className="page-empty-text">
+            Agrega tu primera fuente de datos para comenzar a sincronizar
+            información.
+          </p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => setShowModal(true)}
+          >
+            <Plus size={16} />
+            Agregar fuente
+          </button>
+        </div>
+      ) : (
+        <div className="connectors-grid">
+          {conectores.map((c) => (
+            <ConnectorCard
+              key={c.id}
+              conector={c}
+              onEdit={handleEdit}
+              onDelete={setDeletingConector}
+              onHistory={setHistoryConector}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modals */}
+      {showModal && (
+        <ConnectorModal
+          editing={editingConector}
+          onClose={handleCloseModal}
+        />
+      )}
+
+      {deletingConector && (
+        <DeleteConfirmModal
+          conector={deletingConector}
+          onClose={() => setDeletingConector(null)}
+        />
+      )}
+
+      {historyConector && (
+        <SyncHistoryDrawer
+          conector={historyConector}
+          onClose={() => setHistoryConector(null)}
+        />
+      )}
+    </div>
+  );
+}

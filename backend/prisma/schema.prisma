@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMIN
+  GERENCIA
+  DIRECCION
+  FACTURACION
+  COORDINADORA
+  ADMISIONES
+}
+
+enum TipoConector {
+  GOOGLE_SHEETS
+  REST_API
+  POSTGRESQL
+  CSV
+}
+
+enum EstadoSync {
+  EN_PROCESO
+  COMPLETADA
+  FALLIDA
+  PARCIAL
+}
+
+enum TipoWidget {
+  KPI_CARD
+  TABLA_ENTIDADES
+  TABLA_SERVICIOS
+  CHART_CUMPLIMIENTO_SEMANAL
+  CHART_CUMPLIMIENTO_MENSUAL
+  CHART_DIAS_SEMANA
+  CHART_MIX_PAGADOR
+  CHART_TENDENCIA
+  CHART_PROYECCION
+  AUDITORIA_ALERTAS
+}
+
+model Usuario {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  nombre        String
+  passwordHash  String        @map("password_hash")
+  rol           Rol
+  activo        Boolean       @default(true)
+  deletedAt     DateTime?     @map("deleted_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  dashboards    Dashboard[]
+
+  @@map("usuarios")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique @map("token_hash")
+  usuarioId  String    @map("usuario_id")
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id])
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+}
+
+model Conector {
+  id               String           @id @default(uuid())
+  nombre           String
+  tipo             TipoConector
+  config           Json
+  activo           Boolean          @default(true)
+  frecuenciaSync   String           @default("daily") @map("frecuencia_sync")
+  ultimaSync       DateTime?        @map("ultima_sync")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  sincronizaciones Sincronizacion[]
+
+  @@map("conectores")
+}
+
+model Sincronizacion {
+  id           String     @id @default(uuid())
+  conectorId   String     @map("conector_id")
+  conector     Conector   @relation(fields: [conectorId], references: [id])
+  estado       EstadoSync
+  filasLeidas  Int        @default(0) @map("filas_leidas")
+  filasNuevas  Int        @default(0) @map("filas_nuevas")
+  errores      Json?
+  iniciadaAt   DateTime   @default(now()) @map("iniciada_at")
+  finalizadaAt DateTime?  @map("finalizada_at")
+
+  @@map("sincronizaciones")
+}
+
+model Dashboard {
+  id          String    @id @default(uuid())
+  nombre      String
+  descripcion String?
+  usuarioId   String?   @map("usuario_id")
+  usuario     Usuario?  @relation(fields: [usuarioId], references: [id])
+  rolDefault  Rol?      @map("rol_default")
+  esPublico   Boolean   @default(false) @map("es_publico")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  widgets     Widget[]
+
+  @@map("dashboards")
+}
+
+model Widget {
+  id          String     @id @default(uuid())
+  dashboardId String     @map("dashboard_id")
+  dashboard   Dashboard  @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  tipo        TipoWidget
+  titulo      String?
+  config      Json       @default("{}")
+  posX        Int        @default(0) @map("pos_x")
+  posY        Int        @default(0) @map("pos_y")
+  ancho       Int        @default(3)
+  alto        Int        @default(2)
+  orden       Int        @default(0)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("widgets")
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  usuarioId   String?   @map("usuario_id")
+  usuario     Usuario?  @relation(fields: [usuarioId], references: [id])
+  accion      String
+  entidadTipo String?   @map("entidad_tipo")
+  entidadId   String?   @map("entidad_id")
+  detalle     Json?
+  ip          String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([usuarioId])
+  @@index([accion])
+  @@index([createdAt])
+  @@map("audit_log")
+}
