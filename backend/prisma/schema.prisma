@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -45,7 +45,7 @@ enum TipoWidget {
 
 model Usuario {
   id            String        @id @default(uuid())
-  email         String        @unique
+  email         String        @unique @db.VarChar(191)
   nombre        String
   passwordHash  String        @map("password_hash")
   rol           Rol
@@ -62,7 +62,7 @@ model Usuario {
 
 model RefreshToken {
   id         String    @id @default(uuid())
-  tokenHash  String    @unique @map("token_hash")
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
   usuarioId  String    @map("usuario_id")
   usuario    Usuario   @relation(fields: [usuarioId], references: [id])
   expiresAt  DateTime  @map("expires_at")
@@ -104,7 +104,7 @@ model Sincronizacion {
 model Dashboard {
   id          String    @id @default(uuid())
   nombre      String
-  descripcion String?
+  descripcion String?   @db.Text
   usuarioId   String?   @map("usuario_id")
   usuario     Usuario?  @relation(fields: [usuarioId], references: [id])
   rolDefault  Rol?      @map("rol_default")
@@ -164,7 +164,7 @@ enum TipoEntidad {
 model Entidad {
   id          String      @id @default(uuid())
   nombre      String
-  nombresRaw  String[]    @map("nombres_raw")
+  nombresRaw  Json        @map("nombres_raw")
   tipo        TipoEntidad
   esGrupoCaja Boolean     @default(false) @map("es_grupo_caja")
   activa      Boolean     @default(true)
@@ -179,7 +179,7 @@ model Entidad {
 model Profesional {
   id          String     @id @default(uuid())
   nombre      String
-  nombresRaw  String[]   @map("nombres_raw")
+  nombresRaw  Json       @map("nombres_raw")
   esNomina    Boolean    @default(false) @map("es_nomina")
   activo      Boolean    @default(true)
   createdAt   DateTime   @default(now()) @map("created_at")
@@ -190,7 +190,7 @@ model Profesional {
 
 model Servicio {
   id          String     @id @default(uuid())
-  nombre      String     @unique
+  nombre      String     @unique @db.VarChar(191)
   categoria   String?
   createdAt   DateTime   @default(now()) @map("created_at")
   atenciones  Atencion[]
@@ -200,15 +200,15 @@ model Servicio {
 
 model Atencion {
   id                  String       @id @default(uuid())
-  descripcionRaw      String       @map("descripcion_raw")
-  descripcionNorm     String       @map("descripcion_norm")
-  fechaDia            DateTime     @map("fecha_dia") @db.Date
+  descripcionRaw      String       @map("descripcion_raw") @db.Text
+  descripcionNorm     String       @map("descripcion_norm") @db.Text
+  fechaDia            DateTime     @map("fecha_dia")
   mesIdx              Int          @map("mes_idx")
   anio                Int
   valorBruto          Decimal      @map("valor_bruto") @db.Decimal(12, 2)
   numeroAutorizacion  String?      @map("numero_autorizacion")
   esTelemetria        Boolean      @default(false) @map("es_telemetria")
-  hashFila            String       @unique @map("hash_fila")
+  hashFila            String       @unique @map("hash_fila") @db.VarChar(64)
   entidadId           String?      @map("entidad_id")
   entidad             Entidad?     @relation(fields: [entidadId], references: [id])
   profesionalId       String?      @map("profesional_id")
@@ -232,7 +232,7 @@ model PresupuestoMensual {
   anio      Int
   mes       Int
   monto     Decimal  @db.Decimal(14, 2)
-  notas     String?
+  notas     String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([anio, mes])

@@ -3,6 +3,9 @@ import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyJwt from '@fastify/jwt';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middlewares/error.middleware.js';
@@ -72,19 +75,34 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ─── Global error handler ─────────────────────────────────────────────────
   fastify.setErrorHandler(errorHandler);
 
-  // ─── 404 handler ─────────────────────────────────────────────────────────
-  fastify.setNotFoundHandler(async (_request, reply) => {
-    await reply.status(404).send({
-      error: 'Not Found',
-      message: 'The requested resource does not exist',
-      statusCode: 404,
-    });
-  });
-
   // ─── Routes ───────────────────────────────────────────────────────────────
   await registerAuthRoutes(fastify);
   await registerConnectorRoutes(fastify);
   await registerReportesRoutes(fastify);
+
+  // ─── Static frontend (production) / JSON 404 (development) ───────────────
+  if (env.NODE_ENV === 'production') {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const frontendDist = path.join(__dirname, '../../frontend/dist');
+
+    await fastify.register(fastifyStatic, {
+      root: frontendDist,
+      prefix: '/',
+    });
+
+    // SPA fallback — serve index.html for all non-API routes
+    fastify.setNotFoundHandler((_req, reply) => {
+      void reply.sendFile('index.html');
+    });
+  } else {
+    fastify.setNotFoundHandler(async (_request, reply) => {
+      await reply.status(404).send({
+        error: 'Not Found',
+        message: 'The requested resource does not exist',
+        statusCode: 404,
+      });
+    });
+  }
 
   return fastify;
 }

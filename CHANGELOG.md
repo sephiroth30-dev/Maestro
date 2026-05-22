@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.1] - 2026-05-22
+
+### Changed
+- Database: migrated from PostgreSQL to MySQL for Hostinger compatibility
+- Redis: replaced ioredis with in-memory cache (Redis can be added later)
+- Frontend: served as static files from backend in production (single Hostinger site)
+- Added @fastify/static for serving React SPA
+- Added mysql2 driver for Prisma
+- Frontend API client uses relative /api path in production
+
+### Added
+- docs/DEPLOY.md with Hostinger deployment guide
+- Root package.json with monorepo convenience scripts
+- tsconfig.build.json for production builds
+
+---
+
 ## [0.3.0] - 2026-05-22
 
 ### Added
