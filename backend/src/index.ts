@@ -5,21 +5,29 @@ import { buildApp } from './app.js';
 import { initCron, stopCron } from './services/cron.service.js';
 import { disconnectRedis } from './config/redis.js';
 
+// Earliest possible log — antes de cualquier inicialización
+console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
+
 async function start(): Promise<void> {
   const fastify = await buildApp();
 
   try {
+    console.log('[BOOT] Connecting to database...');
     await connectDatabase();
+    console.log('[BOOT] Database connected OK');
   } catch (error) {
+    console.error('[BOOT] Database connection FAILED:', error);
     logger.error('Failed to connect to database', { error });
     process.exit(1);
   }
 
   try {
+    console.log(`[BOOT] Starting HTTP server on 0.0.0.0:${env.PORT}...`);
     await fastify.listen({
       port: env.PORT,
       host: '0.0.0.0',
     });
+    console.log(`[BOOT] HTTP server listening on port ${env.PORT}`);
     logger.info(`Server running on port ${env.PORT}`, {
       environment: env.NODE_ENV,
       port: env.PORT,
