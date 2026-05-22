@@ -2,6 +2,8 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { connectDatabase, disconnectDatabase } from './config/prisma.js';
 import { buildApp } from './app.js';
+import { initCron, stopCron } from './services/cron.service.js';
+import { disconnectRedis } from './config/redis.js';
 
 async function start(): Promise<void> {
   const fastify = await buildApp();
@@ -27,9 +29,14 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
+  // ─── Cron jobs ────────────────────────────────────────────────────────────
+  await initCron();
+
   // ─── Graceful shutdown ────────────────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received — shutting down gracefully`);
+
+    stopCron();
 
     try {
       await fastify.close();
@@ -42,6 +49,12 @@ async function start(): Promise<void> {
       await disconnectDatabase();
     } catch (error) {
       logger.error('Error disconnecting from database', { error });
+    }
+
+    try {
+      await disconnectRedis();
+    } catch (error) {
+      logger.error('Error disconnecting from Redis', { error });
     }
 
     logger.info('Shutdown complete');

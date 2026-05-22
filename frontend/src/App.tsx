@@ -7,8 +7,11 @@ import {
 } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore.js';
+import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
+import { Conectores } from './pages/Admin/index.js';
+import Sidebar from './components/layout/Sidebar.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
 
@@ -36,6 +39,33 @@ function ProtectedRoute({
   }
 
   return children;
+}
+
+// ─── Admin Route (ADMIN role only) ───────────────────────────────────────────
+
+function AdminRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.rol !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+// ─── Authenticated layout (with sidebar) ─────────────────────────────────────
+
+function AppLayout({ children }: { children: ReactElement }): ReactElement {
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <div className="app-content">{children}</div>
+    </div>
+  );
 }
 
 // ─── Public Route (redirect if already authenticated) ────────────────────────
@@ -75,8 +105,22 @@ export default function App(): ReactElement {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <AppLayout>
+                  <Dashboard />
+                </AppLayout>
               </ProtectedRoute>
+            }
+          />
+
+          {/* Admin routes */}
+          <Route
+            path="/admin/conectores"
+            element={
+              <AdminRoute>
+                <AppLayout>
+                  <Conectores />
+                </AppLayout>
+              </AdminRoute>
             }
           />
 

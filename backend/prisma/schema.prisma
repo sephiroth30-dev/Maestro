@@ -78,6 +78,7 @@ model Conector {
   tipo             TipoConector
   config           Json
   activo           Boolean          @default(true)
+  frecuenciaSync   String           @default("daily") @map("frecuencia_sync")
   ultimaSync       DateTime?        @map("ultima_sync")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")

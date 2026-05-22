@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.0] - 2026-05-22
+
+### Added
+- DataConnector abstraction layer (BaseConnector interface)
+- Google Sheets connector (googleapis)
+- REST API connector (native fetch, Node 20)
+- ConnectorService with Zod config validation per type
+- SyncService with Redis caching (configurable TTL)
+- CronService with schedules: 30min, 1h, 4h, daily 8pm, manual
+- Full CRUD API for connectors (/api/connectors)
+- Manual sync trigger endpoint
+- Sync history log
+- Admin UI: Fuentes de Datos page with connector cards
+- Add/Edit connector modal with step-by-step form
+- Real-time connection test with latency display
+- Sync history drawer
+- Sidebar navigation with role-based menu items
+- Responsive layout with collapsible sidebar
+- `frecuenciaSync` field added to Conector model
+- Redis client (ioredis) with graceful fallback
+- `initCron()` / `stopCron()` called in server lifecycle
+
+---
+
 ## [0.1.0] - 2026-05-22
 
 ### Added
