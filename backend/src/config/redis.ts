@@ -1,41 +1,33 @@
-import Redis from 'ioredis';
-import { logger } from './logger.js';
+// Redis disabled for initial deploy — using in-memory cache
 
-let redisClient: Redis | null = null;
+const memCache = new Map<string, { value: string; expiresAt: number }>();
 
-export function getRedisClient(): Redis {
-  if (redisClient) return redisClient;
+export const redis = {
+  get: async (key: string): Promise<string | null> => {
+    const entry = memCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) { memCache.delete(key); return null; }
+    return entry.value;
+  },
+  set: async (key: string, value: string, _mode?: string, ttl?: number): Promise<void> => {
+    const expiresAt = ttl ? Date.now() + ttl * 1000 : Date.now() + 3600_000;
+    memCache.set(key, { value, expiresAt });
+  },
+  setex: async (key: string, ttl: number, value: string): Promise<void> => {
+    memCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+  },
+  del: async (key: string): Promise<void> => { memCache.delete(key); },
+  disconnect: async (): Promise<void> => { memCache.clear(); },
+};
 
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-
-  redisClient = new Redis(redisUrl, {
-    maxRetriesPerRequest: 3,
-    lazyConnect: true,
-    enableOfflineQueue: false,
-    retryStrategy: (times: number) => {
-      if (times >= 3) {
-        logger.warn('Redis connection failed after 3 retries — cache will be disabled');
-        return null;
-      }
-      return Math.min(times * 200, 1000);
-    },
-  });
-
-  redisClient.on('connect', () => {
-    logger.info('Redis connected');
-  });
-
-  redisClient.on('error', (err: Error) => {
-    logger.warn('Redis error', { message: err.message });
-  });
-
-  return redisClient;
+export async function connectRedis(): Promise<void> {
+  // no-op
 }
 
 export async function disconnectRedis(): Promise<void> {
-  if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
-    logger.info('Redis disconnected');
-  }
+  memCache.clear();
+}
+
+export function getRedisClient(): typeof redis {
+  return redis;
 }

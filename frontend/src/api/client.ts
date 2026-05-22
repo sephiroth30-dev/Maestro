@@ -23,7 +23,9 @@ export function setAuthStore(store: AuthStoreSnapshot): void {
   _authStore = store;
 }
 
-const BASE_URL = import.meta.env['VITE_API_BASE_URL'] as string | undefined ?? '';
+const BASE_URL = import.meta.env.PROD
+  ? '/api'  // same domain in production
+  : (import.meta.env['VITE_API_URL'] as string | undefined ?? 'http://localhost:3001') + '/api';
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -128,7 +130,7 @@ export async function rawLogin(
   password: string
 ): Promise<import('../types/index.js').LoginResponse> {
   const response = await apiClient.post<import('../types/index.js').LoginResponse>(
-    '/api/auth/login',
+    '/auth/login',
     { email, password }
   );
   return response.data;
@@ -137,17 +139,17 @@ export async function rawLogin(
 export async function rawRefresh(
   refreshToken: string
 ): Promise<RefreshResponse> {
-  const response = await apiClient.post<RefreshResponse>('/api/auth/refresh', {
+  const response = await apiClient.post<RefreshResponse>('/auth/refresh', {
     refreshToken,
   });
   return response.data;
 }
 
 export async function rawLogout(refreshToken: string): Promise<void> {
-  await apiClient.post('/api/auth/logout', { refreshToken });
+  await apiClient.post('/auth/logout', { refreshToken });
 }
 
 export async function rawGetMe(): Promise<import('../types/index.js').User> {
-  const response = await apiClient.get<import('../types/index.js').User>('/api/auth/me');
+  const response = await apiClient.get<import('../types/index.js').User>('/auth/me');
   return response.data;
 }

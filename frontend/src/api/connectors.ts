@@ -85,31 +85,31 @@ export const connectorKeys = {
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 async function fetchConnectors(): Promise<Conector[]> {
-  const res = await apiClient.get<Conector[]>('/api/connectors');
+  const res = await apiClient.get<Conector[]>('/connectors');
   return res.data;
 }
 
 async function fetchConnector(id: string): Promise<Conector> {
-  const res = await apiClient.get<Conector>(`/api/connectors/${id}`);
+  const res = await apiClient.get<Conector>(`/connectors/${id}`);
   return res.data;
 }
 
 async function fetchConnectorSheets(id: string): Promise<string[]> {
   const res = await apiClient.get<{ sheets: string[] }>(
-    `/api/connectors/${id}/sheets`
+    `/connectors/${id}/sheets`
   );
   return res.data.sheets;
 }
 
 async function fetchSyncHistory(id: string): Promise<Sincronizacion[]> {
   const res = await apiClient.get<Sincronizacion[]>(
-    `/api/connectors/${id}/sync/history`
+    `/connectors/${id}/sync/history`
   );
   return res.data;
 }
 
 async function createConnector(input: CreateConnectorInput): Promise<Conector> {
-  const res = await apiClient.post<Conector>('/api/connectors', input);
+  const res = await apiClient.post<Conector>('/connectors', input);
   return res.data;
 }
 
@@ -117,17 +117,17 @@ async function updateConnector(
   id: string,
   input: UpdateConnectorInput
 ): Promise<Conector> {
-  const res = await apiClient.put<Conector>(`/api/connectors/${id}`, input);
+  const res = await apiClient.put<Conector>(`/connectors/${id}`, input);
   return res.data;
 }
 
 async function deleteConnector(id: string): Promise<void> {
-  await apiClient.delete(`/api/connectors/${id}`);
+  await apiClient.delete(`/connectors/${id}`);
 }
 
 async function testExistingConnector(id: string): Promise<ConnectionTestResult> {
   const res = await apiClient.post<ConnectionTestResult>(
-    `/api/connectors/${id}/test`
+    `/connectors/${id}/test`
   );
   return res.data;
 }
@@ -136,14 +136,14 @@ async function testNewConnector(
   input: TestConnectorInput
 ): Promise<ConnectionTestResult> {
   const res = await apiClient.post<ConnectionTestResult>(
-    '/api/connectors/test',
+    '/connectors/test',
     input
   );
   return res.data;
 }
 
 async function triggerSync(id: string): Promise<SyncResult> {
-  const res = await apiClient.post<SyncResult>(`/api/connectors/${id}/sync`);
+  const res = await apiClient.post<SyncResult>(`/connectors/${id}/sync`);
   return res.data;
 }
 

@@ -89,7 +89,7 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string) {
   return useQuery<KpisResult>({
     queryKey: ['kpis', mesIdx, anio, entidadId],
     queryFn: async () => {
-      const response = await apiClient.get<KpisResult>(`/api/reportes/kpis?${params}`);
+      const response = await apiClient.get<KpisResult>(`/reportes/kpis?${params}`);
       return response.data;
     },
     staleTime: STALE_TIME,
@@ -102,7 +102,7 @@ export function useEntidades(mesIdx: number, anio: number) {
     queryKey: ['entidades', mesIdx, anio],
     queryFn: async () => {
       const response = await apiClient.get<EntidadesResult>(
-        `/api/reportes/entidades?mes_idx=${mesIdx}&anio=${anio}`
+        `/reportes/entidades?mes_idx=${mesIdx}&anio=${anio}`
       );
       return response.data;
     },
@@ -116,7 +116,7 @@ export function useCumplimientoSemanal(mesIdx: number, anio: number) {
     queryKey: ['cumplimiento-semanal', mesIdx, anio],
     queryFn: async () => {
       const response = await apiClient.get<CumplimientoSemanalResult>(
-        `/api/reportes/cumplimiento/semanal?mes_idx=${mesIdx}&anio=${anio}`
+        `/reportes/cumplimiento/semanal?mes_idx=${mesIdx}&anio=${anio}`
       );
       return response.data;
     },
@@ -130,7 +130,7 @@ export function useDiasSemana(mesIdx: number, anio: number) {
     queryKey: ['dias-semana', mesIdx, anio],
     queryFn: async () => {
       const response = await apiClient.get<DiaSemanaRow[]>(
-        `/api/reportes/dias-semana?mes_idx=${mesIdx}&anio=${anio}`
+        `/reportes/dias-semana?mes_idx=${mesIdx}&anio=${anio}`
       );
       return response.data;
     },
@@ -144,7 +144,7 @@ export function useTendencia(meses = 6) {
     queryKey: ['tendencia', meses],
     queryFn: async () => {
       const response = await apiClient.get<TendenciaRow[]>(
-        `/api/reportes/tendencia?meses=${meses}`
+        `/reportes/tendencia?meses=${meses}`
       );
       return response.data;
     },
@@ -157,7 +157,7 @@ export function usePresupuestos() {
   return useQuery<PresupuestoRow[]>({
     queryKey: ['presupuestos'],
     queryFn: async () => {
-      const response = await apiClient.get<PresupuestoRow[]>('/api/reportes/presupuestos');
+      const response = await apiClient.get<PresupuestoRow[]>('/reportes/presupuestos');
       return response.data;
     },
     staleTime: STALE_TIME,
