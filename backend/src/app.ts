@@ -5,7 +5,6 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyJwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middlewares/error.middleware.js';
@@ -82,8 +81,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Static frontend (production) / JSON 404 (development) ───────────────
   if (env.NODE_ENV === 'production') {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const frontendDist = path.join(__dirname, '../../frontend/dist');
+    const frontendDist = path.resolve(process.cwd(), '../frontend/dist');
 
     await fastify.register(fastifyStatic, {
       root: frontendDist,
