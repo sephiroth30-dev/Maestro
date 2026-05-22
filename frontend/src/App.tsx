@@ -10,6 +10,7 @@ import { useAuthStore } from './stores/authStore.js';
 import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
+import Reportes from './pages/Reportes.js';
 import { Conectores } from './pages/Admin/index.js';
 import Sidebar from './components/layout/Sidebar.js';
 
@@ -51,6 +52,24 @@ function AdminRoute({ children }: { children: ReactElement }): ReactElement {
   }
 
   if (user?.rol !== 'ADMIN') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+// ─── Reportes Route (all roles except ADMISIONES) ────────────────────────────
+
+const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA'] as const;
+
+function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user || !(REPORTES_ROLES as readonly string[]).includes(user.rol)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -109,6 +128,18 @@ export default function App(): ReactElement {
                   <Dashboard />
                 </AppLayout>
               </ProtectedRoute>
+            }
+          />
+
+          {/* Reportes route */}
+          <Route
+            path="/reportes"
+            element={
+              <ReportesRoute>
+                <AppLayout>
+                  <Reportes />
+                </AppLayout>
+              </ReportesRoute>
             }
           />
 

@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.0] - 2026-05-22
+
+### Added
+- Core data models: Atencion, Entidad, Profesional, Servicio, PresupuestoMensual
+- NormalizacionService: exact replica of Apps Script V10.2 algorithm
+- ReportesService: all Tier 1 & Tier 2 KPIs with Redis caching
+- API endpoints: /api/reportes/kpis, /entidades, /cumplimiento/semanal, /dias-semana, /tendencia, /presupuestos
+- Seed: entidades, profesionales, presupuestos 2026, 30 sample atenciones for mayo 2026
+- Frontend: KpiCard, ChartCumplimiento, ChartMixPagador, ChartDiasSemana, TablaEntidades widgets
+- Reportes page with month selector, live KPIs and all charts
+- Dashboard updated with live KPI preview
+- Auto-refresh every 10 minutes
+- recharts@2 and @tanstack/react-table@8 added to frontend dependencies
+- API documentation: docs/API-REPORTES.md
+
+---
+
 ## [0.2.0] - 2026-05-22
 
 ### Added
