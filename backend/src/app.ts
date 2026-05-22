@@ -8,6 +8,7 @@ import { logger } from './config/logger.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { registerAuthRoutes } from './routes/auth.routes.js';
 import { registerConnectorRoutes } from './routes/connectors.routes.js';
+import { registerReportesRoutes } from './routes/reportes.routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -83,6 +84,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ─── Routes ───────────────────────────────────────────────────────────────
   await registerAuthRoutes(fastify);
   await registerConnectorRoutes(fastify);
+  await registerReportesRoutes(fastify);
 
   return fastify;
 }

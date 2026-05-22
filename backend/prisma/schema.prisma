@@ -150,3 +150,91 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_log")
 }
+
+// ─── Stage 3: Core Data Models ────────────────────────────────────────────────
+
+enum TipoEntidad {
+  EPS
+  CONVENIO
+  PARTICULAR
+  ARL
+  OTRO
+}
+
+model Entidad {
+  id          String      @id @default(uuid())
+  nombre      String
+  nombresRaw  String[]    @map("nombres_raw")
+  tipo        TipoEntidad
+  esGrupoCaja Boolean     @default(false) @map("es_grupo_caja")
+  activa      Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  atenciones  Atencion[]
+
+  @@index([tipo])
+  @@index([nombre])
+  @@map("entidades")
+}
+
+model Profesional {
+  id          String     @id @default(uuid())
+  nombre      String
+  nombresRaw  String[]   @map("nombres_raw")
+  esNomina    Boolean    @default(false) @map("es_nomina")
+  activo      Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  atenciones  Atencion[]
+
+  @@map("profesionales")
+}
+
+model Servicio {
+  id          String     @id @default(uuid())
+  nombre      String     @unique
+  categoria   String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  atenciones  Atencion[]
+
+  @@map("servicios")
+}
+
+model Atencion {
+  id                  String       @id @default(uuid())
+  descripcionRaw      String       @map("descripcion_raw")
+  descripcionNorm     String       @map("descripcion_norm")
+  fechaDia            DateTime     @map("fecha_dia") @db.Date
+  mesIdx              Int          @map("mes_idx")
+  anio                Int
+  valorBruto          Decimal      @map("valor_bruto") @db.Decimal(12, 2)
+  numeroAutorizacion  String?      @map("numero_autorizacion")
+  esTelemetria        Boolean      @default(false) @map("es_telemetria")
+  hashFila            String       @unique @map("hash_fila")
+  entidadId           String?      @map("entidad_id")
+  entidad             Entidad?     @relation(fields: [entidadId], references: [id])
+  profesionalId       String?      @map("profesional_id")
+  profesional         Profesional? @relation(fields: [profesionalId], references: [id])
+  servicioId          String?      @map("servicio_id")
+  servicio            Servicio?    @relation(fields: [servicioId], references: [id])
+  conectorId          String?      @map("conector_id")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  @@index([fechaDia])
+  @@index([mesIdx, anio])
+  @@index([entidadId])
+  @@index([profesionalId])
+  @@index([hashFila])
+  @@index([numeroAutorizacion])
+  @@map("atenciones")
+}
+
+model PresupuestoMensual {
+  id        String   @id @default(uuid())
+  anio      Int
+  mes       Int
+  monto     Decimal  @db.Decimal(14, 2)
+  notas     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([anio, mes])
+  @@map("presupuestos_mensuales")
+}
