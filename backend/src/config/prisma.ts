@@ -1,44 +1,39 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger.js';
 
-const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: PrismaClient;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function makeClient(): PrismaClient {
+  return new PrismaClient({
     log: [
       { emit: 'stdout', level: 'error' },
       { emit: 'stdout', level: 'warn' },
     ],
   });
-
-if (process.env['NODE_ENV'] !== 'production') {
-  globalForPrisma.prisma = prisma;
 }
 
-export async function connectDatabase(retries = 5, delayMs = 2000): Promise<void> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await prisma.$connect();
-      logger.info('Database connected successfully');
-      return;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (attempt < retries) {
-        logger.warn(`DB connect attempt ${attempt}/${retries} failed — retrying in ${delayMs}ms`, { message });
-        await new Promise((r) => setTimeout(r, delayMs));
-        delayMs *= 2;
-      } else {
-        logger.error('Failed to connect to database after all retries', { error });
-        throw error;
-      }
-    }
-  }
+// Mutable export — TypeScript CJS output updates exports.prisma on every reassignment,
+// so all importers see the renewed instance after a panic recovery.
+export let prisma: PrismaClient = makeClient();
+
+// Called after a PrismaClientRustPanicError to get a fresh Tokio runtime.
+export function renewPrismaClient(): void {
+  const old = prisma;
+  prisma = makeClient();
+  void old.$disconnect().catch(() => undefined);
+  logger.info('PrismaClient renewed');
+}
+
+// Lightweight ping — uses lazy connection instead of explicit $connect().
+// Avoids the race condition where two processes call $connect() simultaneously.
+export async function connectDatabase(): Promise<void> {
+  await prisma.$queryRaw`SELECT 1`;
+  logger.info('Database ping OK');
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  await prisma.$disconnect();
-  logger.info('Database disconnected');
+  try {
+    await prisma.$disconnect();
+    logger.info('Database disconnected');
+  } catch {
+    // Ignore disconnect errors during shutdown
+  }
 }
