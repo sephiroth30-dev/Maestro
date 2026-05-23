@@ -18,13 +18,23 @@ if (process.env['NODE_ENV'] !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-export async function connectDatabase(): Promise<void> {
-  try {
-    await prisma.$connect();
-    logger.info('Database connected successfully');
-  } catch (error) {
-    logger.error('Failed to connect to database', { error });
-    throw error;
+export async function connectDatabase(retries = 5, delayMs = 2000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await prisma.$connect();
+      logger.info('Database connected successfully');
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt < retries) {
+        logger.warn(`DB connect attempt ${attempt}/${retries} failed — retrying in ${delayMs}ms`, { message });
+        await new Promise((r) => setTimeout(r, delayMs));
+        delayMs *= 2;
+      } else {
+        logger.error('Failed to connect to database after all retries', { error });
+        throw error;
+      }
+    }
   }
 }
 
