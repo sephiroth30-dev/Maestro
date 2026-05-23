@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
   Database,
@@ -18,6 +19,7 @@ import {
   History,
 } from 'lucide-react';
 import {
+  connectorKeys,
   useConnectors,
   useCreateConnector,
   useUpdateConnector,
@@ -107,9 +109,32 @@ function ConnectorCard({
   onDelete,
   onHistory,
 }: ConnectorCardProps): React.ReactElement {
+  const qc = useQueryClient();
   const testMutation = useTestConnector();
   const syncMutation = useTriggerSync();
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [syncPolling, setSyncPolling] = useState(false);
+
+  // Only fetch history while polling; invalidate every 3s to detect completion
+  const { data: polledHistory } = useSyncHistory(syncPolling ? conector.id : '');
+
+  useEffect(() => {
+    if (!syncPolling) return;
+    const interval = setInterval(() => {
+      void qc.invalidateQueries({ queryKey: connectorKeys.history(conector.id) });
+      void qc.invalidateQueries({ queryKey: connectorKeys.lists() });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [syncPolling, conector.id, qc]);
+
+  // Stop polling when the latest record is in a terminal state
+  useEffect(() => {
+    if (!syncPolling || !polledHistory?.length) return;
+    const latest = polledHistory[0];
+    if (latest?.estado !== 'EN_PROCESO') {
+      setSyncPolling(false);
+    }
+  }, [polledHistory, syncPolling]);
 
   const handleTest = async (): Promise<void> => {
     setTestResult(null);
@@ -124,10 +149,14 @@ function ConnectorCard({
   const handleSync = async (): Promise<void> => {
     try {
       await syncMutation.mutateAsync(conector.id);
+      setSyncPolling(true);
     } catch {
       // error handled by mutation state
     }
   };
+
+  const latestSync = polledHistory?.[0];
+  const syncDone = !syncPolling && syncMutation.isSuccess;
 
   return (
     <div className={`connector-card ${!conector.activo ? 'connector-card--inactive' : ''}`}>
@@ -194,31 +223,47 @@ function ConnectorCard({
         </div>
       )}
 
-      {/* Sync error */}
+      {/* Sync status */}
       {syncMutation.isError && (
         <div className="connector-test-result connector-test-result--error">
           <XCircle size={14} />
-          <span>Error al sincronizar</span>
+          <span>Error al iniciar sincronización</span>
         </div>
       )}
-      {syncMutation.isSuccess && syncMutation.data && (
+      {syncPolling && (
+        <div className="connector-test-result connector-test-result--info">
+          <Loader2 size={14} className="spin" />
+          <span>Sincronizando en segundo plano...</span>
+        </div>
+      )}
+      {syncDone && latestSync && (
         <div
           className={`connector-test-result ${
-            syncMutation.data.success
+            latestSync.estado === 'COMPLETADA'
               ? 'connector-test-result--success'
-              : 'connector-test-result--error'
+              : latestSync.estado === 'FALLIDA'
+              ? 'connector-test-result--error'
+              : 'connector-test-result--warning'
           }`}
         >
-          {syncMutation.data.success ? (
+          {latestSync.estado === 'COMPLETADA' ? (
             <CheckCircle size={14} />
           ) : (
             <XCircle size={14} />
           )}
           <span>
-            {syncMutation.data.success
-              ? `Sincronizado: ${syncMutation.data.rowsRead} filas`
-              : syncMutation.data.error ?? 'Error de sincronización'}
+            {latestSync.estado === 'COMPLETADA'
+              ? `Sincronizado: ${latestSync.filasNuevas} filas nuevas (${latestSync.filasLeidas} leídas)`
+              : latestSync.estado === 'FALLIDA'
+              ? 'Error en la sincronización — ver Historial'
+              : `Parcial: ${latestSync.filasNuevas} filas nuevas`}
           </span>
+        </div>
+      )}
+      {syncDone && !latestSync && (
+        <div className="connector-test-result connector-test-result--info">
+          <CheckCircle size={14} />
+          <span>Sincronización iniciada — revisa el Historial</span>
         </div>
       )}
 
@@ -227,15 +272,15 @@ function ConnectorCard({
           type="button"
           className="btn btn--sm btn--primary"
           onClick={() => { void handleSync(); }}
-          disabled={syncMutation.isPending || !conector.activo}
+          disabled={syncMutation.isPending || syncPolling || !conector.activo}
           title="Sincronizar ahora"
         >
-          {syncMutation.isPending ? (
+          {(syncMutation.isPending || syncPolling) ? (
             <Loader2 size={13} className="spin" />
           ) : (
             <RefreshCw size={13} />
           )}
-          Sincronizar
+          {syncPolling ? 'Sincronizando...' : 'Sincronizar'}
         </button>
 
         <button

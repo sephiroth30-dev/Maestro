@@ -23,6 +23,7 @@ export const SheetsConfigSchema = z
   .object({
     spreadsheetId: z.string().min(1).optional(),
     folderId: z.string().min(1).optional(),
+    fileNamePattern: z.string().optional(),
     credentials: z.union([
       GoogleServiceAccountSchema,
       z.string().min(1, 'credentials debe ser un objeto JSON o ruta al archivo'),
@@ -182,6 +183,7 @@ export class ConnectorService {
       return new SheetsConnector({
         spreadsheetId: config['spreadsheetId'] as string | undefined,
         folderId: config['folderId'] as string | undefined,
+        fileNamePattern: config['fileNamePattern'] as string | undefined,
         credentials: config['credentials'] as Record<string, unknown> | string,
         name: conector.nombre,
       });

@@ -52,6 +52,12 @@ export interface SyncResult {
   error?: string;
 }
 
+// Async sync: the endpoint returns 202 immediately while sync runs in background
+export interface SyncStartedResult {
+  conectorId: string;
+  status: 'EN_PROCESO';
+}
+
 export interface CreateConnectorInput {
   nombre: string;
   tipo: TipoConector;
@@ -142,8 +148,8 @@ async function testNewConnector(
   return res.data;
 }
 
-async function triggerSync(id: string): Promise<SyncResult> {
-  const res = await apiClient.post<SyncResult>(`/connectors/${id}/sync`);
+async function triggerSync(id: string): Promise<SyncStartedResult> {
+  const res = await apiClient.post<SyncStartedResult>(`/connectors/${id}/sync`);
   return res.data;
 }
 
@@ -241,11 +247,12 @@ export function useTestNewConnector(): UseMutationResult<
   });
 }
 
-export function useTriggerSync(): UseMutationResult<SyncResult, Error, string> {
+export function useTriggerSync(): UseMutationResult<SyncStartedResult, Error, string> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: triggerSync,
     onSuccess: (_data, id) => {
+      // Invalidate history so the card can poll it for completion
       void qc.invalidateQueries({ queryKey: connectorKeys.history(id) });
       void qc.invalidateQueries({ queryKey: connectorKeys.lists() });
     },

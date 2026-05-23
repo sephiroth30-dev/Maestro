@@ -4,6 +4,7 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { connectorService, FrecuenciaSyncSchema } from '../services/connector.service.js';
 import { syncService } from '../services/sync.service.js';
+import { logger } from '../config/logger.js';
 import type { TipoConector } from '@prisma/client';
 
 // ─── Request schemas ──────────────────────────────────────────────────────────
@@ -162,15 +163,19 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
-  // POST /api/connectors/:id/sync  (manual trigger)
+  // POST /api/connectors/:id/sync  (manual trigger — async, returns 202 immediately)
   fastify.post(
     '/connectors/:id/sync',
     { preHandler: [...adminOrBilling] },
     async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const { id } = req.params as { id: string };
-      const result = await syncService.runSync(id);
-      const statusCode = result.success ? 200 : 500;
-      await reply.status(statusCode).send(result);
+      // Fire-and-forget: sync can take 60-120s; Hostinger proxy times out at ~30s.
+      // Return 202 immediately and let the client poll the history endpoint.
+      void syncService.runSync(id).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('Background sync failed', { conectorId: id, error: msg });
+      });
+      await reply.status(202).send({ conectorId: id, status: 'EN_PROCESO' });
     }
   );
 
