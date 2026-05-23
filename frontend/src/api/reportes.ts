@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,15 +79,19 @@ const REFETCH_INTERVAL = 10 * 60 * 1000; // 10 min
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-export function useKpis(mesIdx: number, anio: number, entidadId?: string) {
-  const params = new URLSearchParams({
-    mes_idx: String(mesIdx),
-    anio: String(anio),
-  });
+export function useKpis(mesIdx: number, anio: number, entidadId?: string, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
   if (entidadId) params.set('entidad_id', entidadId);
 
   return useQuery<KpisResult>({
-    queryKey: ['kpis', mesIdx, anio, entidadId],
+    queryKey: ['kpis', mesIdx, anio, entidadId, startDate, endDate],
     queryFn: async () => {
       const response = await apiClient.get<KpisResult>(`/reportes/kpis?${params}`);
       return response.data;
@@ -97,13 +101,20 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string) {
   });
 }
 
-export function useEntidades(mesIdx: number, anio: number) {
+export function useEntidades(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
+
   return useQuery<EntidadesResult>({
-    queryKey: ['entidades', mesIdx, anio],
+    queryKey: ['entidades', mesIdx, anio, startDate, endDate],
     queryFn: async () => {
-      const response = await apiClient.get<EntidadesResult>(
-        `/reportes/entidades?mes_idx=${mesIdx}&anio=${anio}`
-      );
+      const response = await apiClient.get<EntidadesResult>(`/reportes/entidades?${params}`);
       return response.data;
     },
     staleTime: STALE_TIME,
@@ -111,13 +122,20 @@ export function useEntidades(mesIdx: number, anio: number) {
   });
 }
 
-export function useCumplimientoSemanal(mesIdx: number, anio: number) {
+export function useCumplimientoSemanal(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
+
   return useQuery<CumplimientoSemanalResult>({
-    queryKey: ['cumplimiento-semanal', mesIdx, anio],
+    queryKey: ['cumplimiento-semanal', mesIdx, anio, startDate, endDate],
     queryFn: async () => {
-      const response = await apiClient.get<CumplimientoSemanalResult>(
-        `/reportes/cumplimiento/semanal?mes_idx=${mesIdx}&anio=${anio}`
-      );
+      const response = await apiClient.get<CumplimientoSemanalResult>(`/reportes/cumplimiento/semanal?${params}`);
       return response.data;
     },
     staleTime: STALE_TIME,
@@ -153,6 +171,9 @@ export function useTendencia(meses = 6) {
   });
 }
 
+// Alias used by Configuracion page (matches spec name)
+export type Presupuesto = PresupuestoRow;
+
 export function usePresupuestos() {
   return useQuery<PresupuestoRow[]>({
     queryKey: ['presupuestos'],
@@ -162,5 +183,18 @@ export function usePresupuestos() {
     },
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
+export function useUpsertPresupuesto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { anio: number; mes: number; monto: number; notas?: string }) =>
+      apiClient.post<PresupuestoRow>('/reportes/presupuestos', data).then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['presupuestos'] });
+      void qc.invalidateQueries({ queryKey: ['kpis'] });
+      void qc.invalidateQueries({ queryKey: ['tendencia'] });
+    },
   });
 }

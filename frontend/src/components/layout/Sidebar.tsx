@@ -93,7 +93,6 @@ const NAV_SECTIONS: NavSection[] = [
         to: '/admin/configuracion',
         icon: <Settings size={18} />,
         roles: ['ADMIN'],
-        disabled: true,
       },
     ],
   },

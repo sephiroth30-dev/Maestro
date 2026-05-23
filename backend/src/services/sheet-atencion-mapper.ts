@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { normalizeDescripcion } from './normalizacion.service.js';
 import { logger } from '../config/logger.js';
 import type { DataRow } from '../connectors/base.connector.js';
+import type { Prisma } from '@prisma/client';
 
 // ─── Column auto-detection patterns ──────────────────────────────────────────
 
@@ -164,6 +165,8 @@ export async function mapRowsToAtenciones(
   let skipped = 0;
   let errors = 0;
 
+  const toInsert: Prisma.AtencionCreateManyInput[] = [];
+
   for (const row of rows) {
     try {
       const rawDescripcion = colMap.descripcion ? String(row[colMap.descripcion] ?? '') : '';
@@ -202,34 +205,20 @@ export async function mapRowsToAtenciones(
         fecha:          fechaStr,
       });
 
-      // Deduplication check
-      const existing = await prisma.atencion.findUnique({
-        where: { hashFila: hash },
-        select: { id: true },
+      toInsert.push({
+        descripcionRaw:     rawDescripcion,
+        descripcionNorm:    normalizeDescripcion(rawDescripcion),
+        fechaDia,
+        mesIdx,
+        anio,
+        valorBruto:         valor,
+        numeroAutorizacion: rawAutorizacion || null,
+        esTelemetria:       rawDescripcion.toUpperCase().includes('TELEMETRIA'),
+        hashFila:           hash,
+        entidadId,
+        profesionalId,
+        conectorId,
       });
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      await prisma.atencion.create({
-        data: {
-          descripcionRaw:      rawDescripcion,
-          descripcionNorm:     normalizeDescripcion(rawDescripcion),
-          fechaDia,
-          mesIdx,
-          anio,
-          valorBruto:          valor,
-          numeroAutorizacion:  rawAutorizacion || null,
-          esTelemetria:        rawDescripcion.toUpperCase().includes('TELEMETRIA'),
-          hashFila:            hash,
-          entidadId:           entidadId,
-          profesionalId:       profesionalId,
-          conectorId,
-        },
-      });
-
-      created++;
     } catch (err) {
       errors++;
       logger.warn('Failed to map sheet row to atencion', {
@@ -237,6 +226,12 @@ export async function mapRowsToAtenciones(
         row,
       });
     }
+  }
+
+  if (toInsert.length > 0) {
+    const result = await prisma.atencion.createMany({ data: toInsert, skipDuplicates: true });
+    created = result.count;
+    skipped += toInsert.length - result.count;
   }
 
   return { created, skipped, errors };
