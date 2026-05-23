@@ -258,3 +258,18 @@ export function useTriggerSync(): UseMutationResult<SyncStartedResult, Error, st
     },
   });
 }
+
+export function useDeleteConnectorData(): UseMutationResult<
+  { conectorId: string; deleted: number },
+  Error,
+  string
+> {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete<{ conectorId: string; deleted: number }>(
+        `/connectors/${id}/data`
+      );
+      return res.data;
+    },
+  });
+}

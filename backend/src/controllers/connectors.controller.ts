@@ -5,6 +5,8 @@ import { requireRole } from '../middlewares/rbac.middleware.js';
 import { connectorService, FrecuenciaSyncSchema } from '../services/connector.service.js';
 import { syncService } from '../services/sync.service.js';
 import { logger } from '../config/logger.js';
+import { prisma } from '../config/prisma.js';
+import { flushReportesCache } from '../config/redis.js';
 import type { TipoConector } from '@prisma/client';
 
 // ─── Request schemas ──────────────────────────────────────────────────────────
@@ -176,6 +178,21 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
         logger.error('Background sync failed', { conectorId: id, error: msg });
       });
       await reply.status(202).send({ conectorId: id, status: 'EN_PROCESO' });
+    }
+  );
+
+  // DELETE /api/connectors/:id/data  (wipe atenciones for this connector — ADMIN only)
+  fastify.delete(
+    '/connectors/:id/data',
+    { preHandler: [...adminOnly] },
+    async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const { id } = req.params as { id: string };
+      // Ensure connector exists first
+      await connectorService.getById(id);
+      const result = await prisma.atencion.deleteMany({ where: { conectorId: id } });
+      flushReportesCache();
+      logger.info('Connector data wiped', { conectorId: id, deleted: result.count });
+      await reply.send({ conectorId: id, deleted: result.count });
     }
   );
 
