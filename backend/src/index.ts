@@ -12,6 +12,9 @@ async function start(): Promise<void> {
   const fastify = await buildApp();
 
   try {
+    const dbUrl = process.env.DATABASE_URL ?? 'NOT SET';
+    const sanitized = dbUrl.replace(/:([^:@]+)@/, ':***@');
+    console.log('[BOOT] DATABASE_URL:', sanitized);
     console.log('[BOOT] Connecting to database...');
     await connectDatabase();
     console.log('[BOOT] Database connected OK');
