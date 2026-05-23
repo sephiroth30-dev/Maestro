@@ -69,21 +69,14 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
-  // ── 2. Connect to DB in background — never crashes the server ─────────────
+  // ── 2. Connect to DB + init cron in background — never crashes the server ──
+  // Cron runs AFTER DB is confirmed ready so conectoresRepo.findAllActive()
+  // doesn't trigger a cold Prisma connection on the first API request.
   const dbUrl = (process.env.DATABASE_URL ?? 'NOT SET').replace(/:([^:@]+)@/, ':***@');
   console.log('[BOOT] DATABASE_URL:', dbUrl);
   void connectInBackground();
 
-  // ── 3. Cron jobs (non-fatal) ──────────────────────────────────────────────
-  try {
-    await initCron();
-  } catch (error) {
-    logger.warn('Cron init failed (tables may not exist yet)', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  // ── 4. Graceful shutdown ──────────────────────────────────────────────────
+  // ── 3. Graceful shutdown ──────────────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received — shutting down gracefully`);
     stopCron();
@@ -113,6 +106,7 @@ async function start(): Promise<void> {
 
 // Connects to the DB with exponential backoff (max 30 s between attempts).
 // Renews the Prisma client on Rust panics so the engine recovers in-process.
+// Once the DB is ready, schedules cron jobs (non-fatal).
 async function connectInBackground(): Promise<void> {
   let attempt = 0;
   let delay = 2_000;
@@ -123,6 +117,15 @@ async function connectInBackground(): Promise<void> {
       console.log(`[DB] Connect attempt ${attempt}...`);
       await connectDatabase();
       console.log('[DB] Connected successfully');
+      // Schedule cron jobs only after the pool is warm — avoids a cold
+      // Prisma lazy-connect on the very first API request.
+      try {
+        await initCron();
+      } catch (cronErr) {
+        logger.warn('Cron init failed (non-fatal)', {
+          error: cronErr instanceof Error ? cronErr.message : String(cronErr),
+        });
+      }
       return;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

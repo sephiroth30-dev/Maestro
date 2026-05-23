@@ -3,7 +3,13 @@ import { createConnection } from 'mysql2/promise';
 import { logger } from './logger.js';
 
 function makeClient(): PrismaClient {
+  const rawUrl = process.env['DATABASE_URL'] ?? '';
+  // Ensure a modest connection pool for shared hosting (avoids exhausting MySQL connection limits).
+  const datasourceUrl = rawUrl.includes('connection_limit=')
+    ? rawUrl
+    : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}connection_limit=3`;
   return new PrismaClient({
+    datasourceUrl,
     log: [
       { emit: 'stdout', level: 'error' },
       { emit: 'stdout', level: 'warn' },
@@ -23,15 +29,20 @@ export function renewPrismaClient(): void {
   logger.info('PrismaClient renewed');
 }
 
-// Startup connectivity check — uses mysql2 (pure JS, no Rust) so Prisma's
+// Startup connectivity check — uses mysql2 first (pure JS, no Rust) so Prisma's
 // Tokio runtime is NOT touched during the fragile multi-process startup window.
-// Prisma lazy-connects on the first API query, well after only one process is running.
+// Once the mysql2 ping succeeds we know only one process is running, so we can
+// safely warm up Prisma's connection pool via $connect().
 export async function connectDatabase(): Promise<void> {
   const url = process.env['DATABASE_URL'] ?? '';
   const conn = await createConnection(url);
   await conn.ping();
   await conn.end();
   logger.info('Database ping OK (mysql2)');
+
+  // Pre-warm Prisma pool so the first API request doesn't pay the connection cost.
+  await prisma.$connect();
+  logger.info('Prisma connection pool ready');
 }
 
 export async function disconnectDatabase(): Promise<void> {

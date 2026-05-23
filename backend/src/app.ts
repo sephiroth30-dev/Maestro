@@ -79,6 +79,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ─── Global error handler ─────────────────────────────────────────────────
   fastify.setErrorHandler(errorHandler);
 
+  // ─── Health check (no auth required) ─────────────────────────────────────
+  fastify.get('/api/health', async (_req, reply) => {
+    return reply.send({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // ─── Routes ───────────────────────────────────────────────────────────────
   await registerAuthRoutes(fastify);
   await registerConnectorRoutes(fastify);
