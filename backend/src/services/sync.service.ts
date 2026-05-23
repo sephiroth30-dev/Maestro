@@ -4,6 +4,7 @@ import { connectorService } from './connector.service.js';
 import { getRedisClient } from '../config/redis.js';
 import { logger } from '../config/logger.js';
 import type { DataSet } from '../connectors/base.connector.js';
+import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
 
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 
@@ -60,11 +61,19 @@ export class SyncService {
       const ttl = FRECUENCIA_TTL[conector.frecuenciaSync] ?? DEFAULT_TTL;
       await this.storeInCache(conectorId, dataset, ttl);
 
+      // Persist rows to atenciones table (Google Sheets only)
+      let filasNuevas = 0;
+      if (conector.tipo === 'GOOGLE_SHEETS' && dataset.rows.length > 0) {
+        const mapResult = await mapRowsToAtenciones(dataset.rows, conectorId);
+        filasNuevas = mapResult.created;
+        logger.info('Sheet rows mapped to atenciones', mapResult);
+      }
+
       // Update sync record
       await conectoresRepo.updateSincronizacion(syncRecord.id, {
         estado: 'COMPLETADA',
         filasLeidas: dataset.totalRows,
-        filasNuevas: dataset.rows.length,
+        filasNuevas,
         finalizadaAt: new Date(),
       });
 
