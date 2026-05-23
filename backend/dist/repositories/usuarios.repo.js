@@ -1,61 +1,71 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.usuariosRepo = exports.UsuariosRepository = void 0;
+const node_crypto_1 = require("node:crypto");
 const prisma_js_1 = require("../config/prisma.js");
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function mapUsuario(row) {
+    return {
+        id: row.id,
+        email: row.email,
+        nombre: row.nombre,
+        passwordHash: row.password_hash,
+        rol: row.rol,
+        activo: Boolean(row.activo),
+        deletedAt: row.deleted_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+function mapRefreshToken(row) {
+    return {
+        id: row.id,
+        tokenHash: row.token_hash,
+        usuarioId: row.usuario_id,
+        expiresAt: row.expires_at,
+        revokedAt: row.revoked_at,
+        createdAt: row.created_at,
+    };
+}
+// ─── Repository ───────────────────────────────────────────────────────────────
 class UsuariosRepository {
     async findByEmail(email) {
-        return prisma_js_1.prisma.usuario.findUnique({
-            where: { email, activo: true, deletedAt: null },
-        });
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE email = ? AND activo = 1 AND deleted_at IS NULL LIMIT 1', [email]);
+        const row = rows[0];
+        return row ? mapUsuario(row) : null;
     }
     async findById(id) {
-        return prisma_js_1.prisma.usuario.findUnique({
-            where: { id, activo: true, deletedAt: null },
-        });
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE id = ? AND activo = 1 AND deleted_at IS NULL LIMIT 1', [id]);
+        const row = rows[0];
+        return row ? mapUsuario(row) : null;
     }
     async updateLastSeen(_id) {
         // Reserved for future use: track last activity
     }
     async createRefreshToken(data) {
-        return prisma_js_1.prisma.refreshToken.create({
-            data: {
-                tokenHash: data.tokenHash,
-                usuarioId: data.usuarioId,
-                expiresAt: data.expiresAt,
-            },
-        });
+        const id = (0, node_crypto_1.randomUUID)();
+        await prisma_js_1.pool.execute('INSERT INTO refresh_tokens (id, token_hash, usuario_id, expires_at, created_at) VALUES (?, ?, ?, ?, NOW())', [id, data.tokenHash, data.usuarioId, data.expiresAt]);
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM refresh_tokens WHERE id = ? LIMIT 1', [id]);
+        return mapRefreshToken(rows[0]);
     }
     async findRefreshToken(tokenHash) {
-        return prisma_js_1.prisma.refreshToken.findUnique({
-            where: { tokenHash },
-        });
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM refresh_tokens WHERE token_hash = ? LIMIT 1', [tokenHash]);
+        const row = rows[0];
+        return row ? mapRefreshToken(row) : null;
     }
     async revokeRefreshToken(tokenHash) {
-        await prisma_js_1.prisma.refreshToken.updateMany({
-            where: { tokenHash, revokedAt: null },
-            data: { revokedAt: new Date() },
-        });
+        await prisma_js_1.pool.execute('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ? AND revoked_at IS NULL', [tokenHash]);
     }
     async revokeAllUserRefreshTokens(usuarioId) {
-        await prisma_js_1.prisma.refreshToken.updateMany({
-            where: { usuarioId, revokedAt: null },
-            data: { revokedAt: new Date() },
-        });
+        await prisma_js_1.pool.execute('UPDATE refresh_tokens SET revoked_at = NOW() WHERE usuario_id = ? AND revoked_at IS NULL', [usuarioId]);
     }
     async deleteExpiredTokens() {
-        const result = await prisma_js_1.prisma.refreshToken.deleteMany({
-            where: {
-                expiresAt: { lt: new Date() },
-            },
-        });
-        return result.count;
+        const [result] = await prisma_js_1.pool.execute('DELETE FROM refresh_tokens WHERE expires_at < NOW()');
+        return result.affectedRows;
     }
     async getUserRol(id) {
-        const user = await prisma_js_1.prisma.usuario.findUnique({
-            where: { id, activo: true, deletedAt: null },
-            select: { rol: true },
-        });
-        return user?.rol ?? null;
+        const [rows] = await prisma_js_1.pool.query('SELECT rol FROM usuarios WHERE id = ? AND activo = 1 AND deleted_at IS NULL LIMIT 1', [id]);
+        return rows[0]?.rol ?? null;
     }
 }
 exports.UsuariosRepository = UsuariosRepository;

@@ -77,18 +77,22 @@ function hashFila(fields) {
     return (0, node_crypto_1.createHash)('sha256').update(str).digest('hex').slice(0, 64);
 }
 async function buildCache() {
-    const [entidades, profesionales] = await Promise.all([
-        prisma_js_1.prisma.entidad.findMany({ where: { activa: true }, select: { id: true, nombresRaw: true } }),
-        prisma_js_1.prisma.profesional.findMany({ where: { activo: true }, select: { id: true, nombresRaw: true } }),
+    const [[entidadRows], [profesionalRows]] = await Promise.all([
+        prisma_js_1.pool.query('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
+        prisma_js_1.pool.query('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
     ]);
     return {
-        entidades: entidades.map((e) => ({
-            id: e.id,
-            nombres: e.nombresRaw.map((n) => n.toUpperCase()),
+        entidades: entidadRows.map((row) => ({
+            id: row['id'],
+            nombres: (typeof row['nombres_raw'] === 'string'
+                ? JSON.parse(row['nombres_raw'])
+                : row['nombres_raw']).map((n) => n.toUpperCase()),
         })),
-        profesionales: profesionales.map((p) => ({
-            id: p.id,
-            nombres: p.nombresRaw.map((n) => n.toUpperCase()),
+        profesionales: profesionalRows.map((row) => ({
+            id: row['id'],
+            nombres: (typeof row['nombres_raw'] === 'string'
+                ? JSON.parse(row['nombres_raw'])
+                : row['nombres_raw']).map((n) => n.toUpperCase()),
         })),
     };
 }
@@ -187,9 +191,25 @@ async function mapRowsToAtenciones(rows, conectorId) {
         }
     }
     if (toInsert.length > 0) {
-        const result = await prisma_js_1.prisma.atencion.createMany({ data: toInsert, skipDuplicates: true });
-        created = result.count;
-        skipped += toInsert.length - result.count;
+        const values = toInsert.map((item) => [
+            (0, node_crypto_1.randomUUID)(),
+            item.descripcionRaw,
+            item.descripcionNorm,
+            item.fechaDia,
+            item.mesIdx,
+            item.anio,
+            item.valorBruto,
+            item.numeroAutorizacion,
+            item.esTelemetria ? 1 : 0,
+            item.hashFila,
+            item.entidadId,
+            item.profesionalId,
+            null, // servicio_id
+            item.conectorId,
+        ]);
+        const [insertResult] = await prisma_js_1.pool.query('INSERT IGNORE INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
+        created = insertResult.affectedRows;
+        skipped += toInsert.length - insertResult.affectedRows;
     }
     return { created, skipped, errors };
 }

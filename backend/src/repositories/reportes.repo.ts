@@ -1,20 +1,20 @@
-import { prisma } from '../config/prisma.js';
-import { Decimal } from '@prisma/client/runtime/library';
-import { Prisma } from '@prisma/client';
+import { pool } from '../config/prisma.js';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { randomUUID } from 'node:crypto';
 
 // ─── Types returned by raw repo queries ──────────────────────────────────────
 
 export interface AggregadoMes {
-  total: Decimal;
-  atenciones: bigint;
+  total: number;
+  atenciones: number;
 }
 
 export interface FacHoyResult {
-  total: Decimal;
+  total: number;
 }
 
 export interface DiasTranscurridosResult {
-  dias: bigint;
+  dias: number;
 }
 
 export interface EntidadAggRow {
@@ -22,8 +22,8 @@ export interface EntidadAggRow {
   nombre: string | null;
   tipo: string | null;
   es_grupo_caja: boolean | null;
-  cantidad: bigint;
-  valor_bruto: Decimal;
+  cantidad: number;
+  valor_bruto: number;
 }
 
 export interface FechasDelMes {
@@ -33,28 +33,32 @@ export interface FechasDelMes {
 export interface TendenciaRow {
   anio: number;
   mes_idx: number;
-  total: Decimal;
+  total: number;
 }
 
 export interface PresupuestoRow {
   anio: number;
   mes: number;
-  monto: Decimal;
+  monto: number;
   notas: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Returns a [whereClause, params] tuple for filtering atenciones by date range
+ * or by mes_idx/anio.
+ */
 function buildDateWhere(
   mesIdx?: number,
   anio?: number,
   startDate?: Date,
   endDate?: Date,
-): Prisma.Sql {
+): [string, (Date | number)[]] {
   if (startDate && endDate) {
-    return Prisma.sql`fecha_dia >= ${startDate} AND fecha_dia <= ${endDate}`;
+    return ['fecha_dia >= ? AND fecha_dia <= ?', [startDate, endDate]];
   }
-  return Prisma.sql`mes_idx = ${mesIdx} AND anio = ${anio}`;
+  return ['mes_idx = ? AND anio = ?', [mesIdx ?? 0, anio ?? 0]];
 }
 
 // ─── Repository ───────────────────────────────────────────────────────────────
@@ -66,21 +70,22 @@ export async function getAgregadoMes(
   startDate?: Date,
   endDate?: Date,
 ): Promise<{ total: number; atenciones: number }> {
-  const where: Record<string, unknown> =
-    startDate && endDate
-      ? { fechaDia: { gte: startDate, lte: endDate } }
-      : { mesIdx, anio };
-  if (entidadId) where['entidadId'] = entidadId;
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
+  const allParams: (Date | number | string)[] = [...params];
 
-  const result = await prisma.atencion.aggregate({
-    where,
-    _sum: { valorBruto: true },
-    _count: { id: true },
-  });
+  if (entidadId) {
+    sql += ' AND entidad_id = ?';
+    allParams.push(entidadId);
+  }
 
+  const [rows] = await pool.query<(RowDataPacket & { total: string | null; cnt: string })[]>(
+    sql,
+    allParams
+  );
   return {
-    total: Number(result._sum.valorBruto ?? 0),
-    atenciones: result._count.id,
+    total: Number(rows[0]?.total ?? 0),
+    atenciones: Number(rows[0]?.cnt ?? 0),
   };
 }
 
@@ -90,17 +95,11 @@ export async function getFacturacionDia(fecha: Date): Promise<number> {
   const endOfDay = new Date(fecha);
   endOfDay.setUTCHours(23, 59, 59, 999);
 
-  const result = await prisma.atencion.aggregate({
-    where: {
-      fechaDia: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
-    },
-    _sum: { valorBruto: true },
-  });
-
-  return Number(result._sum.valorBruto ?? 0);
+  const [rows] = await pool.query<(RowDataPacket & { total: string | null })[]>(
+    'SELECT SUM(valor_bruto) AS total FROM atenciones WHERE fecha_dia >= ? AND fecha_dia <= ?',
+    [startOfDay, endOfDay]
+  );
+  return Number(rows[0]?.total ?? 0);
 }
 
 export async function getDiasTranscurridos(
@@ -109,12 +108,11 @@ export async function getDiasTranscurridos(
   startDate?: Date,
   endDate?: Date,
 ): Promise<number> {
-  // MySQL-compatible: backticks, no ::int cast
-  type CountResult = { cnt: bigint };
-  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
-  const rows = await prisma.$queryRaw<CountResult[]>`
-    SELECT COUNT(DISTINCT fecha_dia) AS cnt FROM atenciones WHERE ${where}
-  `;
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & { cnt: string })[]>(
+    `SELECT COUNT(DISTINCT fecha_dia) AS cnt FROM atenciones WHERE ${whereClause}`,
+    params
+  );
   return Number(rows[0]?.cnt ?? 0);
 }
 
@@ -122,13 +120,11 @@ export async function getFechasDelMes(
   mesIdx: number,
   anio: number
 ): Promise<Date[]> {
-  const rows = await prisma.atencion.findMany({
-    where: { mesIdx, anio },
-    select: { fechaDia: true },
-    distinct: ['fechaDia'],
-    orderBy: { fechaDia: 'asc' },
-  });
-  return rows.map((r) => r.fechaDia);
+  const [rows] = await pool.query<(RowDataPacket & { fecha_dia: Date })[]>(
+    'SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ? ORDER BY fecha_dia ASC',
+    [mesIdx, anio]
+  );
+  return rows.map((r) => r.fecha_dia);
 }
 
 export async function getEntidadesAgg(
@@ -137,10 +133,9 @@ export async function getEntidadesAgg(
   startDate?: Date,
   endDate?: Date,
 ): Promise<EntidadAggRow[]> {
-  // MySQL-compatible: no double-quoted identifiers
-  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
-  return prisma.$queryRaw<EntidadAggRow[]>`
-    SELECT
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & EntidadAggRow)[]>(
+    `SELECT
       a.entidad_id,
       e.nombre,
       e.tipo,
@@ -149,10 +144,19 @@ export async function getEntidadesAgg(
       SUM(a.valor_bruto) AS valor_bruto
     FROM atenciones a
     LEFT JOIN entidades e ON e.id = a.entidad_id
-    WHERE ${where}
+    WHERE ${whereClause}
     GROUP BY a.entidad_id, e.nombre, e.tipo, e.es_grupo_caja
-    ORDER BY valor_bruto DESC
-  `;
+    ORDER BY valor_bruto DESC`,
+    params
+  );
+  return rows.map((r) => ({
+    entidad_id: r.entidad_id,
+    nombre: r.nombre,
+    tipo: r.tipo,
+    es_grupo_caja: r.es_grupo_caja,
+    cantidad: Number(r.cantidad),
+    valor_bruto: Number(r.valor_bruto),
+  }));
 }
 
 export async function getDiariosDelMes(
@@ -160,19 +164,24 @@ export async function getDiariosDelMes(
   anio: number,
   startDate?: Date,
   endDate?: Date,
-): Promise<Array<{ fecha_dia: Date; total: Decimal; atenciones: bigint }>> {
-  // MySQL-compatible: no double-quoted identifiers
-  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
-  return prisma.$queryRaw`
-    SELECT
+): Promise<Array<{ fecha_dia: Date; total: number; atenciones: number }>> {
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & { fecha_dia: Date; total: string; atenciones: string })[]>(
+    `SELECT
       fecha_dia,
       SUM(valor_bruto) AS total,
       COUNT(id) AS atenciones
     FROM atenciones
-    WHERE ${where}
+    WHERE ${whereClause}
     GROUP BY fecha_dia
-    ORDER BY fecha_dia ASC
-  `;
+    ORDER BY fecha_dia ASC`,
+    params
+  );
+  return rows.map((r) => ({
+    fecha_dia: r.fecha_dia,
+    total: Number(r.total),
+    atenciones: Number(r.atenciones),
+  }));
 }
 
 export async function getDiasSemanaAgg(
@@ -180,55 +189,71 @@ export async function getDiasSemanaAgg(
   anio: number,
   startDate?: Date,
   endDate?: Date,
-): Promise<Array<{ dia_num: number; promedio: Decimal; total: Decimal; atenciones: bigint }>> {
-  // MySQL: DAYOFWEEK() returns 1=Sun..7=Sat; subtract 1 → 0=Sun..6=Sat
-  // No EXTRACT(DOW ...)::int (PostgreSQL-only)
-  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
-  return prisma.$queryRaw`
-    SELECT
+): Promise<Array<{ dia_num: number; promedio: number; total: number; atenciones: number }>> {
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & { dia_num: number; promedio: string; total: string; atenciones: string })[]>(
+    `SELECT
       (DAYOFWEEK(fecha_dia) - 1) AS dia_num,
       AVG(valor_bruto)           AS promedio,
       SUM(valor_bruto)           AS total,
       COUNT(id)                  AS atenciones
     FROM atenciones
-    WHERE ${where}
+    WHERE ${whereClause}
     GROUP BY dia_num
-    ORDER BY dia_num ASC
-  `;
+    ORDER BY dia_num ASC`,
+    params
+  );
+  return rows.map((r) => ({
+    dia_num: Number(r.dia_num),
+    promedio: Number(r.promedio),
+    total: Number(r.total),
+    atenciones: Number(r.atenciones),
+  }));
 }
 
 export async function getTendenciaMeses(
   meses: number
-): Promise<Array<{ anio: number; mes_idx: number; total: Decimal }>> {
-  // MySQL-compatible
-  return prisma.$queryRaw`
-    SELECT
+): Promise<Array<{ anio: number; mes_idx: number; total: number }>> {
+  const [rows] = await pool.query<(RowDataPacket & { anio: number; mes_idx: number; total: string })[]>(
+    `SELECT
       anio,
       mes_idx,
       SUM(valor_bruto) AS total
     FROM atenciones
     GROUP BY anio, mes_idx
     ORDER BY anio ASC, mes_idx ASC
-    LIMIT ${meses}
-  `;
+    LIMIT ?`,
+    [meses]
+  );
+  return rows.map((r) => ({
+    anio: Number(r.anio),
+    mes_idx: Number(r.mes_idx),
+    total: Number(r.total),
+  }));
 }
 
 export async function getPresupuesto(anio: number, mes: number): Promise<number> {
-  const row = await prisma.presupuestoMensual.findUnique({
-    where: { anio_mes: { anio, mes } },
-    select: { monto: true },
-  });
-  return Number(row?.monto ?? 0);
+  const [rows] = await pool.query<(RowDataPacket & { monto: string | null })[]>(
+    'SELECT monto FROM presupuestos_mensuales WHERE anio = ? AND mes = ? LIMIT 1',
+    [anio, mes]
+  );
+  return Number(rows[0]?.monto ?? 0);
 }
 
 export async function listPresupuestos(): Promise<
   Array<{ id: string; anio: number; mes: number; monto: number; notas: string | null; createdAt: Date }>
 > {
-  const rows = await prisma.presupuestoMensual.findMany({
-    select: { id: true, anio: true, mes: true, monto: true, notas: true, createdAt: true },
-    orderBy: [{ anio: 'asc' }, { mes: 'asc' }],
-  });
-  return rows.map((r) => ({ ...r, monto: Number(r.monto) }));
+  const [rows] = await pool.query<(RowDataPacket & { id: string; anio: number; mes: number; monto: string; notas: string | null; created_at: Date })[]>(
+    'SELECT id, anio, mes, monto, notas, created_at FROM presupuestos_mensuales ORDER BY anio ASC, mes ASC'
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    anio: Number(r.anio),
+    mes: Number(r.mes),
+    monto: Number(r.monto),
+    notas: r.notas,
+    createdAt: r.created_at,
+  }));
 }
 
 export async function upsertPresupuesto(
@@ -237,23 +262,27 @@ export async function upsertPresupuesto(
   monto: number,
   notas?: string
 ): Promise<{ id: string; anio: number; mes: number; monto: number; notas: string | null }> {
-  const existing = await prisma.presupuestoMensual.findUnique({
-    where: { anio_mes: { anio, mes } },
-    select: { id: true },
-  });
+  // Check if row already exists to get its id
+  const [existing] = await pool.query<(RowDataPacket & { id: string })[]>(
+    'SELECT id FROM presupuestos_mensuales WHERE anio = ? AND mes = ? LIMIT 1',
+    [anio, mes]
+  );
 
-  if (existing) {
-    const updated = await prisma.presupuestoMensual.update({
-      where: { id: existing.id },
-      data: { monto, notas: notas ?? null },
-      select: { id: true, anio: true, mes: true, monto: true, notas: true },
-    });
-    return { ...updated, monto: Number(updated.monto) };
+  const notasVal = notas ?? null;
+
+  if (existing[0]) {
+    const existingId = existing[0].id;
+    await pool.execute<ResultSetHeader>(
+      'UPDATE presupuestos_mensuales SET monto = ?, notas = ? WHERE id = ?',
+      [monto, notasVal, existingId]
+    );
+    return { id: existingId, anio, mes, monto, notas: notasVal };
   }
 
-  const created = await prisma.presupuestoMensual.create({
-    data: { anio, mes, monto, notas: notas ?? null },
-    select: { id: true, anio: true, mes: true, monto: true, notas: true },
-  });
-  return { ...created, monto: Number(created.monto) };
+  const newId = randomUUID();
+  await pool.execute<ResultSetHeader>(
+    'INSERT INTO presupuestos_mensuales (id, anio, mes, monto, notas) VALUES (?, ?, ?, ?, ?)',
+    [newId, anio, mes, monto, notasVal]
+  );
+  return { id: newId, anio, mes, monto, notas: notasVal };
 }
