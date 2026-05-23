@@ -75,6 +75,10 @@ async function buildApp() {
     });
     // ─── Global error handler ─────────────────────────────────────────────────
     fastify.setErrorHandler(error_middleware_js_1.errorHandler);
+    // ─── Health check (registered at root before any plugin scopes) ──────────
+    fastify.get('/api/health', async (_request, reply) => {
+        await reply.status(200).send({ status: 'ok', timestamp: new Date().toISOString(), version: '0.1.0' });
+    });
     // ─── Routes ───────────────────────────────────────────────────────────────
     await (0, auth_routes_js_1.registerAuthRoutes)(fastify);
     await (0, connectors_routes_js_1.registerConnectorRoutes)(fastify);
