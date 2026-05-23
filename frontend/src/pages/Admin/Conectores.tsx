@@ -404,7 +404,9 @@ interface ConnectorFormState {
   tipo: TipoConector | '';
   frecuenciaSync: FrecuenciaSync;
   // Sheets fields
+  sheetsMode: 'spreadsheet' | 'folder';
   spreadsheetId: string;
+  folderId: string;
   credentialsJson: string;
   // REST fields
   baseUrl: string;
@@ -417,7 +419,9 @@ const DEFAULT_FORM: ConnectorFormState = {
   nombre: '',
   tipo: '',
   frecuenciaSync: 'daily',
+  sheetsMode: 'spreadsheet',
   spreadsheetId: '',
+  folderId: '',
   credentialsJson: '',
   baseUrl: '',
   authType: 'none',
@@ -450,7 +454,9 @@ function ConnectorModal({
       nombre: editing.nombre,
       tipo: editing.tipo,
       frecuenciaSync: editing.frecuenciaSync,
+      sheetsMode: 'spreadsheet',
       spreadsheetId: '',
+      folderId: '',
       credentialsJson: '',
       baseUrl: '',
       authType: 'none',
@@ -458,7 +464,9 @@ function ConnectorModal({
       headers: [],
     };
     if (editing.tipo === 'GOOGLE_SHEETS') {
+      base.folderId = (cfg['folderId'] as string) ?? '';
       base.spreadsheetId = (cfg['spreadsheetId'] as string) ?? '';
+      base.sheetsMode = base.folderId ? 'folder' : 'spreadsheet';
       base.credentialsJson =
         typeof cfg['credentials'] === 'object'
           ? JSON.stringify(cfg['credentials'], null, 2)
@@ -496,10 +504,10 @@ function ConnectorModal({
       } catch {
         credentials = form.credentialsJson;
       }
-      return {
-        spreadsheetId: form.spreadsheetId,
-        credentials,
-      };
+      if (form.sheetsMode === 'folder') {
+        return { folderId: form.folderId.trim(), credentials };
+      }
+      return { spreadsheetId: form.spreadsheetId.trim(), credentials };
     }
     if (form.tipo === 'REST_API') {
       const headersObj: Record<string, string> = {};
@@ -520,7 +528,11 @@ function ConnectorModal({
     const errs: Record<string, string> = {};
     if (!form.nombre.trim()) errs['nombre'] = 'El nombre es requerido';
     if (form.tipo === 'GOOGLE_SHEETS') {
-      if (!form.spreadsheetId.trim()) errs['spreadsheetId'] = 'El ID de la hoja es requerido';
+      if (form.sheetsMode === 'folder') {
+        if (!form.folderId.trim()) errs['folderId'] = 'El ID de la carpeta es requerido';
+      } else {
+        if (!form.spreadsheetId.trim()) errs['spreadsheetId'] = 'El ID de la hoja es requerido';
+      }
       if (!form.credentialsJson.trim()) errs['credentialsJson'] = 'Las credenciales son requeridas';
     }
     if (form.tipo === 'REST_API') {
@@ -707,26 +719,79 @@ function ConnectorModal({
               {/* Google Sheets fields */}
               {form.tipo === 'GOOGLE_SHEETS' && (
                 <>
+                  {/* Mode toggle */}
                   <div className="form-group">
-                    <label className="form-label" htmlFor="conn-sheet-id">
-                      Spreadsheet ID
-                    </label>
-                    <input
-                      id="conn-sheet-id"
-                      type="text"
-                      className={`form-input ${errors['spreadsheetId'] ? 'form-input--error' : ''}`}
-                      value={form.spreadsheetId}
-                      onChange={(e) => setField('spreadsheetId', e.target.value)}
-                      placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
-                    />
+                    <label className="form-label">Fuente</label>
+                    <div className="mode-toggle">
+                      <button
+                        type="button"
+                        className={`mode-toggle-btn ${form.sheetsMode === 'spreadsheet' ? 'mode-toggle-btn--active' : ''}`}
+                        onClick={() => setField('sheetsMode', 'spreadsheet')}
+                      >
+                        <Database size={15} />
+                        Hoja individual
+                      </button>
+                      <button
+                        type="button"
+                        className={`mode-toggle-btn ${form.sheetsMode === 'folder' ? 'mode-toggle-btn--active' : ''}`}
+                        onClick={() => setField('sheetsMode', 'folder')}
+                      >
+                        <Server size={15} />
+                        Carpeta de Drive
+                      </button>
+                    </div>
                     <p className="form-hint">
-                      El ID está en la URL de Google Sheets:{' '}
-                      <code>docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</code>
+                      {form.sheetsMode === 'folder'
+                        ? 'Sincroniza todas las planillas de una carpeta de Google Drive automáticamente.'
+                        : 'Conecta con una sola planilla de Google Sheets.'}
                     </p>
-                    {errors['spreadsheetId'] && (
-                      <span className="form-error">{errors['spreadsheetId']}</span>
-                    )}
                   </div>
+
+                  {form.sheetsMode === 'spreadsheet' ? (
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-sheet-id">
+                        Spreadsheet ID
+                      </label>
+                      <input
+                        id="conn-sheet-id"
+                        type="text"
+                        className={`form-input ${errors['spreadsheetId'] ? 'form-input--error' : ''}`}
+                        value={form.spreadsheetId}
+                        onChange={(e) => setField('spreadsheetId', e.target.value)}
+                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                      />
+                      <p className="form-hint">
+                        El ID está en la URL:{' '}
+                        <code>docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</code>
+                      </p>
+                      {errors['spreadsheetId'] && (
+                        <span className="form-error">{errors['spreadsheetId']}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-folder-id">
+                        ID de Carpeta (Google Drive)
+                      </label>
+                      <input
+                        id="conn-folder-id"
+                        type="text"
+                        className={`form-input ${errors['folderId'] ? 'form-input--error' : ''}`}
+                        value={form.folderId}
+                        onChange={(e) => setField('folderId', e.target.value)}
+                        placeholder="1a2B3c4D5e6F7g8H9i0J..."
+                      />
+                      <p className="form-hint">
+                        El ID está en la URL de Drive:{' '}
+                        <code>drive.google.com/drive/folders/<strong>[ID]</strong></code>
+                        <br />
+                        Comparte la carpeta con el email de la cuenta de servicio.
+                      </p>
+                      {errors['folderId'] && (
+                        <span className="form-error">{errors['folderId']}</span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="conn-credentials">
@@ -741,7 +806,8 @@ function ConnectorModal({
                       rows={6}
                     />
                     <p className="form-hint form-hint--warning">
-                      Las credenciales se almacenan encriptadas y nunca se muestran en logs.
+                      La misma clave JSON sirve para todas las fuentes de datos.
+                      Se almacena encriptada y nunca aparece en logs.
                     </p>
                     {errors['credentialsJson'] && (
                       <span className="form-error">{errors['credentialsJson']}</span>

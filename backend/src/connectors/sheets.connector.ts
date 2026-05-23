@@ -12,14 +12,17 @@ import {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export interface SheetsConnectorConfig {
-  spreadsheetId: string;
-  credentials: Record<string, unknown> | string; // JSON object or path to file
+  /** Single spreadsheet mode */
+  spreadsheetId?: string;
+  /** Folder mode: sync all spreadsheets inside this Drive folder */
+  folderId?: string;
+  credentials: Record<string, unknown> | string;
   name?: string;
 }
 
 // ─── V10.2 date-tab detection ─────────────────────────────────────────────────
 // Mirrors isDateSheetName_() from the original Apps Script.
-// Valid tab names: "2 ENERO", "15 MARZO", "ENERO 2", etc.
+// Valid tab names: "2 ENERO", "15 MARZO", "ENERO 2", "2 DE ENERO", etc.
 
 const MESES = new Set([
   'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
@@ -27,7 +30,6 @@ const MESES = new Set([
 ]);
 
 function stripDiacritics(s: string): string {
-  // ̀-ͯ = Unicode combining diacritical marks block
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
@@ -51,8 +53,7 @@ function isDateSheetName(name: string): boolean {
   return (aIsDay && bIsMes) || (aIsMes && bIsDay);
 }
 
-// Escapes a sheet name for use in a Sheets API range (wraps in single quotes,
-// escaping embedded single quotes as '').
+// Wraps a sheet name in single quotes for use in a Sheets API range.
 function quoteSheetName(name: string): string {
   return `'${name.replace(/'/g, "''")}'`;
 }
@@ -70,7 +71,7 @@ export class SheetsConnector extends BaseConnector {
     super();
   }
 
-  // ─── Lazy auth init ───────────────────────────────────────────────────────
+  // ─── Auth ─────────────────────────────────────────────────────────────────
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async getAuth(): Promise<any> {
@@ -81,20 +82,28 @@ export class SheetsConnector extends BaseConnector {
         ? { keyFile: this.config.credentials }
         : { credentials: this.config.credentials };
 
-    this.authClient = new google.auth.GoogleAuth({
-      ...credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
+    // Include drive.metadata.readonly when folder mode is active so the
+    // service account can list files inside the folder.
+    const scopes = ['https://www.googleapis.com/auth/spreadsheets.readonly'];
+    if (this.config.folderId) {
+      scopes.push('https://www.googleapis.com/auth/drive.metadata.readonly');
+    }
 
+    this.authClient = new google.auth.GoogleAuth({ ...credentials, scopes });
     return this.authClient;
   }
 
   private async getSheets(): Promise<sheets_v4.Sheets> {
     if (this.sheetsClient) return this.sheetsClient;
-
     const auth = await this.getAuth();
     this.sheetsClient = google.sheets({ version: 'v4', auth });
     return this.sheetsClient;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async getDrive(): Promise<any> {
+    const auth = await this.getAuth();
+    return google.drive({ version: 'v3', auth });
   }
 
   // ─── test() ───────────────────────────────────────────────────────────────
@@ -102,85 +111,157 @@ export class SheetsConnector extends BaseConnector {
   async test(): Promise<ConnectionTestResult> {
     const start = Date.now();
     try {
-      const sheets = await this.getSheets();
-      const response = await sheets.spreadsheets.get({
-        spreadsheetId: this.config.spreadsheetId,
-        fields: 'spreadsheetId,properties.title,sheets.properties.title',
-      });
-
-      const latencyMs = Date.now() - start;
-      const title = response.data.properties?.title ?? 'Untitled';
-      const tabNames = (response.data.sheets ?? []).map((s) => s.properties?.title ?? '');
-      const dateTabs = tabNames.filter(isDateSheetName);
-
-      return {
-        success: true,
-        message: `Conectado a "${title}" — ${dateTabs.length} hoja(s) de atención encontradas`,
-        latencyMs,
-        details: {
-          spreadsheetId: this.config.spreadsheetId,
-          title,
-          totalTabs: tabNames.length,
-          dateTabs: dateTabs.length,
-        },
-      };
+      if (this.config.folderId) {
+        return await this.testFolder(start);
+      }
+      return await this.testSpreadsheet(start);
     } catch (err) {
       const latencyMs = Date.now() - start;
       const message = err instanceof Error ? err.message : 'Error desconocido';
-      logger.warn('SheetsConnector test failed', {
-        spreadsheetId: this.config.spreadsheetId,
-        error: message,
-      });
-      return {
-        success: false,
-        message: `Error de conexión: ${message}`,
-        latencyMs,
-      };
+      logger.warn('SheetsConnector test failed', { error: message });
+      return { success: false, message: `Error de conexión: ${message}`, latencyMs };
     }
   }
 
+  private async testSpreadsheet(start: number): Promise<ConnectionTestResult> {
+    if (!this.config.spreadsheetId) {
+      return { success: false, message: 'spreadsheetId no configurado', latencyMs: 0 };
+    }
+    const sheets = await this.getSheets();
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId: this.config.spreadsheetId,
+      fields: 'spreadsheetId,properties.title,sheets.properties.title',
+    });
+
+    const latencyMs = Date.now() - start;
+    const title = response.data.properties?.title ?? 'Untitled';
+    const tabNames = (response.data.sheets ?? []).map((s) => s.properties?.title ?? '');
+    const dateTabs = tabNames.filter(isDateSheetName);
+
+    return {
+      success: true,
+      message: `Conectado a "${title}" — ${dateTabs.length} hoja(s) de atención encontradas`,
+      latencyMs,
+      details: { spreadsheetId: this.config.spreadsheetId, title, totalTabs: tabNames.length, dateTabs: dateTabs.length },
+    };
+  }
+
+  private async testFolder(start: number): Promise<ConnectionTestResult> {
+    const drive = await this.getDrive();
+    const folderId = this.config.folderId!;
+
+    // Check folder itself exists
+    const meta = await drive.files.get({
+      fileId: folderId,
+      fields: 'id,name',
+    });
+
+    const folderName = meta.data.name ?? folderId;
+    const spreadsheetIds = await this.listSpreadsheets(folderId);
+    const latencyMs = Date.now() - start;
+
+    return {
+      success: true,
+      message: `Carpeta "${folderName}" — ${spreadsheetIds.length} planilla(s) encontrada(s)`,
+      latencyMs,
+      details: { folderId, folderName, spreadsheets: spreadsheetIds.length },
+    };
+  }
+
   // ─── fetch() ─────────────────────────────────────────────────────────────
-  // When query.sheetName is specified, reads that single tab.
-  // Otherwise auto-detects all date-named tabs (V10.2 pattern) and merges them.
 
   async fetch(query: ConnectorQuery): Promise<DataSet> {
-    const sheets = await this.getSheets();
-
-    // Specific tab requested — single read
-    if (query.sheetName) {
-      return this.readTab(sheets, query.sheetName, query);
+    if (this.config.folderId) {
+      return this.fetchFromFolder(this.config.folderId);
     }
 
-    // Auto-detect date-named tabs
-    const allTabNames = await this.listSheets();
+    if (!this.config.spreadsheetId) {
+      throw new Error('SheetsConnector requires spreadsheetId or folderId in config');
+    }
+
+    return this.fetchFromSpreadsheet(this.config.spreadsheetId, query);
+  }
+
+  // ─── Folder mode: discover + merge all spreadsheets ──────────────────────
+
+  private async fetchFromFolder(folderId: string): Promise<DataSet> {
+    const spreadsheetIds = await this.listSpreadsheets(folderId);
+
+    if (spreadsheetIds.length === 0) {
+      logger.warn('No spreadsheets found in folder', { folderId });
+      return { columns: [], rows: [], totalRows: 0, fetchedAt: new Date(), source: this.config.name ?? folderId };
+    }
+
+    logger.info('Syncing spreadsheets from folder', { folderId, count: spreadsheetIds.length });
+
+    const allRows: DataRow[] = [];
+    let columns: string[] = [];
+
+    for (const spreadsheetId of spreadsheetIds) {
+      try {
+        const dataset = await this.fetchFromSpreadsheet(spreadsheetId, {});
+        if (dataset.columns.length > columns.length) columns = dataset.columns;
+        allRows.push(...dataset.rows);
+        logger.info('Spreadsheet synced', { spreadsheetId, rows: dataset.totalRows });
+      } catch (err) {
+        logger.warn('Skipping spreadsheet due to error', {
+          spreadsheetId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return {
+      columns,
+      rows: allRows,
+      totalRows: allRows.length,
+      fetchedAt: new Date(),
+      source: this.config.name ?? folderId,
+    };
+  }
+
+  // ─── Spreadsheet mode: detect date tabs + merge rows ─────────────────────
+
+  private async fetchFromSpreadsheet(
+    spreadsheetId: string,
+    query: ConnectorQuery,
+  ): Promise<DataSet> {
+    const sheets = await this.getSheets();
+
+    // If a specific tab is requested, use it directly
+    if (query.sheetName) {
+      return this.readTab(sheets, spreadsheetId, query.sheetName, query);
+    }
+
+    // Auto-detect date-named tabs (V10.2 monthly spreadsheet pattern)
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets.properties.title',
+    });
+    const allTabNames = (response.data.sheets ?? [])
+      .map((s) => s.properties?.title ?? '')
+      .filter(Boolean);
+
     const dateTabs = allTabNames.filter(isDateSheetName);
 
     if (dateTabs.length === 0) {
-      logger.warn('No date-named tabs found, falling back to default range', {
-        spreadsheetId: this.config.spreadsheetId,
-        tabs: allTabNames,
-      });
-      return this.readTab(sheets, '', query);
+      logger.warn('No date-named tabs found, falling back to default range', { spreadsheetId, tabs: allTabNames });
+      return this.readTab(sheets, spreadsheetId, '', query);
     }
 
-    logger.info('Reading date tabs from spreadsheet', {
-      spreadsheetId: this.config.spreadsheetId,
-      count: dateTabs.length,
-      tabs: dateTabs,
-    });
+    logger.info('Reading date tabs', { spreadsheetId, count: dateTabs.length, tabs: dateTabs });
 
     const allRows: DataRow[] = [];
     let columns: string[] = [];
 
     for (const tabName of dateTabs) {
       try {
-        const dataset = await this.readTab(sheets, tabName, {});
-        if (dataset.columns.length > columns.length) {
-          columns = dataset.columns;
-        }
+        const dataset = await this.readTab(sheets, spreadsheetId, tabName, {});
+        if (dataset.columns.length > columns.length) columns = dataset.columns;
         allRows.push(...dataset.rows);
       } catch (err) {
         logger.warn('Skipping tab due to read error', {
+          spreadsheetId,
           tabName,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -192,14 +273,15 @@ export class SheetsConnector extends BaseConnector {
       rows: allRows,
       totalRows: allRows.length,
       fetchedAt: new Date(),
-      source: this.config.name ?? this.config.spreadsheetId,
+      source: this.config.name ?? spreadsheetId,
     };
   }
 
-  // ─── readTab() ────────────────────────────────────────────────────────────
+  // ─── Read a single tab ────────────────────────────────────────────────────
 
   private async readTab(
     sheets: sheets_v4.Sheets,
+    spreadsheetId: string,
     sheetName: string,
     query: ConnectorQuery,
   ): Promise<DataSet> {
@@ -207,7 +289,7 @@ export class SheetsConnector extends BaseConnector {
     const fullRange = sheetName ? `${quoteSheetName(sheetName)}!${rangeBase}` : rangeBase;
 
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: this.config.spreadsheetId,
+      spreadsheetId,
       range: fullRange,
       valueRenderOption: 'UNFORMATTED_VALUE',
       dateTimeRenderOption: 'FORMATTED_STRING',
@@ -216,13 +298,7 @@ export class SheetsConnector extends BaseConnector {
     const values = response.data.values ?? [];
 
     if (values.length === 0) {
-      return {
-        columns: [],
-        rows: [],
-        totalRows: 0,
-        fetchedAt: new Date(),
-        source: this.config.name ?? this.config.spreadsheetId,
-      };
+      return { columns: [], rows: [], totalRows: 0, fetchedAt: new Date(), source: this.config.name ?? spreadsheetId };
     }
 
     const rawHeaders = values[0] as unknown[];
@@ -243,7 +319,6 @@ export class SheetsConnector extends BaseConnector {
       rows.push(dataRow);
     }
 
-    // Apply offset/limit only when reading a single requested tab
     let result = rows;
     if (query.offset) result = result.slice(query.offset);
     if (query.limit) result = result.slice(0, query.limit);
@@ -253,19 +328,35 @@ export class SheetsConnector extends BaseConnector {
       rows: result,
       totalRows: rows.length,
       fetchedAt: new Date(),
-      source: this.config.name ?? this.config.spreadsheetId,
+      source: this.config.name ?? spreadsheetId,
     };
+  }
+
+  // ─── Drive helpers ────────────────────────────────────────────────────────
+
+  private async listSpreadsheets(folderId: string): Promise<string[]> {
+    const drive = await this.getDrive();
+    const response = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+      fields: 'files(id,name)',
+      orderBy: 'name',
+      pageSize: 100,
+    });
+    return ((response.data.files as Array<{ id: string; name: string }>) ?? [])
+      .map((f) => f.id)
+      .filter(Boolean) as string[];
   }
 
   // ─── listSheets() ─────────────────────────────────────────────────────────
 
   async listSheets(): Promise<string[]> {
+    const spreadsheetId = this.config.spreadsheetId;
+    if (!spreadsheetId) return [];
     const sheets = await this.getSheets();
     const response = await sheets.spreadsheets.get({
-      spreadsheetId: this.config.spreadsheetId,
+      spreadsheetId,
       fields: 'sheets.properties.title',
     });
-
     return (response.data.sheets ?? [])
       .map((s) => s.properties?.title ?? '')
       .filter(Boolean);

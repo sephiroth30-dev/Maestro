@@ -1457,6 +1457,45 @@ body,
   margin-top: var(--space-1);
 }
 
+/* ─── Mode toggle (spreadsheet vs folder) ─────────────────────────────────── */
+
+.mode-toggle {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.mode-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-toggle-btn + .mode-toggle-btn {
+  border-left: 1px solid #e2e8f0;
+}
+
+.mode-toggle-btn:hover:not(.mode-toggle-btn--active) {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.mode-toggle-btn--active {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
 .form-textarea {
   resize: vertical;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;

@@ -19,13 +19,18 @@ const GoogleServiceAccountSchema = z.object({
   token_uri: z.string().optional(),
 }).passthrough();
 
-export const SheetsConfigSchema = z.object({
-  spreadsheetId: z.string().min(1, 'spreadsheetId es requerido'),
-  credentials: z.union([
-    GoogleServiceAccountSchema,
-    z.string().min(1, 'credentials debe ser un objeto JSON o ruta al archivo'),
-  ]),
-});
+export const SheetsConfigSchema = z
+  .object({
+    spreadsheetId: z.string().min(1).optional(),
+    folderId: z.string().min(1).optional(),
+    credentials: z.union([
+      GoogleServiceAccountSchema,
+      z.string().min(1, 'credentials debe ser un objeto JSON o ruta al archivo'),
+    ]),
+  })
+  .refine((d) => d.spreadsheetId ?? d.folderId, {
+    message: 'Se requiere spreadsheetId (hoja individual) o folderId (carpeta de Drive)',
+  });
 
 export const RestConfigSchema = z.object({
   baseUrl: z.string().url('baseUrl debe ser una URL válida'),
@@ -175,7 +180,8 @@ export class ConnectorService {
 
     if (conector.tipo === 'GOOGLE_SHEETS') {
       return new SheetsConnector({
-        spreadsheetId: config['spreadsheetId'] as string,
+        spreadsheetId: config['spreadsheetId'] as string | undefined,
+        folderId: config['folderId'] as string | undefined,
         credentials: config['credentials'] as Record<string, unknown> | string,
         name: conector.nombre,
       });
