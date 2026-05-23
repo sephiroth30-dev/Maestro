@@ -28,6 +28,7 @@ import {
   useTestNewConnector,
   useTriggerSync,
   useSyncHistory,
+  useDeleteConnectorData,
   type Conector,
   type TipoConector,
   type FrecuenciaSync,
@@ -112,8 +113,10 @@ function ConnectorCard({
   const qc = useQueryClient();
   const testMutation = useTestConnector();
   const syncMutation = useTriggerSync();
+  const wipeMutation = useDeleteConnectorData();
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [syncPolling, setSyncPolling] = useState(false);
+  const [wipeResult, setWipeResult] = useState<string | null>(null);
 
   // Only fetch history while polling; invalidate every 3s to detect completion
   const { data: polledHistory } = useSyncHistory(syncPolling ? conector.id : '');
@@ -152,6 +155,22 @@ function ConnectorCard({
       setSyncPolling(true);
     } catch {
       // error handled by mutation state
+    }
+  };
+
+  const handleWipe = async (): Promise<void> => {
+    if (!window.confirm(
+      `¿Eliminar TODOS los datos de atenciones del conector "${conector.nombre}"?\n\nEsta acción no se puede deshacer. Debes re-sincronizar para recuperar los datos.`
+    )) return;
+    setWipeResult(null);
+    try {
+      const result = await wipeMutation.mutateAsync(conector.id);
+      setWipeResult(`${result.deleted} registros eliminados. Sincroniza para reimportar.`);
+      void qc.invalidateQueries({ queryKey: ['kpis'] });
+      void qc.invalidateQueries({ queryKey: ['entidades'] });
+      void qc.invalidateQueries({ queryKey: ['tendencia'] });
+    } catch {
+      setWipeResult('Error al limpiar los datos.');
     }
   };
 
@@ -267,6 +286,13 @@ function ConnectorCard({
         </div>
       )}
 
+      {wipeResult && (
+        <div className={`connector-test-result ${wipeMutation.isError ? 'connector-test-result--error' : 'connector-test-result--warning'}`}>
+          {wipeMutation.isError ? <XCircle size={14} /> : <CheckCircle size={14} />}
+          <span>{wipeResult}</span>
+        </div>
+      )}
+
       <div className="connector-card-actions">
         <button
           type="button"
@@ -306,6 +332,21 @@ function ConnectorCard({
         >
           <History size={13} />
           Historial
+        </button>
+
+        <button
+          type="button"
+          className="btn btn--sm btn--ghost btn--danger-ghost"
+          onClick={() => { void handleWipe(); }}
+          disabled={wipeMutation.isPending}
+          title="Eliminar todos los datos importados de este conector"
+        >
+          {wipeMutation.isPending ? (
+            <Loader2 size={13} className="spin" />
+          ) : (
+            <Trash2 size={13} />
+          )}
+          Limpiar datos
         </button>
 
         <div className="connector-card-actions-right">

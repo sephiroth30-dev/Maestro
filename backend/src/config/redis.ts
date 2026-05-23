@@ -28,6 +28,15 @@ export async function disconnectRedis(): Promise<void> {
   memCache.clear();
 }
 
+export function flushReportesCache(): void {
+  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:'];
+  for (const key of memCache.keys()) {
+    if (prefixes.some((p) => key.startsWith(p))) {
+      memCache.delete(key);
+    }
+  }
+}
+
 export function getRedisClient(): typeof redis {
   return redis;
 }
