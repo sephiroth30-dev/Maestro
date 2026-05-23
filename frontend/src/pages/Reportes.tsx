@@ -66,6 +66,10 @@ function getPreset(preset: string): { start: string; end: string } {
       start.setUTCDate(today.getUTCDate() - 29);
       return { start: fmt(start), end: fmt(today) };
     }
+    case 'anio': {
+      const start = new Date(today.getUTCFullYear(), 0, 1);
+      return { start: fmt(start), end: fmt(today) };
+    }
     default:
       return { start: '', end: '' };
   }
@@ -218,6 +222,9 @@ export default function Reportes(): React.ReactElement {
                 </button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('30dias')}>
                   Últimos 30 días
+                </button>
+                <button type="button" className="preset-btn preset-btn--accent" onClick={() => applyPreset('anio')}>
+                  {new Date().getFullYear()}
                 </button>
               </div>
               <div className="date-range-group">

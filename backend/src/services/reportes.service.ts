@@ -72,6 +72,15 @@ async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promis
   }
 }
 
+// Returns a cache key that includes the date range so range queries never
+// collide with month-mode cached results.
+function makeCacheKey(base: string, mesIdx: number, anio: number, startDate?: Date, endDate?: Date, extra?: string): string {
+  const dateSegment = startDate && endDate
+    ? `range:${startDate.toISOString().slice(0, 10)}:${endDate.toISOString().slice(0, 10)}`
+    : `${mesIdx}:${anio}`;
+  return extra ? `${base}:${dateSegment}:${extra}` : `${base}:${dateSegment}`;
+}
+
 // ─── Business day helpers ─────────────────────────────────────────────────────
 
 /**
@@ -128,6 +137,48 @@ function getSemanasDelMes(
   return semanas;
 }
 
+/**
+ * Splits an arbitrary date range into Sun-Sat week segments.
+ */
+function getSemanasEnRango(
+  startDate: Date,
+  endDate: Date,
+): Array<{ numero: number; ini: Date; fin: Date }> {
+  const semanas: Array<{ numero: number; ini: Date; fin: Date }> = [];
+  let current = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+  let weekNum = 1;
+
+  while (current <= endDate) {
+    const ini = new Date(current);
+    const dow = current.getUTCDay();
+    const daysUntilSat = dow === 0 ? 6 : 6 - dow;
+    const fin = new Date(current);
+    fin.setUTCDate(fin.getUTCDate() + daysUntilSat);
+    if (fin > endDate) fin.setTime(endDate.getTime());
+
+    semanas.push({ numero: weekNum++, ini, fin });
+    current = new Date(fin);
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return semanas;
+}
+
+/**
+ * Sum of monthly presupuestos for all months that overlap with the date range.
+ */
+async function getPresupuestoParaRango(startDate: Date, endDate: Date): Promise<number> {
+  const months: Array<{ anio: number; mes: number }> = [];
+  const cur = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
+  const lastMonth = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
+  while (cur <= lastMonth) {
+    months.push({ anio: cur.getUTCFullYear(), mes: cur.getUTCMonth() + 1 });
+    cur.setUTCMonth(cur.getUTCMonth() + 1);
+  }
+  const values = await Promise.all(months.map((m) => repo.getPresupuesto(m.anio, m.mes)));
+  return values.reduce((sum, v) => sum + v, 0);
+}
+
 // ─── Service class ────────────────────────────────────────────────────────────
 
 class ReportesService {
@@ -139,30 +190,42 @@ class ReportesService {
     endDate?: Date;
   }): Promise<KpisResult> {
     const { mesIdx, anio, entidadId, startDate, endDate } = params;
-    const cacheKey = entidadId
-      ? `kpis:${mesIdx}:${anio}:${entidadId}`
-      : `kpis:${mesIdx}:${anio}`;
+    const isRangeMode = Boolean(startDate && endDate);
+
+    // Cache key must encode the date range so range queries never hit month-mode cache
+    const cacheKey = makeCacheKey('kpis', mesIdx, anio, startDate, endDate, entidadId);
 
     const cached = await cacheGet<KpisResult>(cacheKey);
     if (cached) return cached;
 
-    const [agregado, presupuesto, diasTranscurridos, facturacionHoy] = await Promise.all([
+    const [agregado, diasTranscurridos, facturacionHoy] = await Promise.all([
       repo.getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate),
-      repo.getPresupuesto(anio, mesIdx),
       repo.getDiasTranscurridos(mesIdx, anio, startDate, endDate),
       repo.getFacturacionDia(new Date()),
     ]);
 
+    // For range mode sum all monthly budgets that overlap the range
+    const presupuesto = isRangeMode && startDate && endDate
+      ? await getPresupuestoParaRango(startDate, endDate)
+      : await repo.getPresupuesto(anio, mesIdx);
+
     const { total: facturacionBruta, atenciones } = agregado;
-    const diasRestantes = diasHabilesRestantes(mesIdx, anio);
+
+    // In range mode there are no future days to project — it's a historical view
+    const diasRestantes = isRangeMode ? 0 : diasHabilesRestantes(mesIdx, anio);
     const promedioDiario = diasTranscurridos > 0 ? facturacionBruta / diasTranscurridos : 0;
-    const proyeccionCierre = facturacionBruta + promedioDiario * diasRestantes;
+    const proyeccionCierre = isRangeMode
+      ? facturacionBruta
+      : facturacionBruta + promedioDiario * diasRestantes;
     const cumplimientoPct = presupuesto > 0 ? (facturacionBruta / presupuesto) * 100 : 0;
     const proyeccionCumplimientoPct = presupuesto > 0 ? (proyeccionCierre / presupuesto) * 100 : 0;
     const ticketPromedio = atenciones > 0 ? facturacionBruta / atenciones : 0;
 
-    // Calculate weeks in meta (cumplimiento >= 100%)
-    const semanas = getSemanasDelMes(mesIdx, anio);
+    // Weeks: span the actual range in range mode, otherwise the calendar month
+    const semanas = isRangeMode && startDate && endDate
+      ? getSemanasEnRango(startDate, endDate)
+      : getSemanasDelMes(mesIdx, anio);
+
     const diarios = await repo.getDiariosDelMes(mesIdx, anio, startDate, endDate);
     const dailyMap = new Map<string, number>();
     for (const d of diarios) {
@@ -170,7 +233,7 @@ class ReportesService {
       dailyMap.set(key, Number(d.total));
     }
 
-    const presupuestoSemanal = presupuesto / semanas.length;
+    const presupuestoSemanal = semanas.length > 0 ? presupuesto / semanas.length : 0;
     let semanasEnMeta = 0;
 
     for (const sem of semanas) {
@@ -215,7 +278,7 @@ class ReportesService {
     endDate?: Date;
   }): Promise<{ rows: EntidadRow[]; total: number }> {
     const { mesIdx, anio, startDate, endDate } = params;
-    const cacheKey = `entidades:${mesIdx}:${anio}`;
+    const cacheKey = makeCacheKey('entidades', mesIdx, anio, startDate, endDate);
 
     const cached = await cacheGet<{ rows: EntidadRow[]; total: number }>(cacheKey);
     if (cached) return cached;
@@ -248,14 +311,19 @@ class ReportesService {
     endDate?: Date;
   }): Promise<{ semanas: SemanaRow[] }> {
     const { mesIdx, anio, startDate, endDate } = params;
-    const cacheKey = `cumplimiento:${mesIdx}:${anio}`;
+    const isRangeMode = Boolean(startDate && endDate);
+    const cacheKey = makeCacheKey('cumplimiento', mesIdx, anio, startDate, endDate);
 
     const cached = await cacheGet<{ semanas: SemanaRow[] }>(cacheKey);
     if (cached) return cached;
 
-    const presupuesto = await repo.getPresupuesto(anio, mesIdx);
+    const presupuesto = isRangeMode && startDate && endDate
+      ? await getPresupuestoParaRango(startDate, endDate)
+      : await repo.getPresupuesto(anio, mesIdx);
     const diarios = await repo.getDiariosDelMes(mesIdx, anio, startDate, endDate);
-    const semanas = getSemanasDelMes(mesIdx, anio);
+    const semanas = isRangeMode && startDate && endDate
+      ? getSemanasEnRango(startDate, endDate)
+      : getSemanasDelMes(mesIdx, anio);
 
     const dailyMap = new Map<string, number>();
     for (const d of diarios) {
