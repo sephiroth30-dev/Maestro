@@ -50,21 +50,15 @@ function removeRoute(filePath, route) {
 
     if (startsRoute) {
       changed = true;
-      // Avanza hasta encontrar el cierre de la llamada: '});' al mismo nivel
-      const baseIndent = line.search(/\S/); // columna del primer carácter no-espacio
+      // Avanza hasta encontrar el cierre '});' al mismo nivel de indentación
+      const baseIndent = line.search(/\S/);
       i++;
       while (i < lines.length) {
         const l = lines[i];
         const lTrimmed = l.trim();
         const lIndent = l.search(/\S/);
         i++;
-        // Cierre de la llamada: });  al mismo nivel de indentación que el fastify.get
-        if (
-          (lTrimmed === '});' || lTrimmed === '});') &&
-          (lIndent <= baseIndent || lIndent === baseIndent)
-        ) {
-          break;
-        }
+        if (lTrimmed === '});' && lIndent <= baseIndent) break;
       }
       continue;
     }
