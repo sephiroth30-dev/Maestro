@@ -1,5 +1,7 @@
 import type { Conector, Sincronizacion, EstadoSync, TipoConector } from '@prisma/client';
-import { prisma } from '../config/prisma.js';
+import { randomUUID } from 'node:crypto';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { pool } from '../config/prisma.js';
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────────
 
@@ -27,35 +29,61 @@ export interface CreateSincronizacionData {
   finalizadaAt?: Date;
 }
 
-// ─── Explicit select shapes ───────────────────────────────────────────────────
+// ─── Row shapes from DB ───────────────────────────────────────────────────────
 
-const conectorSelect = {
-  id: true,
-  nombre: true,
-  tipo: true,
-  config: true,
-  activo: true,
-  frecuenciaSync: true,
-  ultimaSync: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
+interface ConectorRow extends RowDataPacket {
+  id: string;
+  nombre: string;
+  tipo: TipoConector;
+  config: string | Record<string, unknown>;
+  activo: number;
+  frecuencia_sync: string;
+  ultima_sync: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
 
-const sincronizacionSelect = {
-  id: true,
-  conectorId: true,
-  estado: true,
-  filasLeidas: true,
-  filasNuevas: true,
-  errores: true,
-  iniciadaAt: true,
-  finalizadaAt: true,
-} as const;
+interface SincronizacionRow extends RowDataPacket {
+  id: string;
+  conector_id: string;
+  estado: EstadoSync;
+  filas_leidas: number;
+  filas_nuevas: number;
+  errores: string | Record<string, unknown> | null;
+  iniciada_at: Date;
+  finalizada_at: Date | null;
+}
 
-// ─── Prisma-compatible types ──────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type JsonInput = any;
+function mapConector(row: ConectorRow): Conector {
+  return {
+    id: row.id,
+    nombre: row.nombre,
+    tipo: row.tipo,
+    config: (typeof row.config === 'string' ? JSON.parse(row.config) : row.config) as Record<string, unknown>,
+    activo: Boolean(row.activo),
+    frecuenciaSync: row.frecuencia_sync,
+    ultimaSync: row.ultima_sync,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  } as unknown as Conector;
+}
+
+function mapSincronizacion(row: SincronizacionRow): Sincronizacion {
+  return {
+    id: row.id,
+    conectorId: row.conector_id,
+    estado: row.estado,
+    filasLeidas: row.filas_leidas,
+    filasNuevas: row.filas_nuevas,
+    errores: row.errores !== null
+      ? (typeof row.errores === 'string' ? JSON.parse(row.errores) : row.errores)
+      : null,
+    iniciadaAt: row.iniciada_at,
+    finalizadaAt: row.finalizada_at,
+  } as unknown as Sincronizacion;
+}
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
@@ -63,60 +91,86 @@ export class ConectoresRepository {
   // ─── Conector CRUD ────────────────────────────────────────────────────────
 
   async create(data: CreateConectorData): Promise<Conector> {
-    return prisma.conector.create({
-      data: {
-        nombre: data.nombre,
-        tipo: data.tipo,
-        config: data.config as JsonInput,
-        frecuenciaSync: data.frecuenciaSync ?? 'daily',
-      },
-      select: conectorSelect,
-    }) as unknown as Conector;
+    const id = randomUUID();
+    const frecuenciaSync = data.frecuenciaSync ?? 'daily';
+    await pool.execute<ResultSetHeader>(
+      'INSERT INTO conectores (id, nombre, tipo, config, activo, frecuencia_sync, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, NOW(), NOW())',
+      [id, data.nombre, data.tipo, JSON.stringify(data.config), frecuenciaSync]
+    );
+    const [rows] = await pool.query<ConectorRow[]>(
+      'SELECT * FROM conectores WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return mapConector(rows[0]!);
   }
 
   async findAll(): Promise<Conector[]> {
-    return prisma.conector.findMany({
-      select: conectorSelect,
-      orderBy: { createdAt: 'desc' },
-    }) as unknown as Conector[];
+    const [rows] = await pool.query<ConectorRow[]>(
+      'SELECT * FROM conectores ORDER BY created_at DESC'
+    );
+    return rows.map(mapConector);
   }
 
   async findAllActive(): Promise<Conector[]> {
-    return prisma.conector.findMany({
-      where: { activo: true },
-      select: conectorSelect,
-      orderBy: { nombre: 'asc' },
-    }) as unknown as Conector[];
+    const [rows] = await pool.query<ConectorRow[]>(
+      'SELECT * FROM conectores WHERE activo = 1 ORDER BY nombre ASC'
+    );
+    return rows.map(mapConector);
   }
 
   async findById(id: string): Promise<Conector | null> {
-    return prisma.conector.findUnique({
-      where: { id },
-      select: conectorSelect,
-    }) as unknown as Conector | null;
+    const [rows] = await pool.query<ConectorRow[]>(
+      'SELECT * FROM conectores WHERE id = ? LIMIT 1',
+      [id]
+    );
+    const row = rows[0];
+    return row ? mapConector(row) : null;
   }
 
   async update(id: string, data: UpdateConectorData): Promise<Conector> {
-    const updateData: Record<string, unknown> = {};
-    if (data.nombre !== undefined) updateData['nombre'] = data.nombre;
-    if (data.config !== undefined) updateData['config'] = data.config;
-    if (data.activo !== undefined) updateData['activo'] = data.activo;
-    if (data.frecuenciaSync !== undefined) updateData['frecuenciaSync'] = data.frecuenciaSync;
-    if (data.ultimaSync !== undefined) updateData['ultimaSync'] = data.ultimaSync;
+    const setClauses: string[] = [];
+    const params: (string | boolean | Date | number)[] = [];
 
-    return prisma.conector.update({
-      where: { id },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: updateData as any,
-      select: conectorSelect,
-    }) as unknown as Conector;
+    if (data.nombre !== undefined) {
+      setClauses.push('nombre = ?');
+      params.push(data.nombre);
+    }
+    if (data.config !== undefined) {
+      setClauses.push('config = ?');
+      params.push(JSON.stringify(data.config));
+    }
+    if (data.activo !== undefined) {
+      setClauses.push('activo = ?');
+      params.push(data.activo ? 1 : 0);
+    }
+    if (data.frecuenciaSync !== undefined) {
+      setClauses.push('frecuencia_sync = ?');
+      params.push(data.frecuenciaSync);
+    }
+    if (data.ultimaSync !== undefined) {
+      setClauses.push('ultima_sync = ?');
+      params.push(data.ultimaSync);
+    }
+
+    setClauses.push('updated_at = NOW()');
+    params.push(id);
+
+    await pool.execute<ResultSetHeader>(
+      `UPDATE conectores SET ${setClauses.join(', ')} WHERE id = ?`,
+      params
+    );
+    const [rows] = await pool.query<ConectorRow[]>(
+      'SELECT * FROM conectores WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return mapConector(rows[0]!);
   }
 
   async softDelete(id: string): Promise<void> {
-    await prisma.conector.update({
-      where: { id },
-      data: { activo: false },
-    });
+    await pool.execute<ResultSetHeader>(
+      'UPDATE conectores SET activo = 0, updated_at = NOW() WHERE id = ?',
+      [id]
+    );
   }
 
   // ─── Sincronizaciones ─────────────────────────────────────────────────────
@@ -124,17 +178,21 @@ export class ConectoresRepository {
   async createSincronizacion(
     data: CreateSincronizacionData
   ): Promise<Sincronizacion> {
-    return prisma.sincronizacion.create({
-      data: {
-        conectorId: data.conectorId,
-        estado: data.estado,
-        filasLeidas: data.filasLeidas ?? 0,
-        filasNuevas: data.filasNuevas ?? 0,
-        errores: data.errores !== undefined ? (data.errores as JsonInput) : undefined,
-        finalizadaAt: data.finalizadaAt,
-      },
-      select: sincronizacionSelect,
-    }) as unknown as Sincronizacion;
+    const id = randomUUID();
+    const filasLeidas = data.filasLeidas ?? 0;
+    const filasNuevas = data.filasNuevas ?? 0;
+    const errores = data.errores !== undefined ? JSON.stringify(data.errores) : null;
+    const finalizadaAt = data.finalizadaAt ?? null;
+
+    await pool.execute<ResultSetHeader>(
+      'INSERT INTO sincronizaciones (id, conector_id, estado, filas_leidas, filas_nuevas, errores, iniciada_at, finalizada_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)',
+      [id, data.conectorId, data.estado, filasLeidas, filasNuevas, errores, finalizadaAt]
+    );
+    const [rows] = await pool.query<SincronizacionRow[]>(
+      'SELECT * FROM sincronizaciones WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return mapSincronizacion(rows[0]!);
   }
 
   async updateSincronizacion(
@@ -147,31 +205,54 @@ export class ConectoresRepository {
       finalizadaAt: Date;
     }>
   ): Promise<Sincronizacion> {
-    const updateData: Record<string, unknown> = {};
-    if (data.estado !== undefined) updateData['estado'] = data.estado;
-    if (data.filasLeidas !== undefined) updateData['filasLeidas'] = data.filasLeidas;
-    if (data.filasNuevas !== undefined) updateData['filasNuevas'] = data.filasNuevas;
-    if (data.errores !== undefined) updateData['errores'] = data.errores;
-    if (data.finalizadaAt !== undefined) updateData['finalizadaAt'] = data.finalizadaAt;
+    const setClauses: string[] = [];
+    const params: (string | number | Date | null)[] = [];
 
-    return prisma.sincronizacion.update({
-      where: { id },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: updateData as any,
-      select: sincronizacionSelect,
-    }) as unknown as Sincronizacion;
+    if (data.estado !== undefined) {
+      setClauses.push('estado = ?');
+      params.push(data.estado);
+    }
+    if (data.filasLeidas !== undefined) {
+      setClauses.push('filas_leidas = ?');
+      params.push(data.filasLeidas);
+    }
+    if (data.filasNuevas !== undefined) {
+      setClauses.push('filas_nuevas = ?');
+      params.push(data.filasNuevas);
+    }
+    if (data.errores !== undefined) {
+      setClauses.push('errores = ?');
+      params.push(JSON.stringify(data.errores));
+    }
+    if (data.finalizadaAt !== undefined) {
+      setClauses.push('finalizada_at = ?');
+      params.push(data.finalizadaAt);
+    }
+
+    if (setClauses.length > 0) {
+      params.push(id);
+      await pool.execute<ResultSetHeader>(
+        `UPDATE sincronizaciones SET ${setClauses.join(', ')} WHERE id = ?`,
+        params
+      );
+    }
+
+    const [rows] = await pool.query<SincronizacionRow[]>(
+      'SELECT * FROM sincronizaciones WHERE id = ? LIMIT 1',
+      [id]
+    );
+    return mapSincronizacion(rows[0]!);
   }
 
   async findSincronizacionesByConector(
     conectorId: string,
     limit = 20
   ): Promise<Sincronizacion[]> {
-    return prisma.sincronizacion.findMany({
-      where: { conectorId },
-      select: sincronizacionSelect,
-      orderBy: { iniciadaAt: 'desc' },
-      take: limit,
-    }) as unknown as Sincronizacion[];
+    const [rows] = await pool.query<SincronizacionRow[]>(
+      'SELECT * FROM sincronizaciones WHERE conector_id = ? ORDER BY iniciada_at DESC LIMIT ?',
+      [conectorId, limit]
+    );
+    return rows.map(mapSincronizacion);
   }
 }
 

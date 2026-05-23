@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
-import { prisma } from '../config/prisma.js';
+import { createHash, randomUUID } from 'node:crypto';
+import { pool } from '../config/prisma.js';
 import { normalizeDescripcion } from './normalizacion.service.js';
 import { logger } from '../config/logger.js';
 import type { DataRow } from '../connectors/base.connector.js';
-import type { Prisma } from '@prisma/client';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 // ─── Column auto-detection patterns ──────────────────────────────────────────
 
@@ -95,19 +95,23 @@ interface ResolverCache {
 }
 
 async function buildCache(): Promise<ResolverCache> {
-  const [entidades, profesionales] = await Promise.all([
-    prisma.entidad.findMany({ where: { activa: true }, select: { id: true, nombresRaw: true } }),
-    prisma.profesional.findMany({ where: { activo: true }, select: { id: true, nombresRaw: true } }),
+  const [[entidadRows], [profesionalRows]] = await Promise.all([
+    pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
+    pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
   ]);
 
   return {
-    entidades: entidades.map((e) => ({
-      id: e.id,
-      nombres: (e.nombresRaw as string[]).map((n) => n.toUpperCase()),
+    entidades: (entidadRows as RowDataPacket[]).map((row) => ({
+      id: row['id'] as string,
+      nombres: ((typeof row['nombres_raw'] === 'string'
+        ? JSON.parse(row['nombres_raw'])
+        : row['nombres_raw']) as string[]).map((n) => n.toUpperCase()),
     })),
-    profesionales: profesionales.map((p) => ({
-      id: p.id,
-      nombres: (p.nombresRaw as string[]).map((n) => n.toUpperCase()),
+    profesionales: (profesionalRows as RowDataPacket[]).map((row) => ({
+      id: row['id'] as string,
+      nombres: ((typeof row['nombres_raw'] === 'string'
+        ? JSON.parse(row['nombres_raw'])
+        : row['nombres_raw']) as string[]).map((n) => n.toUpperCase()),
     })),
   };
 }
@@ -165,7 +169,21 @@ export async function mapRowsToAtenciones(
   let skipped = 0;
   let errors = 0;
 
-  const toInsert: Prisma.AtencionCreateManyInput[] = [];
+  interface AtencionInsert {
+    descripcionRaw: string;
+    descripcionNorm: string;
+    fechaDia: Date;
+    mesIdx: number;
+    anio: number;
+    valorBruto: number;
+    numeroAutorizacion: string | null;
+    esTelemetria: boolean;
+    hashFila: string;
+    entidadId: string | null;
+    profesionalId: string | null;
+    conectorId: string;
+  }
+  const toInsert: AtencionInsert[] = [];
 
   for (const row of rows) {
     try {
@@ -229,9 +247,28 @@ export async function mapRowsToAtenciones(
   }
 
   if (toInsert.length > 0) {
-    const result = await prisma.atencion.createMany({ data: toInsert, skipDuplicates: true });
-    created = result.count;
-    skipped += toInsert.length - result.count;
+    const values = toInsert.map((item) => [
+      randomUUID(),
+      item.descripcionRaw,
+      item.descripcionNorm,
+      item.fechaDia,
+      item.mesIdx,
+      item.anio,
+      item.valorBruto,
+      item.numeroAutorizacion,
+      item.esTelemetria ? 1 : 0,
+      item.hashFila,
+      item.entidadId,
+      item.profesionalId,
+      null, // servicio_id
+      item.conectorId,
+    ]);
+    const [insertResult] = await pool.query<ResultSetHeader>(
+      'INSERT IGNORE INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?',
+      [values]
+    );
+    created = insertResult.affectedRows;
+    skipped += toInsert.length - insertResult.affectedRows;
   }
 
   return { created, skipped, errors };

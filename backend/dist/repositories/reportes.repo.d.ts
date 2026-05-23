@@ -1,21 +1,20 @@
-import { Decimal } from '@prisma/client/runtime/library';
 export interface AggregadoMes {
-    total: Decimal;
-    atenciones: bigint;
+    total: number;
+    atenciones: number;
 }
 export interface FacHoyResult {
-    total: Decimal;
+    total: number;
 }
 export interface DiasTranscurridosResult {
-    dias: bigint;
+    dias: number;
 }
 export interface EntidadAggRow {
     entidad_id: string | null;
     nombre: string | null;
     tipo: string | null;
     es_grupo_caja: boolean | null;
-    cantidad: bigint;
-    valor_bruto: Decimal;
+    cantidad: number;
+    valor_bruto: number;
 }
 export interface FechasDelMes {
     fecha_dia: Date;
@@ -23,12 +22,12 @@ export interface FechasDelMes {
 export interface TendenciaRow {
     anio: number;
     mes_idx: number;
-    total: Decimal;
+    total: number;
 }
 export interface PresupuestoRow {
     anio: number;
     mes: number;
-    monto: Decimal;
+    monto: number;
     notas: string | null;
 }
 export declare function getAgregadoMes(mesIdx: number, anio: number, entidadId?: string, startDate?: Date, endDate?: Date): Promise<{
@@ -41,19 +40,19 @@ export declare function getFechasDelMes(mesIdx: number, anio: number): Promise<D
 export declare function getEntidadesAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<EntidadAggRow[]>;
 export declare function getDiariosDelMes(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<Array<{
     fecha_dia: Date;
-    total: Decimal;
-    atenciones: bigint;
+    total: number;
+    atenciones: number;
 }>>;
 export declare function getDiasSemanaAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<Array<{
     dia_num: number;
-    promedio: Decimal;
-    total: Decimal;
-    atenciones: bigint;
+    promedio: number;
+    total: number;
+    atenciones: number;
 }>>;
 export declare function getTendenciaMeses(meses: number): Promise<Array<{
     anio: number;
     mes_idx: number;
-    total: Decimal;
+    total: number;
 }>>;
 export declare function getPresupuesto(anio: number, mes: number): Promise<number>;
 export declare function listPresupuestos(): Promise<Array<{

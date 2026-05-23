@@ -5,7 +5,7 @@ import { requireRole } from '../middlewares/rbac.middleware.js';
 import { connectorService, FrecuenciaSyncSchema } from '../services/connector.service.js';
 import { syncService } from '../services/sync.service.js';
 import { logger } from '../config/logger.js';
-import { prisma } from '../config/prisma.js';
+import { pool } from '../config/prisma.js';
 import { flushReportesCache } from '../config/redis.js';
 import type { TipoConector } from '@prisma/client';
 
@@ -189,7 +189,11 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = req.params as { id: string };
       // Ensure connector exists first
       await connectorService.getById(id);
-      const result = await prisma.atencion.deleteMany({ where: { conectorId: id } });
+      const [deleteResult] = await pool.query<import('mysql2').ResultSetHeader>(
+        'DELETE FROM atenciones WHERE conector_id = ?',
+        [id]
+      );
+      const result = { count: deleteResult.affectedRows };
       flushReportesCache();
       logger.info('Connector data wiped', { conectorId: id, deleted: result.count });
       await reply.send({ conectorId: id, deleted: result.count });

@@ -131,7 +131,8 @@ async function connectorRoutes(fastify) {
         const { id } = req.params;
         // Ensure connector exists first
         await connector_service_js_1.connectorService.getById(id);
-        const result = await prisma_js_1.prisma.atencion.deleteMany({ where: { conectorId: id } });
+        const [deleteResult] = await prisma_js_1.pool.query('DELETE FROM atenciones WHERE conector_id = ?', [id]);
+        const result = { count: deleteResult.affectedRows };
         (0, redis_js_1.flushReportesCache)();
         logger_js_1.logger.info('Connector data wiped', { conectorId: id, deleted: result.count });
         await reply.send({ conectorId: id, deleted: result.count });

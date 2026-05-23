@@ -1,55 +1,25 @@
-import { PrismaClient } from '@prisma/client';
-import { createConnection } from 'mysql2/promise';
+import mysql from 'mysql2/promise';
 import { logger } from './logger.js';
 
-function makeClient(): PrismaClient {
-  const rawUrl = process.env['DATABASE_URL'] ?? '';
-  // Ensure a modest connection pool for shared hosting (avoids exhausting MySQL connection limits).
-  const datasourceUrl = rawUrl.includes('connection_limit=')
-    ? rawUrl
-    : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}connection_limit=3`;
-  return new PrismaClient({
-    datasourceUrl,
-    log: [
-      { emit: 'stdout', level: 'error' },
-      { emit: 'stdout', level: 'warn' },
-    ],
-  });
-}
+export const pool = mysql.createPool(process.env['DATABASE_URL'] ?? '');
 
-// Mutable export — TypeScript CJS output updates exports.prisma on every reassignment,
-// so all importers see the renewed instance after a panic recovery.
-export let prisma: PrismaClient = makeClient();
-
-// Called after a PrismaClientRustPanicError to get a fresh Tokio runtime.
+// No-op: mysql2 pool auto-reconnects — no Rust engine to renew
 export function renewPrismaClient(): void {
-  const old = prisma;
-  prisma = makeClient();
-  void old.$disconnect().catch(() => undefined);
-  logger.info('PrismaClient renewed');
+  logger.info('DB pool auto-manages reconnection (mysql2 — no Rust engine)');
 }
 
-// Startup connectivity check — uses mysql2 first (pure JS, no Rust) so Prisma's
-// Tokio runtime is NOT touched during the fragile multi-process startup window.
-// Once the mysql2 ping succeeds we know only one process is running, so we can
-// safely warm up Prisma's connection pool via $connect().
 export async function connectDatabase(): Promise<void> {
-  const url = process.env['DATABASE_URL'] ?? '';
-  const conn = await createConnection(url);
+  const conn = await pool.getConnection();
   await conn.ping();
-  await conn.end();
-  logger.info('Database ping OK (mysql2)');
-
-  // Pre-warm Prisma pool so the first API request doesn't pay the connection cost.
-  await prisma.$connect();
-  logger.info('Prisma connection pool ready');
+  conn.release();
+  logger.info('Database connected (mysql2 pool — no Rust engine)');
 }
 
 export async function disconnectDatabase(): Promise<void> {
   try {
-    await prisma.$disconnect();
+    await pool.end();
     logger.info('Database disconnected');
   } catch {
-    // Ignore disconnect errors during shutdown
+    // ignore
   }
 }

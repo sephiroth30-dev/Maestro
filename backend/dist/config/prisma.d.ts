@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-export declare let prisma: PrismaClient;
+import mysql from 'mysql2/promise';
+export declare const pool: mysql.Pool;
 export declare function renewPrismaClient(): void;
 export declare function connectDatabase(): Promise<void>;
 export declare function disconnectDatabase(): Promise<void>;
