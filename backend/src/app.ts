@@ -5,12 +5,17 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyJwt from '@fastify/jwt';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
+import fs from 'fs';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { registerAuthRoutes } from './routes/auth.routes.js';
 import { registerConnectorRoutes } from './routes/connectors.routes.js';
 import { registerReportesRoutes } from './routes/reportes.routes.js';
+
+// __dirname is reliable in CommonJS output regardless of cwd
+// compiled file lives at backend/dist/app.js → ../../frontend/dist = frontend/dist
+const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -80,11 +85,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerReportesRoutes(fastify);
 
   // ─── Static frontend (production) / JSON 404 (development) ───────────────
-  if (env.NODE_ENV === 'production') {
-    const frontendDist = path.resolve(process.cwd(), '../frontend/dist');
+  const frontendReady = env.NODE_ENV === 'production' && fs.existsSync(path.join(FRONTEND_DIST, 'index.html'));
 
+  console.log(`[BOOT] NODE_ENV=${env.NODE_ENV} | frontend dist: ${FRONTEND_DIST} | ready=${frontendReady}`);
+
+  if (frontendReady) {
     await fastify.register(fastifyStatic, {
-      root: frontendDist,
+      root: FRONTEND_DIST,
       prefix: '/',
     });
 
