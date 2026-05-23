@@ -29,6 +29,7 @@ import {
   useTriggerSync,
   useSyncHistory,
   useDeleteConnectorData,
+  useDeleteOrphanData,
   type Conector,
   type TipoConector,
   type FrecuenciaSync,
@@ -1249,10 +1250,13 @@ function DeleteConfirmModal({
 
 export default function Conectores(): React.ReactElement {
   const { data: conectores, isLoading, error } = useConnectors();
+  const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editingConector, setEditingConector] = useState<Conector | null>(null);
   const [deletingConector, setDeletingConector] = useState<Conector | null>(null);
   const [historyConector, setHistoryConector] = useState<Conector | null>(null);
+  const [orphanResult, setOrphanResult] = useState<string | null>(null);
+  const orphanMutation = useDeleteOrphanData();
 
   const handleEdit = (c: Conector): void => {
     setEditingConector(c);
@@ -1262,6 +1266,22 @@ export default function Conectores(): React.ReactElement {
   const handleCloseModal = (): void => {
     setShowModal(false);
     setEditingConector(null);
+  };
+
+  const handleCleanOrphan = async (): Promise<void> => {
+    if (!window.confirm(
+      '¿Eliminar los registros de atenciones de prueba (sin conector asignado)?\n\nEstos son datos ficticios del sistema que no provienen de ninguna fuente real. Esta acción no se puede deshacer.'
+    )) return;
+    setOrphanResult(null);
+    try {
+      const result = await orphanMutation.mutateAsync();
+      setOrphanResult(`${result.deleted} registros de prueba eliminados.`);
+      void qc.invalidateQueries({ queryKey: ['kpis'] });
+      void qc.invalidateQueries({ queryKey: ['entidades'] });
+      void qc.invalidateQueries({ queryKey: ['tendencia'] });
+    } catch {
+      setOrphanResult('Error al limpiar los registros de prueba.');
+    }
   };
 
   return (
@@ -1274,14 +1294,31 @@ export default function Conectores(): React.ReactElement {
             Gestiona las conexiones a tus fuentes de información
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={() => setShowModal(true)}
-        >
-          <Plus size={16} />
-          Nueva fuente
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {orphanResult && (
+            <span style={{ fontSize: '0.8rem', color: orphanMutation.isError ? '#ef4444' : '#10b981' }}>
+              {orphanResult}
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => { void handleCleanOrphan(); }}
+            disabled={orphanMutation.isPending}
+            title="Eliminar registros de prueba sin conector asignado"
+          >
+            {orphanMutation.isPending ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+            Limpiar pruebas
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => setShowModal(true)}
+          >
+            <Plus size={16} />
+            Nueva fuente
+          </button>
+        </div>
       </div>
 
       {/* Content */}

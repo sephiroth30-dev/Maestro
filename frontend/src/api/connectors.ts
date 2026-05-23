@@ -273,3 +273,16 @@ export function useDeleteConnectorData(): UseMutationResult<
     },
   });
 }
+
+export function useDeleteOrphanData(): UseMutationResult<
+  { deleted: number },
+  Error,
+  void
+> {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.delete<{ deleted: number }>('/connectors/data/orphan');
+      return res.data;
+    },
+  });
+}

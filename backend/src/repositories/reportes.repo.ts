@@ -110,7 +110,7 @@ export async function getDiasTranscurridos(
 ): Promise<number> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
   const [rows] = await pool.query<(RowDataPacket & { cnt: string })[]>(
-    `SELECT COUNT(DISTINCT fecha_dia) AS cnt FROM atenciones WHERE ${whereClause}`,
+    `SELECT COUNT(DISTINCT DATE(fecha_dia)) AS cnt FROM atenciones WHERE ${whereClause}`,
     params
   );
   return Number(rows[0]?.cnt ?? 0);
@@ -166,19 +166,19 @@ export async function getDiariosDelMes(
   endDate?: Date,
 ): Promise<Array<{ fecha_dia: Date; total: number; atenciones: number }>> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
-  const [rows] = await pool.query<(RowDataPacket & { fecha_dia: Date; total: string; atenciones: string })[]>(
+  const [rows] = await pool.query<(RowDataPacket & { fecha_dia: string; total: string; atenciones: string })[]>(
     `SELECT
-      fecha_dia,
+      DATE(fecha_dia) AS fecha_dia,
       SUM(valor_bruto) AS total,
       COUNT(id) AS atenciones
     FROM atenciones
     WHERE ${whereClause}
-    GROUP BY fecha_dia
-    ORDER BY fecha_dia ASC`,
+    GROUP BY DATE(fecha_dia)
+    ORDER BY DATE(fecha_dia) ASC`,
     params
   );
   return rows.map((r) => ({
-    fecha_dia: r.fecha_dia,
+    fecha_dia: new Date(r.fecha_dia + 'T00:00:00.000Z'),
     total: Number(r.total),
     atenciones: Number(r.atenciones),
   }));
@@ -214,15 +214,16 @@ export async function getDiasSemanaAgg(
 export async function getTendenciaMeses(
   meses: number
 ): Promise<Array<{ anio: number; mes_idx: number; total: number }>> {
+  // Subquery: pick the N most-recent months, then re-sort ascending for display.
   const [rows] = await pool.query<(RowDataPacket & { anio: number; mes_idx: number; total: string })[]>(
-    `SELECT
-      anio,
-      mes_idx,
-      SUM(valor_bruto) AS total
-    FROM atenciones
-    GROUP BY anio, mes_idx
-    ORDER BY anio ASC, mes_idx ASC
-    LIMIT ?`,
+    `SELECT anio, mes_idx, total FROM (
+       SELECT anio, mes_idx, SUM(valor_bruto) AS total
+       FROM atenciones
+       GROUP BY anio, mes_idx
+       ORDER BY anio DESC, mes_idx DESC
+       LIMIT ?
+     ) sub
+     ORDER BY anio ASC, mes_idx ASC`,
     [meses]
   );
   return rows.map((r) => ({
