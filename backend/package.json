@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "echo 'Backend usa tsx en runtime - sin paso tsc'",
+    "build": "node scripts/build.js",
     "postinstall": "prisma generate",
     "start": "tsx src/index.ts",
     "db:migrate": "prisma migrate deploy",
