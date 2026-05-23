@@ -1,44 +1,44 @@
 import { PrismaClient } from '@prisma/client';
+import { createConnection } from 'mysql2/promise';
 import { logger } from './logger.js';
 
-const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: PrismaClient;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function makeClient(): PrismaClient {
+  return new PrismaClient({
     log: [
       { emit: 'stdout', level: 'error' },
       { emit: 'stdout', level: 'warn' },
     ],
   });
-
-if (process.env['NODE_ENV'] !== 'production') {
-  globalForPrisma.prisma = prisma;
 }
 
-export async function connectDatabase(retries = 5, delayMs = 2000): Promise<void> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await prisma.$connect();
-      logger.info('Database connected successfully');
-      return;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (attempt < retries) {
-        logger.warn(`DB connect attempt ${attempt}/${retries} failed — retrying in ${delayMs}ms`, { message });
-        await new Promise((r) => setTimeout(r, delayMs));
-        delayMs *= 2;
-      } else {
-        logger.error('Failed to connect to database after all retries', { error });
-        throw error;
-      }
-    }
-  }
+// Mutable export — TypeScript CJS output updates exports.prisma on every reassignment,
+// so all importers see the renewed instance after a panic recovery.
+export let prisma: PrismaClient = makeClient();
+
+// Called after a PrismaClientRustPanicError to get a fresh Tokio runtime.
+export function renewPrismaClient(): void {
+  const old = prisma;
+  prisma = makeClient();
+  void old.$disconnect().catch(() => undefined);
+  logger.info('PrismaClient renewed');
+}
+
+// Startup connectivity check — uses mysql2 (pure JS, no Rust) so Prisma's
+// Tokio runtime is NOT touched during the fragile multi-process startup window.
+// Prisma lazy-connects on the first API query, well after only one process is running.
+export async function connectDatabase(): Promise<void> {
+  const url = process.env['DATABASE_URL'] ?? '';
+  const conn = await createConnection(url);
+  await conn.ping();
+  await conn.end();
+  logger.info('Database ping OK (mysql2)');
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  await prisma.$disconnect();
-  logger.info('Database disconnected');
+  try {
+    await prisma.$disconnect();
+    logger.info('Database disconnected');
+  } catch {
+    // Ignore disconnect errors during shutdown
+  }
 }

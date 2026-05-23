@@ -16,6 +16,11 @@ export interface SheetsConnectorConfig {
   spreadsheetId?: string;
   /** Folder mode: sync all spreadsheets inside this Drive folder */
   folderId?: string;
+  /**
+   * Optional regex (case-insensitive) to filter Drive files by name.
+   * Only files whose name matches are synced. Example: "^CUADRE"
+   */
+  fileNamePattern?: string;
   credentials: Record<string, unknown> | string;
   name?: string;
 }
@@ -361,9 +366,34 @@ export class SheetsConnector extends BaseConnector {
       orderBy: 'name',
       pageSize: 100,
     });
-    return ((response.data.files as Array<{ id: string; name: string }>) ?? [])
-      .map((f) => f.id)
-      .filter(Boolean) as string[];
+
+    const files = (response.data.files as Array<{ id: string; name: string }>) ?? [];
+
+    // Apply fileNamePattern filter if configured
+    const pattern = this.config.fileNamePattern?.trim();
+    const filtered = pattern
+      ? files.filter((f) => {
+          try {
+            return new RegExp(pattern, 'i').test(f.name);
+          } catch {
+            logger.warn('Invalid fileNamePattern — skipping filter', { pattern });
+            return true;
+          }
+        })
+      : files;
+
+    if (pattern) {
+      logger.info('File name filter applied', {
+        pattern,
+        total: files.length,
+        matched: filtered.length,
+        skipped: files.map((f) => f.name).filter(
+          (n) => !new RegExp(pattern, 'i').test(n)
+        ),
+      });
+    }
+
+    return filtered.map((f) => f.id).filter(Boolean) as string[];
   }
 
   // ─── listSheets() ─────────────────────────────────────────────────────────
