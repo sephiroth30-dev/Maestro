@@ -452,6 +452,7 @@ interface ConnectorFormState {
   sheetsMode: 'spreadsheet' | 'folder';
   spreadsheetId: string;
   folderId: string;
+  fileNamePattern: string;
   credentialsJson: string;
   // REST fields
   baseUrl: string;
@@ -467,6 +468,7 @@ const DEFAULT_FORM: ConnectorFormState = {
   sheetsMode: 'spreadsheet',
   spreadsheetId: '',
   folderId: '',
+  fileNamePattern: '',
   credentialsJson: '',
   baseUrl: '',
   authType: 'none',
@@ -502,6 +504,7 @@ function ConnectorModal({
       sheetsMode: 'spreadsheet',
       spreadsheetId: '',
       folderId: '',
+      fileNamePattern: '',
       credentialsJson: '',
       baseUrl: '',
       authType: 'none',
@@ -512,6 +515,7 @@ function ConnectorModal({
       base.folderId = (cfg['folderId'] as string) ?? '';
       base.spreadsheetId = (cfg['spreadsheetId'] as string) ?? '';
       base.sheetsMode = base.folderId ? 'folder' : 'spreadsheet';
+      base.fileNamePattern = (cfg['fileNamePattern'] as string) ?? '';
       base.credentialsJson =
         typeof cfg['credentials'] === 'object'
           ? JSON.stringify(cfg['credentials'], null, 2)
@@ -550,7 +554,11 @@ function ConnectorModal({
         credentials = form.credentialsJson;
       }
       if (form.sheetsMode === 'folder') {
-        return { folderId: form.folderId.trim(), credentials };
+        return {
+          folderId: form.folderId.trim(),
+          ...(form.fileNamePattern.trim() && { fileNamePattern: form.fileNamePattern.trim() }),
+          credentials,
+        };
       }
       return { spreadsheetId: form.spreadsheetId.trim(), credentials };
     }
@@ -814,28 +822,49 @@ function ConnectorModal({
                       )}
                     </div>
                   ) : (
-                    <div className="form-group">
-                      <label className="form-label" htmlFor="conn-folder-id">
-                        ID de Carpeta (Google Drive)
-                      </label>
-                      <input
-                        id="conn-folder-id"
-                        type="text"
-                        className={`form-input ${errors['folderId'] ? 'form-input--error' : ''}`}
-                        value={form.folderId}
-                        onChange={(e) => setField('folderId', e.target.value)}
-                        placeholder="1a2B3c4D5e6F7g8H9i0J..."
-                      />
-                      <p className="form-hint">
-                        El ID está en la URL de Drive:{' '}
-                        <code>drive.google.com/drive/folders/<strong>[ID]</strong></code>
-                        <br />
-                        Comparte la carpeta con el email de la cuenta de servicio.
-                      </p>
-                      {errors['folderId'] && (
-                        <span className="form-error">{errors['folderId']}</span>
-                      )}
-                    </div>
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-folder-id">
+                          ID de Carpeta (Google Drive)
+                        </label>
+                        <input
+                          id="conn-folder-id"
+                          type="text"
+                          className={`form-input ${errors['folderId'] ? 'form-input--error' : ''}`}
+                          value={form.folderId}
+                          onChange={(e) => setField('folderId', e.target.value)}
+                          placeholder="1a2B3c4D5e6F7g8H9i0J..."
+                        />
+                        <p className="form-hint">
+                          El ID está en la URL de Drive:{' '}
+                          <code>drive.google.com/drive/folders/<strong>[ID]</strong></code>
+                          <br />
+                          Comparte la carpeta con el email de la cuenta de servicio.
+                        </p>
+                        {errors['folderId'] && (
+                          <span className="form-error">{errors['folderId']}</span>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-file-pattern">
+                          Filtro de archivos <span className="config-optional">(opcional)</span>
+                        </label>
+                        <input
+                          id="conn-file-pattern"
+                          type="text"
+                          className="form-input"
+                          value={form.fileNamePattern}
+                          onChange={(e) => setField('fileNamePattern', e.target.value)}
+                          placeholder="^CUADRE"
+                        />
+                        <p className="form-hint">
+                          Expresión regular para filtrar archivos por nombre (ignora mayúsculas).
+                          Ejemplo: <code>^CUADRE</code> — solo sincroniza archivos cuyo nombre empieza con «CUADRE».
+                          Dejar vacío para sincronizar todos los archivos de la carpeta.
+                        </p>
+                      </div>
+                    </>
                   )}
 
                   <div className="form-group">
