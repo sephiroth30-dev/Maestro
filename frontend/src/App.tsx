@@ -11,7 +11,7 @@ import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
-import { Conectores } from './pages/Admin/index.js';
+import { Conectores, Configuracion } from './pages/Admin/index.js';
 import Sidebar from './components/layout/Sidebar.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
@@ -150,6 +150,17 @@ export default function App(): ReactElement {
               <AdminRoute>
                 <AppLayout>
                   <Conectores />
+                </AppLayout>
+              </AdminRoute>
+            }
+          />
+
+          <Route
+            path="/admin/configuracion"
+            element={
+              <AdminRoute>
+                <AppLayout>
+                  <Configuracion />
                 </AppLayout>
               </AdminRoute>
             }

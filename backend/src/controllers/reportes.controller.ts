@@ -30,6 +30,13 @@ const mesAnioSchema = z.object({
 
 const kpisQuerySchema = mesAnioSchema.extend({
   entidad_id: z.string().optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const mesAnioDateSchema = mesAnioSchema.extend({
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 const tendenciaQuerySchema = z.object({
@@ -64,8 +71,14 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, entidad_id } = parsed.data;
-      const result = await reportesService.getKpis({ mesIdx: mes_idx, anio, entidadId: entidad_id });
+      const { mes_idx, anio, entidad_id, start_date, end_date } = parsed.data;
+      const result = await reportesService.getKpis({
+        mesIdx: mes_idx,
+        anio,
+        entidadId: entidad_id,
+        startDate: start_date ? new Date(start_date) : undefined,
+        endDate: end_date ? new Date(end_date) : undefined,
+      });
       return reply.send(result);
     }
   );
@@ -75,7 +88,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     '/api/reportes/entidades',
     { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = mesAnioSchema.safeParse(request.query);
+      const parsed = mesAnioDateSchema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -84,8 +97,13 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio } = parsed.data;
-      const result = await reportesService.getEntidades({ mesIdx: mes_idx, anio });
+      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const result = await reportesService.getEntidades({
+        mesIdx: mes_idx,
+        anio,
+        startDate: start_date ? new Date(start_date) : undefined,
+        endDate: end_date ? new Date(end_date) : undefined,
+      });
       return reply.send(result);
     }
   );
@@ -95,7 +113,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     '/api/reportes/cumplimiento/semanal',
     { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = mesAnioSchema.safeParse(request.query);
+      const parsed = mesAnioDateSchema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -104,8 +122,13 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio } = parsed.data;
-      const result = await reportesService.getCumplimientoSemanal({ mesIdx: mes_idx, anio });
+      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const result = await reportesService.getCumplimientoSemanal({
+        mesIdx: mes_idx,
+        anio,
+        startDate: start_date ? new Date(start_date) : undefined,
+        endDate: end_date ? new Date(end_date) : undefined,
+      });
       return reply.send(result);
     }
   );

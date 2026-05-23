@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 // ─── Types returned by raw repo queries ──────────────────────────────────────
 
@@ -42,14 +43,33 @@ export interface PresupuestoRow {
   notas: string | null;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildDateWhere(
+  mesIdx?: number,
+  anio?: number,
+  startDate?: Date,
+  endDate?: Date,
+): Prisma.Sql {
+  if (startDate && endDate) {
+    return Prisma.sql`fecha_dia >= ${startDate} AND fecha_dia <= ${endDate}`;
+  }
+  return Prisma.sql`mes_idx = ${mesIdx} AND anio = ${anio}`;
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 export async function getAgregadoMes(
   mesIdx: number,
   anio: number,
-  entidadId?: string
+  entidadId?: string,
+  startDate?: Date,
+  endDate?: Date,
 ): Promise<{ total: number; atenciones: number }> {
-  const where: Record<string, unknown> = { mesIdx, anio };
+  const where: Record<string, unknown> =
+    startDate && endDate
+      ? { fechaDia: { gte: startDate, lte: endDate } }
+      : { mesIdx, anio };
   if (entidadId) where['entidadId'] = entidadId;
 
   const result = await prisma.atencion.aggregate({
@@ -85,15 +105,15 @@ export async function getFacturacionDia(fecha: Date): Promise<number> {
 
 export async function getDiasTranscurridos(
   mesIdx: number,
-  anio: number
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
 ): Promise<number> {
   // MySQL-compatible: backticks, no ::int cast
   type CountResult = { cnt: bigint };
+  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
   const rows = await prisma.$queryRaw<CountResult[]>`
-    SELECT COUNT(DISTINCT fecha_dia) AS cnt
-    FROM atenciones
-    WHERE mes_idx = ${mesIdx}
-      AND anio = ${anio}
+    SELECT COUNT(DISTINCT fecha_dia) AS cnt FROM atenciones WHERE ${where}
   `;
   return Number(rows[0]?.cnt ?? 0);
 }
@@ -113,9 +133,12 @@ export async function getFechasDelMes(
 
 export async function getEntidadesAgg(
   mesIdx: number,
-  anio: number
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
 ): Promise<EntidadAggRow[]> {
   // MySQL-compatible: no double-quoted identifiers
+  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
   return prisma.$queryRaw<EntidadAggRow[]>`
     SELECT
       a.entidad_id,
@@ -126,8 +149,7 @@ export async function getEntidadesAgg(
       SUM(a.valor_bruto) AS valor_bruto
     FROM atenciones a
     LEFT JOIN entidades e ON e.id = a.entidad_id
-    WHERE a.mes_idx = ${mesIdx}
-      AND a.anio = ${anio}
+    WHERE ${where}
     GROUP BY a.entidad_id, e.nombre, e.tipo, e.es_grupo_caja
     ORDER BY valor_bruto DESC
   `;
@@ -135,17 +157,19 @@ export async function getEntidadesAgg(
 
 export async function getDiariosDelMes(
   mesIdx: number,
-  anio: number
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
 ): Promise<Array<{ fecha_dia: Date; total: Decimal; atenciones: bigint }>> {
   // MySQL-compatible: no double-quoted identifiers
+  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
   return prisma.$queryRaw`
     SELECT
       fecha_dia,
       SUM(valor_bruto) AS total,
       COUNT(id) AS atenciones
     FROM atenciones
-    WHERE mes_idx = ${mesIdx}
-      AND anio = ${anio}
+    WHERE ${where}
     GROUP BY fecha_dia
     ORDER BY fecha_dia ASC
   `;
@@ -153,10 +177,13 @@ export async function getDiariosDelMes(
 
 export async function getDiasSemanaAgg(
   mesIdx: number,
-  anio: number
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
 ): Promise<Array<{ dia_num: number; promedio: Decimal; total: Decimal; atenciones: bigint }>> {
   // MySQL: DAYOFWEEK() returns 1=Sun..7=Sat; subtract 1 → 0=Sun..6=Sat
   // No EXTRACT(DOW ...)::int (PostgreSQL-only)
+  const where = buildDateWhere(mesIdx, anio, startDate, endDate);
   return prisma.$queryRaw`
     SELECT
       (DAYOFWEEK(fecha_dia) - 1) AS dia_num,
@@ -164,8 +191,7 @@ export async function getDiasSemanaAgg(
       SUM(valor_bruto)           AS total,
       COUNT(id)                  AS atenciones
     FROM atenciones
-    WHERE mes_idx = ${mesIdx}
-      AND anio = ${anio}
+    WHERE ${where}
     GROUP BY dia_num
     ORDER BY dia_num ASC
   `;

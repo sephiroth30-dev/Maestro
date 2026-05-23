@@ -135,8 +135,10 @@ class ReportesService {
     mesIdx: number;
     anio: number;
     entidadId?: string;
+    startDate?: Date;
+    endDate?: Date;
   }): Promise<KpisResult> {
-    const { mesIdx, anio, entidadId } = params;
+    const { mesIdx, anio, entidadId, startDate, endDate } = params;
     const cacheKey = entidadId
       ? `kpis:${mesIdx}:${anio}:${entidadId}`
       : `kpis:${mesIdx}:${anio}`;
@@ -145,9 +147,9 @@ class ReportesService {
     if (cached) return cached;
 
     const [agregado, presupuesto, diasTranscurridos, facturacionHoy] = await Promise.all([
-      repo.getAgregadoMes(mesIdx, anio, entidadId),
+      repo.getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate),
       repo.getPresupuesto(anio, mesIdx),
-      repo.getDiasTranscurridos(mesIdx, anio),
+      repo.getDiasTranscurridos(mesIdx, anio, startDate, endDate),
       repo.getFacturacionDia(new Date()),
     ]);
 
@@ -161,7 +163,7 @@ class ReportesService {
 
     // Calculate weeks in meta (cumplimiento >= 100%)
     const semanas = getSemanasDelMes(mesIdx, anio);
-    const diarios = await repo.getDiariosDelMes(mesIdx, anio);
+    const diarios = await repo.getDiariosDelMes(mesIdx, anio, startDate, endDate);
     const dailyMap = new Map<string, number>();
     for (const d of diarios) {
       const key = d.fecha_dia.toISOString().slice(0, 10);
@@ -209,14 +211,16 @@ class ReportesService {
   async getEntidades(params: {
     mesIdx: number;
     anio: number;
+    startDate?: Date;
+    endDate?: Date;
   }): Promise<{ rows: EntidadRow[]; total: number }> {
-    const { mesIdx, anio } = params;
+    const { mesIdx, anio, startDate, endDate } = params;
     const cacheKey = `entidades:${mesIdx}:${anio}`;
 
     const cached = await cacheGet<{ rows: EntidadRow[]; total: number }>(cacheKey);
     if (cached) return cached;
 
-    const agg = await repo.getEntidadesAgg(mesIdx, anio);
+    const agg = await repo.getEntidadesAgg(mesIdx, anio, startDate, endDate);
 
     const totalGeneral = agg.reduce((sum, r) => sum + Number(r.valor_bruto), 0);
 
@@ -240,15 +244,17 @@ class ReportesService {
   async getCumplimientoSemanal(params: {
     mesIdx: number;
     anio: number;
+    startDate?: Date;
+    endDate?: Date;
   }): Promise<{ semanas: SemanaRow[] }> {
-    const { mesIdx, anio } = params;
+    const { mesIdx, anio, startDate, endDate } = params;
     const cacheKey = `cumplimiento:${mesIdx}:${anio}`;
 
     const cached = await cacheGet<{ semanas: SemanaRow[] }>(cacheKey);
     if (cached) return cached;
 
     const presupuesto = await repo.getPresupuesto(anio, mesIdx);
-    const diarios = await repo.getDiariosDelMes(mesIdx, anio);
+    const diarios = await repo.getDiariosDelMes(mesIdx, anio, startDate, endDate);
     const semanas = getSemanasDelMes(mesIdx, anio);
 
     const dailyMap = new Map<string, number>();

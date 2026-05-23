@@ -251,20 +251,39 @@ export class SheetsConnector extends BaseConnector {
 
     logger.info('Reading date tabs', { spreadsheetId, count: dateTabs.length, tabs: dateTabs });
 
+    // Build ranges array: "'{tabName}'!A:Z"
+    const ranges = dateTabs.map((name) => `${quoteSheetName(name)}!A:Z`);
+
+    const batchResponse = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId,
+      ranges,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'FORMATTED_STRING',
+    });
+
     const allRows: DataRow[] = [];
     let columns: string[] = [];
 
-    for (const tabName of dateTabs) {
-      try {
-        const dataset = await this.readTab(sheets, spreadsheetId, tabName, {});
-        if (dataset.columns.length > columns.length) columns = dataset.columns;
-        allRows.push(...dataset.rows);
-      } catch (err) {
-        logger.warn('Skipping tab due to read error', {
-          spreadsheetId,
-          tabName,
-          error: err instanceof Error ? err.message : String(err),
-        });
+    for (const rangeData of batchResponse.data.valueRanges ?? []) {
+      const values = rangeData.values ?? [];
+      if (values.length === 0) continue;
+
+      const rawHeaders = values[0] as unknown[];
+      const tabColumns = rawHeaders.map((h) => String(h ?? '').trim());
+      if (tabColumns.length > columns.length) columns = tabColumns;
+
+      for (const rawRow of values.slice(1)) {
+        const row = rawRow as unknown[];
+        const hasContent = row.some((c) => c !== null && c !== undefined && c !== '');
+        if (!hasContent) continue;
+
+        const dataRow: DataRow = {};
+        for (let i = 0; i < tabColumns.length; i++) {
+          const col = tabColumns[i];
+          if (!col) continue;
+          dataRow[col] = (row[i] as string | number | boolean | null | undefined) ?? null;
+        }
+        allRows.push(dataRow);
       }
     }
 
