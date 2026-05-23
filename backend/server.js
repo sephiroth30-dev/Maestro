@@ -1,6 +1,5 @@
 'use strict';
-// Entry point shim for Hostinger (or any host that runs "node server.js").
-// Uses tsx to run the TypeScript source directly — no compiled dist/ needed.
+process.chdir(__dirname);
 const { register } = require('tsx/cjs/api');
-register();
+register({ tsconfig: require('path').join(__dirname, 'tsconfig.json') });
 require('./src/index.ts');
