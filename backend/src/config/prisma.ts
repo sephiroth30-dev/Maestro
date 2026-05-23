@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { createConnection } from 'mysql2/promise';
 import { logger } from './logger.js';
 
 function makeClient(): PrismaClient {
@@ -22,11 +23,15 @@ export function renewPrismaClient(): void {
   logger.info('PrismaClient renewed');
 }
 
-// Lightweight ping — uses lazy connection instead of explicit $connect().
-// Avoids the race condition where two processes call $connect() simultaneously.
+// Startup connectivity check — uses mysql2 (pure JS, no Rust) so Prisma's
+// Tokio runtime is NOT touched during the fragile multi-process startup window.
+// Prisma lazy-connects on the first API query, well after only one process is running.
 export async function connectDatabase(): Promise<void> {
-  await prisma.$queryRaw`SELECT 1`;
-  logger.info('Database ping OK');
+  const url = process.env['DATABASE_URL'] ?? '';
+  const conn = await createConnection(url);
+  await conn.ping();
+  await conn.end();
+  logger.info('Database ping OK (mysql2)');
 }
 
 export async function disconnectDatabase(): Promise<void> {
