@@ -8,7 +8,13 @@ const client_1 = require("@prisma/client");
 const promise_1 = require("mysql2/promise");
 const logger_js_1 = require("./logger.js");
 function makeClient() {
+    const rawUrl = process.env['DATABASE_URL'] ?? '';
+    // Ensure a modest connection pool for shared hosting (avoids exhausting MySQL connection limits).
+    const datasourceUrl = rawUrl.includes('connection_limit=')
+        ? rawUrl
+        : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}connection_limit=3`;
     return new client_1.PrismaClient({
+        datasourceUrl,
         log: [
             { emit: 'stdout', level: 'error' },
             { emit: 'stdout', level: 'warn' },

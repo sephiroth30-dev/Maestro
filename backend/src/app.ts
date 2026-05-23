@@ -79,7 +79,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ─── Global error handler ─────────────────────────────────────────────────
   fastify.setErrorHandler(errorHandler);
 
-  // ─── Health check (registered at root before any plugin scopes) ──────────
+  // ─── Health check (única definición — sin duplicados posibles) ──────────
   fastify.get('/api/health', async (_request, reply) => {
     await reply.status(200).send({ status: 'ok', timestamp: new Date().toISOString(), version: '0.1.0' });
   });

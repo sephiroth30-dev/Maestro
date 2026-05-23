@@ -3,7 +3,13 @@ import { createConnection } from 'mysql2/promise';
 import { logger } from './logger.js';
 
 function makeClient(): PrismaClient {
+  const rawUrl = process.env['DATABASE_URL'] ?? '';
+  // Ensure a modest connection pool for shared hosting (avoids exhausting MySQL connection limits).
+  const datasourceUrl = rawUrl.includes('connection_limit=')
+    ? rawUrl
+    : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}connection_limit=3`;
   return new PrismaClient({
+    datasourceUrl,
     log: [
       { emit: 'stdout', level: 'error' },
       { emit: 'stdout', level: 'warn' },
