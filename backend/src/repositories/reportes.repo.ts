@@ -44,9 +44,6 @@ export interface PresupuestoRow {
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
-/**
- * Gets the sum of valor_bruto and count of atenciones for a given month.
- */
 export async function getAgregadoMes(
   mesIdx: number,
   anio: number,
@@ -67,9 +64,6 @@ export async function getAgregadoMes(
   };
 }
 
-/**
- * Gets the sum of valor_bruto for a specific day.
- */
 export async function getFacturacionDia(fecha: Date): Promise<number> {
   const startOfDay = new Date(fecha);
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -89,26 +83,21 @@ export async function getFacturacionDia(fecha: Date): Promise<number> {
   return Number(result._sum.valorBruto ?? 0);
 }
 
-/**
- * Gets the count of distinct business days with at least one atencion in the given month.
- */
 export async function getDiasTranscurridos(
   mesIdx: number,
   anio: number
 ): Promise<number> {
-  type CountResult = { count: bigint };
+  // MySQL-compatible: backticks, no ::int cast
+  type CountResult = { cnt: bigint };
   const rows = await prisma.$queryRaw<CountResult[]>`
-    SELECT COUNT(DISTINCT "fecha_dia") AS count
-    FROM "atenciones"
-    WHERE "mes_idx" = ${mesIdx}
-      AND "anio" = ${anio}
+    SELECT COUNT(DISTINCT fecha_dia) AS cnt
+    FROM atenciones
+    WHERE mes_idx = ${mesIdx}
+      AND anio = ${anio}
   `;
-  return Number(rows[0]?.count ?? 0);
+  return Number(rows[0]?.cnt ?? 0);
 }
 
-/**
- * Gets all distinct dates in a month (for week building).
- */
 export async function getFechasDelMes(
   mesIdx: number,
   anio: number
@@ -122,92 +111,82 @@ export async function getFechasDelMes(
   return rows.map((r) => r.fechaDia);
 }
 
-/**
- * Gets aggregated billing by entidad for a given month.
- */
 export async function getEntidadesAgg(
   mesIdx: number,
   anio: number
 ): Promise<EntidadAggRow[]> {
+  // MySQL-compatible: no double-quoted identifiers
   return prisma.$queryRaw<EntidadAggRow[]>`
     SELECT
-      a."entidad_id",
-      e."nombre",
-      e."tipo",
-      e."es_grupo_caja",
-      COUNT(a."id") AS cantidad,
-      SUM(a."valor_bruto") AS valor_bruto
-    FROM "atenciones" a
-    LEFT JOIN "entidades" e ON e."id" = a."entidad_id"
-    WHERE a."mes_idx" = ${mesIdx}
-      AND a."anio" = ${anio}
-    GROUP BY a."entidad_id", e."nombre", e."tipo", e."es_grupo_caja"
+      a.entidad_id,
+      e.nombre,
+      e.tipo,
+      e.es_grupo_caja,
+      COUNT(a.id) AS cantidad,
+      SUM(a.valor_bruto) AS valor_bruto
+    FROM atenciones a
+    LEFT JOIN entidades e ON e.id = a.entidad_id
+    WHERE a.mes_idx = ${mesIdx}
+      AND a.anio = ${anio}
+    GROUP BY a.entidad_id, e.nombre, e.tipo, e.es_grupo_caja
     ORDER BY valor_bruto DESC
   `;
 }
 
-/**
- * Gets daily billing totals for a given month.
- */
 export async function getDiariosDelMes(
   mesIdx: number,
   anio: number
 ): Promise<Array<{ fecha_dia: Date; total: Decimal; atenciones: bigint }>> {
+  // MySQL-compatible: no double-quoted identifiers
   return prisma.$queryRaw`
     SELECT
-      "fecha_dia",
-      SUM("valor_bruto") AS total,
-      COUNT("id") AS atenciones
-    FROM "atenciones"
-    WHERE "mes_idx" = ${mesIdx}
-      AND "anio" = ${anio}
-    GROUP BY "fecha_dia"
-    ORDER BY "fecha_dia" ASC
+      fecha_dia,
+      SUM(valor_bruto) AS total,
+      COUNT(id) AS atenciones
+    FROM atenciones
+    WHERE mes_idx = ${mesIdx}
+      AND anio = ${anio}
+    GROUP BY fecha_dia
+    ORDER BY fecha_dia ASC
   `;
 }
 
-/**
- * Gets day-of-week averages for all historic data in the given month span.
- */
 export async function getDiasSemanaAgg(
   mesIdx: number,
   anio: number
 ): Promise<Array<{ dia_num: number; promedio: Decimal; total: Decimal; atenciones: bigint }>> {
+  // MySQL: DAYOFWEEK() returns 1=Sun..7=Sat; subtract 1 → 0=Sun..6=Sat
+  // No EXTRACT(DOW ...)::int (PostgreSQL-only)
   return prisma.$queryRaw`
     SELECT
-      EXTRACT(DOW FROM "fecha_dia")::int AS dia_num,
-      AVG("valor_bruto") AS promedio,
-      SUM("valor_bruto") AS total,
-      COUNT("id") AS atenciones
-    FROM "atenciones"
-    WHERE "mes_idx" = ${mesIdx}
-      AND "anio" = ${anio}
+      (DAYOFWEEK(fecha_dia) - 1) AS dia_num,
+      AVG(valor_bruto)           AS promedio,
+      SUM(valor_bruto)           AS total,
+      COUNT(id)                  AS atenciones
+    FROM atenciones
+    WHERE mes_idx = ${mesIdx}
+      AND anio = ${anio}
     GROUP BY dia_num
     ORDER BY dia_num ASC
   `;
 }
 
-/**
- * Gets monthly totals for the last N months (for trend chart).
- */
 export async function getTendenciaMeses(
   meses: number
 ): Promise<Array<{ anio: number; mes_idx: number; total: Decimal }>> {
+  // MySQL-compatible
   return prisma.$queryRaw`
     SELECT
-      "anio",
-      "mes_idx",
-      SUM("valor_bruto") AS total
-    FROM "atenciones"
-    GROUP BY "anio", "mes_idx"
-    ORDER BY "anio" ASC, "mes_idx" ASC
+      anio,
+      mes_idx,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    GROUP BY anio, mes_idx
+    ORDER BY anio ASC, mes_idx ASC
     LIMIT ${meses}
   `;
 }
 
-/**
- * Gets a presupuesto by anio and mes.
- */
 export async function getPresupuesto(anio: number, mes: number): Promise<number> {
   const row = await prisma.presupuestoMensual.findUnique({
     where: { anio_mes: { anio, mes } },
@@ -216,9 +195,6 @@ export async function getPresupuesto(anio: number, mes: number): Promise<number>
   return Number(row?.monto ?? 0);
 }
 
-/**
- * Lists all presupuestos.
- */
 export async function listPresupuestos(): Promise<
   Array<{ id: string; anio: number; mes: number; monto: number; notas: string | null; createdAt: Date }>
 > {
@@ -229,9 +205,6 @@ export async function listPresupuestos(): Promise<
   return rows.map((r) => ({ ...r, monto: Number(r.monto) }));
 }
 
-/**
- * Upserts a presupuesto (create or update by anio+mes).
- */
 export async function upsertPresupuesto(
   anio: number,
   mes: number,
