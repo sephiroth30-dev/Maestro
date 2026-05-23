@@ -8,6 +8,17 @@ import { disconnectRedis } from './config/redis.js';
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
 
+// Register crash handlers before any async work so Prisma engine panics are caught early
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { reason: String(reason) });
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { error: error.message ?? String(error) });
+  process.exit(1);
+});
+
 async function start(): Promise<void> {
   const fastify = await buildApp();
 
@@ -41,7 +52,14 @@ async function start(): Promise<void> {
   }
 
   // ─── Cron jobs ────────────────────────────────────────────────────────────
-  await initCron();
+  try {
+    await initCron();
+  } catch (error) {
+    // Cron failures are non-fatal — app keeps serving requests
+    logger.warn('Cron init failed (tables may not exist yet)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   // ─── Graceful shutdown ────────────────────────────────────────────────────
   const shutdown = async (signal: string): Promise<void> => {
@@ -74,16 +92,6 @@ async function start(): Promise<void> {
 
   process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
   process.on('SIGINT', () => { void shutdown('SIGINT'); });
-
-  process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled promise rejection', { reason });
-    process.exit(1);
-  });
-
-  process.on('uncaughtException', (error) => {
-    logger.error('Uncaught exception', { error });
-    process.exit(1);
-  });
 }
 
 void start();
