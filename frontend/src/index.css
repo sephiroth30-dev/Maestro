@@ -2147,3 +2147,215 @@ body,
   border-radius: var(--radius-md);
 }
 
+/* ─── Filter bar (Reportes date range) ──────────────────────────────────────── */
+
+.filter-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-mode-tabs {
+  display: flex;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.filter-mode-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-gray-500);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.filter-mode-tab + .filter-mode-tab {
+  border-left: 1px solid var(--color-gray-200);
+}
+
+.filter-mode-tab:hover:not(.filter-mode-tab--active) {
+  background: var(--color-gray-50);
+  color: var(--color-gray-700);
+}
+
+.filter-mode-tab--active {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.date-range-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  background: var(--color-white);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.date-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.preset-btns {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.preset-btn {
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-gray-600);
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.preset-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary);
+}
+
+/* ─── Configuracion page ─────────────────────────────────────────────────────── */
+
+.config-year-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.config-year-select {
+  min-width: 90px;
+}
+
+.config-months-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .config-months-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 580px) {
+  .config-months-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.config-month-card {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-gray-200);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s;
+}
+
+.config-month-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.config-month-card--set {
+  border-left: 3px solid var(--color-success);
+}
+
+.config-month-card--unset {
+  border-left: 3px solid var(--color-warning);
+}
+
+.config-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.config-month-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-gray-800);
+}
+
+.config-month-icon--ok {
+  color: var(--color-success);
+}
+
+.config-month-icon--warn {
+  color: var(--color-warning);
+}
+
+.config-month-display {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.config-month-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.config-month-input {
+  width: 100%;
+}
+
+.config-optional {
+  font-weight: 400;
+  color: var(--color-gray-400);
+  font-size: var(--font-size-xs);
+}
+
+.config-month-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.config-btn-success {
+  color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.config-month-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
