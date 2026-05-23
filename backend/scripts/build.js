@@ -1,66 +1,99 @@
 'use strict';
 // Este script reemplaza tsc en producción.
-// 1. Escribe dist/index.js como un shim que carga tsx → src/index.ts
-// 2. Parchea dist/app.js para eliminar cualquier ruta /api/health registrada directamente
-// 3. Parchea dist/controllers/auth.controller.js para garantizar que tenga /health
-//    (bajo el prefijo /api → /api/health) — así no importa si el archivo es viejo o nuevo
+// Garantiza que no haya rutas /health duplicadas sin importar qué archivos
+// tenga Hostinger en disco (git pull puede no actualizar archivos untracked).
 const fs = require('fs');
 const path = require('path');
 
-const distDir = path.join(__dirname, '..', 'dist');
+const BACKEND = path.join(__dirname, '..');
+const distDir = path.join(BACKEND, 'dist');
 fs.mkdirSync(distDir, { recursive: true });
 
-// 1. Shim de entrada — Hostinger arranca con node dist/index.js
+// ─── 1. Shim de entrada ───────────────────────────────────────────────────────
 const shim = `'use strict';
-// Auto-generado por scripts/build.js — no editar manualmente
+// Auto-generado por scripts/build.js
 process.chdir(require('path').join(__dirname, '..'));
 const { register } = require('../node_modules/tsx/cjs/api');
 register({ tsconfig: require('path').join(__dirname, '..', 'tsconfig.json') });
 require('../src/index.ts');
 `;
 fs.writeFileSync(path.join(distDir, 'index.js'), shim, 'utf8');
-console.log('[BUILD] dist/index.js shim escrito — usará tsx en runtime');
+console.log('[BUILD] dist/index.js shim escrito');
 
-// 2. Parchear dist/app.js — eliminar fastify.get('/api/health') si existe
-const appJsPath = path.join(distDir, 'app.js');
-if (fs.existsSync(appJsPath)) {
-  let content = fs.readFileSync(appJsPath, 'utf8');
-  const before = content;
-  // Elimina el bloque incluyendo la línea de cierre     });
-  content = content.replace(
-    /[ \t]*\/\/ ─+[^\n]*Health check[^\n]*\n[ \t]*fastify\.get\(['"]\/api\/health['"][\s\S]*?\n[ \t]*\}\);\n?/,
-    ''
-  );
-  // Fallback sin comentario de sección
-  if (content === before) {
-    content = content.replace(
-      /[ \t]*fastify\.get\(['"]\/api\/health['"][\s\S]*?\n[ \t]*\}\);\n?/,
-      ''
-    );
+// ─── helper: elimina un bloque fastify.get(route) de un archivo ──────────────
+// Usa búsqueda línea por línea para evitar problemas de regex con Unicode/CRLF.
+function removeRoute(filePath, route) {
+  if (!fs.existsSync(filePath)) return;
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const lines = raw.split('\n');
+  const out = [];
+  let i = 0;
+  let changed = false;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Salta comentarios de sección que contengan "Health check"
+    if (trimmed.startsWith('//') && trimmed.includes('Health check')) {
+      i++;
+      changed = true;
+      continue;
+    }
+
+    // Detecta el inicio del bloque fastify.get(route)
+    const startsRoute =
+      trimmed.startsWith(`fastify.get('${route}',`) ||
+      trimmed.startsWith(`fastify.get("${route}",`) ||
+      trimmed.startsWith(`fastify.get('${route}')`) ||
+      trimmed.startsWith(`fastify.get("${route}")`);
+
+    if (startsRoute) {
+      changed = true;
+      // Avanza hasta encontrar el cierre de la llamada: '});' al mismo nivel
+      const baseIndent = line.search(/\S/); // columna del primer carácter no-espacio
+      i++;
+      while (i < lines.length) {
+        const l = lines[i];
+        const lTrimmed = l.trim();
+        const lIndent = l.search(/\S/);
+        i++;
+        // Cierre de la llamada: });  al mismo nivel de indentación que el fastify.get
+        if (
+          (lTrimmed === '});' || lTrimmed === '});') &&
+          (lIndent <= baseIndent || lIndent === baseIndent)
+        ) {
+          break;
+        }
+      }
+      continue;
+    }
+
+    out.push(line);
+    i++;
   }
-  if (content !== before) {
-    fs.writeFileSync(appJsPath, content, 'utf8');
-    console.log('[BUILD] dist/app.js — eliminada ruta /api/health duplicada');
+
+  if (changed) {
+    fs.writeFileSync(filePath, out.join('\n'), 'utf8');
+    const rel = path.relative(BACKEND, filePath);
+    console.log(`[BUILD] ${rel} — eliminada ruta ${route}`);
   } else {
-    console.log('[BUILD] dist/app.js — sin cambios necesarios');
+    const rel = path.relative(BACKEND, filePath);
+    console.log(`[BUILD] ${rel} — ruta ${route} no encontrada (OK)`);
   }
 }
 
-// 3. Parchear dist/controllers/auth.controller.js — garantizar que tiene /health
-const authCtrlDir = path.join(distDir, 'controllers');
-const authCtrlPath = path.join(authCtrlDir, 'auth.controller.js');
-fs.mkdirSync(authCtrlDir, { recursive: true });
-if (fs.existsSync(authCtrlPath)) {
-  let content = fs.readFileSync(authCtrlPath, 'utf8');
-  if (!content.includes("fastify.get('/health'")) {
-    // Insertar ruta /health justo después de crear authService
-    content = content.replace(
-      /(const authService = new [^;]+;)/,
-      "$1\n    fastify.get('/health', async (_request, reply) => {\n        await reply.status(200).send({ status: 'ok', timestamp: new Date().toISOString(), version: '0.1.0' });\n    });"
-    );
-    fs.writeFileSync(authCtrlPath, content, 'utf8');
-    console.log('[BUILD] dist/controllers/auth.controller.js — ruta /health añadida');
-  } else {
-    console.log('[BUILD] dist/controllers/auth.controller.js — ruta /health ya presente');
-  }
-}
+// ─── 2. Eliminar /api/health de dist/app.js ──────────────────────────────────
+removeRoute(path.join(distDir, 'app.js'), '/api/health');
+
+// ─── 3. Eliminar /api/health de src/app.ts (por si git pull dejó versión vieja)
+removeRoute(path.join(BACKEND, 'src', 'app.ts'), '/api/health');
+
+// ─── 4. Eliminar /health de dist/controllers/auth.controller.js ──────────────
+fs.mkdirSync(path.join(distDir, 'controllers'), { recursive: true });
+removeRoute(path.join(distDir, 'controllers', 'auth.controller.js'), '/health');
+
+// ─── 5. Eliminar /health de src/controllers/auth.controller.ts ───────────────
+removeRoute(path.join(BACKEND, 'src', 'controllers', 'auth.controller.ts'), '/health');
+
+console.log('[BUILD] Listo — sin rutas /health duplicadas posibles');

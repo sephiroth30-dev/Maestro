@@ -19,11 +19,6 @@ const logoutSchema = z.object({
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   const authService = new AuthService(fastify);
 
-  // GET /api/health
-  fastify.get('/health', async (_request, reply) => {
-    await reply.status(200).send({ status: 'ok', timestamp: new Date().toISOString(), version: '0.1.0' });
-  });
-
   // POST /api/auth/login — rate limited: 5 requests per minute per IP
   fastify.post(
     '/auth/login',
