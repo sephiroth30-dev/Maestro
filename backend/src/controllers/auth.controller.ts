@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { AuthService } from '../services/auth.service.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import type { HealthResponse } from '../types/index.js';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -19,16 +18,6 @@ const logoutSchema = z.object({
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   const authService = new AuthService(fastify);
-
-  // GET /api/health
-  fastify.get('/health', async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const response: HealthResponse = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      version: '0.1.0',
-    };
-    await reply.status(200).send(response);
-  });
 
   // POST /api/auth/login — rate limited: 5 requests per minute per IP
   fastify.post(

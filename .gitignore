@@ -12,8 +12,9 @@ node_modules/
 .pnp
 .pnp.js
 
-# Build output
-dist/
+# Build output — frontend/dist is ignored; backend/dist is committed so Hostinger
+# doesn't need a build step (it has no reliable tsc execution).
+frontend/dist/
 build/
 out/
 
