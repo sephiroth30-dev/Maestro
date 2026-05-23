@@ -30,7 +30,9 @@ process.on('unhandledRejection', (reason) => {
     renewPrismaClient();
     return; // Do NOT exit — server keeps running
   }
-  logger.error('Unhandled promise rejection', { reason: String(reason) });
+  // console.error is synchronous — guarantees the message is flushed before exit
+  const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  console.error('[FATAL] Unhandled rejection:', msg);
   process.exit(1);
 });
 
@@ -42,7 +44,7 @@ process.on('uncaughtException', (error) => {
     renewPrismaClient();
     return; // Do NOT exit
   }
-  logger.error('Uncaught exception', { error: error.message ?? String(error) });
+  console.error('[FATAL] Uncaught exception:', error.stack ?? error.message);
   process.exit(1);
 });
 
