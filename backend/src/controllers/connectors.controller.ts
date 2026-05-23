@@ -212,4 +212,18 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
       await reply.send(history);
     }
   );
+
+  // DELETE /api/connectors/data/orphan  (wipe seed/orphan atenciones with no conector_id — ADMIN only)
+  fastify.delete(
+    '/connectors/data/orphan',
+    { preHandler: [...adminOnly] },
+    async (_req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const [deleteResult] = await pool.query<import('mysql2').ResultSetHeader>(
+        'DELETE FROM atenciones WHERE conector_id IS NULL'
+      );
+      flushReportesCache();
+      logger.info('Orphan atenciones wiped', { deleted: deleteResult.affectedRows });
+      await reply.send({ deleted: deleteResult.affectedRows });
+    }
+  );
 }
