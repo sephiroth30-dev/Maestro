@@ -34,6 +34,52 @@ function getLast6Months(): MesAnio[] {
   return list;
 }
 
+// ─── Filter types & helpers ───────────────────────────────────────────────────
+
+type FilterMode = 'mes' | 'rango';
+
+function fmt(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getPreset(preset: string): { start: string; end: string } {
+  const today = new Date();
+
+  switch (preset) {
+    case 'hoy':
+      return { start: fmt(today), end: fmt(today) };
+    case 'semana': {
+      const dow = today.getUTCDay(); // 0=Sun
+      const mon = new Date(today);
+      mon.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+      const sun = new Date(mon);
+      sun.setUTCDate(mon.getUTCDate() + 6);
+      return { start: fmt(mon), end: fmt(sun) };
+    }
+    case '7dias': {
+      const start = new Date(today);
+      start.setUTCDate(today.getUTCDate() - 6);
+      return { start: fmt(start), end: fmt(today) };
+    }
+    case '30dias': {
+      const start = new Date(today);
+      start.setUTCDate(today.getUTCDate() - 29);
+      return { start: fmt(start), end: fmt(today) };
+    }
+    default:
+      return { start: '', end: '' };
+  }
+}
+
+function getCurrentMonthRange(): { start: string; end: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  return { start: fmt(firstDay), end: fmt(lastDay) };
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function KpiSkeleton(): React.ReactElement {
@@ -76,9 +122,18 @@ export default function Reportes(): React.ReactElement {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = meses[selectedIdx]!;
 
-  const kpisQ = useKpis(selected.mes, selected.anio);
-  const entidadesQ = useEntidades(selected.mes, selected.anio);
-  const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio);
+  // Filter mode state
+  const [filterMode, setFilterMode] = useState<FilterMode>('mes');
+  const [rangeStart, setRangeStart] = useState<string>('');
+  const [rangeEnd, setRangeEnd] = useState<string>('');
+
+  // Computed dates for API
+  const apiStartDate = filterMode === 'rango' && rangeStart ? rangeStart : undefined;
+  const apiEndDate = filterMode === 'rango' && rangeEnd ? rangeEnd : undefined;
+
+  const kpisQ = useKpis(selected.mes, selected.anio, undefined, apiStartDate, apiEndDate);
+  const entidadesQ = useEntidades(selected.mes, selected.anio, apiStartDate, apiEndDate);
+  const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, apiStartDate, apiEndDate);
   const diasQ = useDiasSemana(selected.mes, selected.anio);
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
@@ -91,6 +146,21 @@ export default function Reportes(): React.ReactElement {
     void diasQ.refetch();
   }
 
+  function handleModeSwitch(mode: FilterMode): void {
+    setFilterMode(mode);
+    if (mode === 'rango' && !rangeStart && !rangeEnd) {
+      const { start, end } = getCurrentMonthRange();
+      setRangeStart(start);
+      setRangeEnd(end);
+    }
+  }
+
+  function applyPreset(preset: string): void {
+    const { start, end } = getPreset(preset);
+    setRangeStart(start);
+    setRangeEnd(end);
+  }
+
   return (
     <div className="page">
       {/* Header */}
@@ -100,17 +170,76 @@ export default function Reportes(): React.ReactElement {
           <p className="page-subtitle">Clínica Neurofic — Indicadores del período seleccionado</p>
         </div>
         <div className="reportes-header-controls">
-          <select
-            className="reportes-month-select"
-            value={selectedIdx}
-            onChange={(e) => setSelectedIdx(Number(e.target.value))}
-          >
-            {meses.map((m, i) => (
-              <option key={i} value={i}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          {/* Mode tabs */}
+          <div className="filter-mode-tabs">
+            <button
+              type="button"
+              className={`filter-mode-tab${filterMode === 'mes' ? ' filter-mode-tab--active' : ''}`}
+              onClick={() => handleModeSwitch('mes')}
+            >
+              Mes
+            </button>
+            <button
+              type="button"
+              className={`filter-mode-tab${filterMode === 'rango' ? ' filter-mode-tab--active' : ''}`}
+              onClick={() => handleModeSwitch('rango')}
+            >
+              Rango
+            </button>
+          </div>
+
+          {/* Mes mode: month dropdown */}
+          {filterMode === 'mes' && (
+            <select
+              className="reportes-month-select"
+              value={selectedIdx}
+              onChange={(e) => setSelectedIdx(Number(e.target.value))}
+            >
+              {meses.map((m, i) => (
+                <option key={i} value={i}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Rango mode: presets + date inputs */}
+          {filterMode === 'rango' && (
+            <div className="filter-bar">
+              <div className="preset-btns">
+                <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>
+                  Hoy
+                </button>
+                <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>
+                  Esta semana
+                </button>
+                <button type="button" className="preset-btn" onClick={() => applyPreset('7dias')}>
+                  Últimos 7 días
+                </button>
+                <button type="button" className="preset-btn" onClick={() => applyPreset('30dias')}>
+                  Últimos 30 días
+                </button>
+              </div>
+              <div className="date-range-group">
+                <input
+                  type="date"
+                  className="date-input"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                  aria-label="Fecha inicio"
+                />
+                <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
+                <input
+                  type="date"
+                  className="date-input"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                  aria-label="Fecha fin"
+                />
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn--secondary btn--icon"
