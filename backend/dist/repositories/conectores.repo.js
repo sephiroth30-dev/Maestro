@@ -84,7 +84,9 @@ class ConectoresRepository {
         return mapConector(rows[0]);
     }
     async softDelete(id) {
-        await prisma_js_1.pool.execute('UPDATE conectores SET activo = 0, updated_at = NOW() WHERE id = ?', [id]);
+        await prisma_js_1.pool.execute('DELETE FROM atenciones WHERE conector_id = ?', [id]);
+        await prisma_js_1.pool.execute('DELETE FROM sincronizaciones WHERE conector_id = ?', [id]);
+        await prisma_js_1.pool.execute('DELETE FROM conectores WHERE id = ?', [id]);
     }
     // ─── Sincronizaciones ─────────────────────────────────────────────────────
     async createSincronizacion(data) {

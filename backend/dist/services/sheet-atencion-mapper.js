@@ -11,12 +11,14 @@ const normalizacion_service_js_1 = require("./normalizacion.service.js");
 const logger_js_1 = require("../config/logger.js");
 // ─── Column auto-detection patterns ──────────────────────────────────────────
 const PATTERNS = {
-    fecha: /^(fecha|date|dia\b|day\b)/i,
+    // Exclude "AUTORIZACION" so "FECHA DE ATENCIÓN DEL PACIENTE" is preferred over "FECHA DE AUTORIZACIÓN"
+    fecha: /^fecha(?!.*autori)/i,
     descripcion: /^(descripcion|descripci[oó]n|servicio|description|detalle|item|concepto|procedimiento)/i,
-    autorizacion: /^(autorizacion|autorizaci[oó]n|autori\b|auth\b|nro\.?\s*aut|n[uú]m\.?\s*aut|no\.?\s*aut)/i,
+    autorizacion: /^(autorizacion|autorizaci[oó]n|autori\b|auth\b|nro\.?\s*aut|n[uú]m\.?\s*aut|no\.?\s*aut|numero.*autori)/i,
     entidad: /^(entidad|pagador|eps\b|aseguradora|empresa|convenio|paga)/i,
     profesional: /^(profesional|m[eé]dico|doctor|terapeuta|especialista|prestador)/i,
-    valor: /^(valor|monto|tarifa|total\b|precio|importe|vr\b|vlr\b)/i,
+    // Prefer "VALOR BRUTO" over "VALOR BRUTO POR CANTIDAD", "VALOR TOTAL", etc.
+    valor: /^valor\s*bruto\b|^(valor\b|monto|tarifa|precio|importe|vr\b|vlr\b)/i,
 };
 function detectColumnMapping(columns) {
     const result = {};
@@ -54,14 +56,55 @@ function parseSheetDate(raw) {
     return null;
 }
 // ─── Value parsing ─────────────────────────────────────────────────────────────
+// Handles Colombian (1.234.567,89), US (1,234,567.89), and mixed formats.
+// Key rule: if the last separator group has exactly 3 digits, it's a thousands
+// separator; 1-2 digits means it's a decimal separator.
 function parseSheetValue(raw) {
     if (typeof raw === 'number')
         return raw;
     if (!raw)
         return 0;
-    // Remove currency symbols, dots as thousand separators, replace comma decimal
-    const cleaned = String(raw).replace(/[$€\s]/g, '').replace(/\./g, '').replace(',', '.');
-    const n = parseFloat(cleaned);
+    let str = String(raw).replace(/[$€\s]/g, '').trim();
+    if (!str || str === '-')
+        return 0;
+    const hasDot = str.includes('.');
+    const hasComma = str.includes(',');
+    if (hasDot && hasComma) {
+        // Both separators present — whichever comes LAST is the decimal separator.
+        if (str.lastIndexOf('.') > str.lastIndexOf(',')) {
+            // e.g. "1,234.56" → comma=thousands, dot=decimal
+            str = str.replace(/,/g, '');
+        }
+        else {
+            // e.g. "1.234,56" → dot=thousands, comma=decimal (Colombian)
+            str = str.replace(/\./g, '').replace(',', '.');
+        }
+    }
+    else if (hasComma && !hasDot) {
+        // Only commas: if the last segment is exactly 3 digits, it's a thousands separator.
+        // "31,096" → [31][096] → last part 3 digits → thousands → 31096
+        // "31,5"   → [31][5]   → last part 1 digit  → decimal  → 31.5
+        const parts = str.split(',');
+        const lastPart = parts[parts.length - 1] ?? '';
+        if (lastPart.length === 3 && /^\d+$/.test(lastPart) && parts.length > 1) {
+            str = str.replace(/,/g, '');
+        }
+        else {
+            str = str.replace(',', '.');
+        }
+    }
+    else if (hasDot && !hasComma) {
+        // Only dots: same rule — last segment 3 digits means thousands separator.
+        // "31.096" → thousands → 31096
+        // "31.5"   → decimal  → 31.5
+        const parts = str.split('.');
+        const lastPart = parts[parts.length - 1] ?? '';
+        if (lastPart.length === 3 && /^\d+$/.test(lastPart) && parts.length > 1) {
+            str = str.replace(/\./g, '');
+        }
+        // else keep as-is (decimal dot)
+    }
+    const n = parseFloat(str);
     return isNaN(n) ? 0 : n;
 }
 // ─── Hash (same algorithm as seed) ───────────────────────────────────────────
@@ -73,6 +116,7 @@ function hashFila(fields) {
         fields.profesional,
         fields.valor,
         fields.fecha,
+        String(fields.rowIndex),
     ].join('|');
     return (0, node_crypto_1.createHash)('sha256').update(str).digest('hex').slice(0, 64);
 }
@@ -135,7 +179,8 @@ async function mapRowsToAtenciones(rows, conectorId) {
     let skipped = 0;
     let errors = 0;
     const toInsert = [];
-    for (const row of rows) {
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex];
         try {
             const rawDescripcion = colMap.descripcion ? String(row[colMap.descripcion] ?? '') : '';
             const rawValor = colMap.valor ? row[colMap.valor] : null;
@@ -166,6 +211,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
                 profesional: rawProfesional,
                 valor: String(valor),
                 fecha: fechaStr,
+                rowIndex,
             });
             toInsert.push({
                 descripcionRaw: rawDescripcion,
@@ -191,6 +237,8 @@ async function mapRowsToAtenciones(rows, conectorId) {
         }
     }
     if (toInsert.length > 0) {
+        // Full-refresh: wipe previous records for this connector then re-insert all rows
+        await prisma_js_1.pool.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
         const values = toInsert.map((item) => [
             (0, node_crypto_1.randomUUID)(),
             item.descripcionRaw,
@@ -207,9 +255,8 @@ async function mapRowsToAtenciones(rows, conectorId) {
             null, // servicio_id
             item.conectorId,
         ]);
-        const [insertResult] = await prisma_js_1.pool.query('INSERT IGNORE INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
+        const [insertResult] = await prisma_js_1.pool.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
         created = insertResult.affectedRows;
-        skipped += toInsert.length - insertResult.affectedRows;
     }
     return { created, skipped, errors };
 }
