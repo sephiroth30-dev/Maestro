@@ -9,7 +9,10 @@ exports.connectDatabase = connectDatabase;
 exports.disconnectDatabase = disconnectDatabase;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const logger_js_1 = require("./logger.js");
-exports.pool = promise_1.default.createPool(process.env['DATABASE_URL'] ?? '');
+exports.pool = promise_1.default.createPool({
+    uri: process.env['DATABASE_URL'] ?? '',
+    dateStrings: true,
+});
 // No-op: mysql2 pool auto-reconnects — no Rust engine to renew
 function renewPrismaClient() {
     logger_js_1.logger.info('DB pool auto-manages reconnection (mysql2 — no Rust engine)');

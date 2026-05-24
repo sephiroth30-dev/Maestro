@@ -1,7 +1,10 @@
 import mysql from 'mysql2/promise';
 import { logger } from './logger.js';
 
-export const pool = mysql.createPool(process.env['DATABASE_URL'] ?? '');
+export const pool = mysql.createPool({
+  uri: process.env['DATABASE_URL'] ?? '',
+  dateStrings: true,
+});
 
 // No-op: mysql2 pool auto-reconnects — no Rust engine to renew
 export function renewPrismaClient(): void {

@@ -4,6 +4,7 @@ import { connectDatabase, disconnectDatabase, renewPrismaClient } from './config
 import { buildApp } from './app.js';
 import { initCron, stopCron } from './services/cron.service.js';
 import { disconnectRedis } from './config/redis.js';
+import { runEntityMigration } from './services/migrations.service.js';
 
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
@@ -119,6 +120,8 @@ async function connectInBackground(): Promise<void> {
       console.log(`[DB] Connect attempt ${attempt}...`);
       await connectDatabase();
       console.log('[DB] Connected successfully');
+      // Apply entity catalog migration (idempotent — safe to run every startup).
+      await runEntityMigration();
       // Schedule cron jobs only after the pool is warm — avoids a cold
       // Prisma lazy-connect on the very first API request.
       try {
