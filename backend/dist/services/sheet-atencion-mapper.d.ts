@@ -17,6 +17,7 @@ export declare function hashFila(fields: {
     profesional: string;
     valor: string;
     fecha: string;
+    rowIndex: number;
 }): string;
 export interface MapperResult {
     created: number;

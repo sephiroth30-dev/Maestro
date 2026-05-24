@@ -167,10 +167,9 @@ export class ConectoresRepository {
   }
 
   async softDelete(id: string): Promise<void> {
-    await pool.execute<ResultSetHeader>(
-      'UPDATE conectores SET activo = 0, updated_at = NOW() WHERE id = ?',
-      [id]
-    );
+    await pool.execute<ResultSetHeader>('DELETE FROM atenciones WHERE conector_id = ?', [id]);
+    await pool.execute<ResultSetHeader>('DELETE FROM sincronizaciones WHERE conector_id = ?', [id]);
+    await pool.execute<ResultSetHeader>('DELETE FROM conectores WHERE id = ?', [id]);
   }
 
   // ─── Sincronizaciones ─────────────────────────────────────────────────────

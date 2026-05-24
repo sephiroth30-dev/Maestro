@@ -49,7 +49,7 @@ async function getFacturacionDia(fecha) {
 }
 async function getDiasTranscurridos(mesIdx, anio, startDate, endDate) {
     const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
-    const [rows] = await prisma_js_1.pool.query(`SELECT COUNT(DISTINCT fecha_dia) AS cnt FROM atenciones WHERE ${whereClause}`, params);
+    const [rows] = await prisma_js_1.pool.query(`SELECT COUNT(DISTINCT DATE(fecha_dia)) AS cnt FROM atenciones WHERE ${whereClause}`, params);
     return Number(rows[0]?.cnt ?? 0);
 }
 async function getFechasDelMes(mesIdx, anio) {
@@ -82,15 +82,15 @@ async function getEntidadesAgg(mesIdx, anio, startDate, endDate) {
 async function getDiariosDelMes(mesIdx, anio, startDate, endDate) {
     const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
     const [rows] = await prisma_js_1.pool.query(`SELECT
-      fecha_dia,
+      DATE(fecha_dia) AS fecha_dia,
       SUM(valor_bruto) AS total,
       COUNT(id) AS atenciones
     FROM atenciones
     WHERE ${whereClause}
-    GROUP BY fecha_dia
-    ORDER BY fecha_dia ASC`, params);
+    GROUP BY DATE(fecha_dia)
+    ORDER BY DATE(fecha_dia) ASC`, params);
     return rows.map((r) => ({
-        fecha_dia: r.fecha_dia,
+        fecha_dia: new Date(r.fecha_dia + 'T00:00:00.000Z'),
         total: Number(r.total),
         atenciones: Number(r.atenciones),
     }));
@@ -114,14 +114,15 @@ async function getDiasSemanaAgg(mesIdx, anio, startDate, endDate) {
     }));
 }
 async function getTendenciaMeses(meses) {
-    const [rows] = await prisma_js_1.pool.query(`SELECT
-      anio,
-      mes_idx,
-      SUM(valor_bruto) AS total
-    FROM atenciones
-    GROUP BY anio, mes_idx
-    ORDER BY anio ASC, mes_idx ASC
-    LIMIT ?`, [meses]);
+    // Subquery: pick the N most-recent months, then re-sort ascending for display.
+    const [rows] = await prisma_js_1.pool.query(`SELECT anio, mes_idx, total FROM (
+       SELECT anio, mes_idx, SUM(valor_bruto) AS total
+       FROM atenciones
+       GROUP BY anio, mes_idx
+       ORDER BY anio DESC, mes_idx DESC
+       LIMIT ?
+     ) sub
+     ORDER BY anio ASC, mes_idx ASC`, [meses]);
     return rows.map((r) => ({
         anio: Number(r.anio),
         mes_idx: Number(r.mes_idx),

@@ -117,6 +117,7 @@ export function hashFila(fields: {
   profesional: string;
   valor: string;
   fecha: string;
+  rowIndex: number;
 }): string {
   const str = [
     fields.descripcionRaw,
@@ -125,6 +126,7 @@ export function hashFila(fields: {
     fields.profesional,
     fields.valor,
     fields.fecha,
+    String(fields.rowIndex),
   ].join('|');
   return createHash('sha256').update(str).digest('hex').slice(0, 64);
 }
@@ -227,7 +229,8 @@ export async function mapRowsToAtenciones(
   }
   const toInsert: AtencionInsert[] = [];
 
-  for (const row of rows) {
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex]!;
     try {
       const rawDescripcion = colMap.descripcion ? String(row[colMap.descripcion] ?? '') : '';
       const rawValor       = colMap.valor        ? row[colMap.valor]        : null;
@@ -263,6 +266,7 @@ export async function mapRowsToAtenciones(
         profesional:    rawProfesional,
         valor:          String(valor),
         fecha:          fechaStr,
+        rowIndex,
       });
 
       toInsert.push({
@@ -289,6 +293,9 @@ export async function mapRowsToAtenciones(
   }
 
   if (toInsert.length > 0) {
+    // Full-refresh: wipe previous records for this connector then re-insert all rows
+    await pool.execute<ResultSetHeader>('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
+
     const values = toInsert.map((item) => [
       randomUUID(),
       item.descripcionRaw,
@@ -306,11 +313,10 @@ export async function mapRowsToAtenciones(
       item.conectorId,
     ]);
     const [insertResult] = await pool.query<ResultSetHeader>(
-      'INSERT IGNORE INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?',
+      'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?',
       [values]
     );
     created = insertResult.affectedRows;
-    skipped += toInsert.length - insertResult.affectedRows;
   }
 
   return { created, skipped, errors };

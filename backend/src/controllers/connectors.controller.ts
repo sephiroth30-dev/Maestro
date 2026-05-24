@@ -138,6 +138,7 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
     async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const { id } = req.params as { id: string };
       await connectorService.delete(id);
+      flushReportesCache();
       await reply.status(204).send();
     }
   );

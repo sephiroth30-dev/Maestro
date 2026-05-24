@@ -100,6 +100,7 @@ async function connectorRoutes(fastify) {
     fastify.delete('/connectors/:id', { preHandler: [...adminOnly] }, async (req, reply) => {
         const { id } = req.params;
         await connector_service_js_1.connectorService.delete(id);
+        (0, redis_js_1.flushReportesCache)();
         await reply.status(204).send();
     });
     // POST /api/connectors/:id/test  (test existing connector)
@@ -144,6 +145,13 @@ async function connectorRoutes(fastify) {
         const limit = query.limit ? parseInt(query.limit, 10) : 20;
         const history = await sync_service_js_1.syncService.getHistory(id, limit);
         await reply.send(history);
+    });
+    // DELETE /api/connectors/data/orphan  (wipe seed/orphan atenciones with no conector_id — ADMIN only)
+    fastify.delete('/connectors/data/orphan', { preHandler: [...adminOnly] }, async (_req, reply) => {
+        const [deleteResult] = await prisma_js_1.pool.query('DELETE FROM atenciones WHERE conector_id IS NULL');
+        (0, redis_js_1.flushReportesCache)();
+        logger_js_1.logger.info('Orphan atenciones wiped', { deleted: deleteResult.affectedRows });
+        await reply.send({ deleted: deleteResult.affectedRows });
     });
 }
 //# sourceMappingURL=connectors.controller.js.map
