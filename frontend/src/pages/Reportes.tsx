@@ -48,18 +48,9 @@ function fmt(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Returns the most recent occurrence of a weekday (0=Sun…6=Sat) within a date range
-function getMostRecentWeekday(diaNum: number, periodStart: string, periodEnd: string): string {
-  const end   = new Date(periodEnd   + 'T12:00:00Z');
-  const start = new Date(periodStart + 'T12:00:00Z');
-  const d = new Date(end);
-  for (let i = 0; i < 7; i++) {
-    if (d.getUTCDay() === diaNum && d >= start) {
-      return d.toISOString().slice(0, 10);
-    }
-    d.setUTCDate(d.getUTCDate() - 1);
-  }
-  return periodEnd;
+// dia_num (1=Mon…5=Fri) → MySQL DAYOFWEEK (2=Mon…6=Fri)
+function toMysqlDow(diaNum: number): number {
+  return diaNum + 1;
 }
 
 function getPreset(preset: string): { start: string; end: string } {
@@ -230,28 +221,18 @@ export default function Reportes(): React.ReactElement {
   // Day-of-week click filter (dia_num: 1=Mon…5=Fri, null=off)
   const [selectedDia, setSelectedDia] = useState<number | null>(null);
 
-  // The full period bounds (used by diasQ — never overridden by day filter)
+  // Full period dates (never overridden by day filter)
   const periodStart = filterMode === 'rango' && rangeStart ? rangeStart : undefined;
   const periodEnd   = filterMode === 'rango' && rangeEnd   ? rangeEnd   : undefined;
 
-  // When a day is selected, resolve its most recent date within the period
-  function resolveDayDate(): string | null {
-    if (selectedDia === null) return null;
-    const pStart = periodStart ?? fmt(new Date(selected.anio, selected.mes - 1, 1));
-    const pEnd   = periodEnd   ?? fmt(new Date(selected.anio, selected.mes, 0));
-    return getMostRecentWeekday(selectedDia, pStart, pEnd);
-  }
+  // dia_semana: MySQL DAYOFWEEK (2=Lun … 6=Vie), undefined when no day selected
+  const diaSemana = selectedDia !== null ? toMysqlDow(selectedDia) : undefined;
 
-  const dayDate = resolveDayDate();
-
-  // API dates: overridden by day-click when active
-  const apiStartDate = dayDate ?? periodStart;
-  const apiEndDate   = dayDate ?? periodEnd;
-
-  const kpisQ       = useKpis(selected.mes, selected.anio, undefined, apiStartDate, apiEndDate);
-  const entidadesQ  = useEntidades(selected.mes, selected.anio, apiStartDate, apiEndDate);
-  const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, apiStartDate, apiEndDate);
-  // diasQ always uses the full period so bars don't collapse to a single day
+  // Period dates are never changed — dia_semana is an additive filter on the same period
+  const kpisQ         = useKpis(selected.mes, selected.anio, undefined, periodStart, periodEnd, diaSemana);
+  const entidadesQ    = useEntidades(selected.mes, selected.anio, periodStart, periodEnd, diaSemana);
+  const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, periodStart, periodEnd);
+  // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
@@ -287,10 +268,8 @@ export default function Reportes(): React.ReactElement {
     setSelectedDia(null);
   }
 
-  // Format the day-filter badge label
-  const diaLabel = selectedDia !== null
-    ? `${DIA_NOMBRES[selectedDia] ?? ''}${dayDate ? ` — ${dayDate.split('-').reverse().join('/')}` : ''}`
-    : null;
+  // Badge label: just the weekday name (filter spans all occurrences in the period)
+  const diaLabel = selectedDia !== null ? (DIA_NOMBRES[selectedDia] ?? null) : null;
 
   return (
     <div className="page">
@@ -337,8 +316,6 @@ export default function Reportes(): React.ReactElement {
                 <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
-                <button type="button" className="preset-btn" onClick={() => applyPreset('7dias')}>Últimos 7 días</button>
-                <button type="button" className="preset-btn" onClick={() => applyPreset('30dias')}>Últimos 30 días</button>
                 <button type="button" className="preset-btn preset-btn--accent" onClick={() => applyPreset('anio')}>
                   {new Date().getFullYear()}
                 </button>

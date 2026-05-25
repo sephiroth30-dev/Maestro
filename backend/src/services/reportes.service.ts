@@ -188,18 +188,19 @@ class ReportesService {
     entidadId?: string;
     startDate?: Date;
     endDate?: Date;
+    diaSemana?: number;
   }): Promise<KpisResult> {
-    const { mesIdx, anio, entidadId, startDate, endDate } = params;
+    const { mesIdx, anio, entidadId, startDate, endDate, diaSemana } = params;
     const isRangeMode = Boolean(startDate && endDate);
 
     // Cache key must encode the date range so range queries never hit month-mode cache
-    const cacheKey = makeCacheKey('kpis', mesIdx, anio, startDate, endDate, entidadId);
+    const cacheKey = makeCacheKey('kpis', mesIdx, anio, startDate, endDate, entidadId) + (diaSemana !== undefined ? `:d${diaSemana}` : '');
 
     const cached = await cacheGet<KpisResult>(cacheKey);
     if (cached) return cached;
 
     const [agregado, diasTranscurridos, facturacionHoy] = await Promise.all([
-      repo.getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate),
+      repo.getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate, diaSemana),
       repo.getDiasTranscurridos(mesIdx, anio, startDate, endDate),
       repo.getFacturacionDia(new Date()),
     ]);
@@ -276,14 +277,15 @@ class ReportesService {
     anio: number;
     startDate?: Date;
     endDate?: Date;
+    diaSemana?: number;
   }): Promise<{ rows: EntidadRow[]; total: number }> {
-    const { mesIdx, anio, startDate, endDate } = params;
-    const cacheKey = makeCacheKey('entidades', mesIdx, anio, startDate, endDate);
+    const { mesIdx, anio, startDate, endDate, diaSemana } = params;
+    const cacheKey = makeCacheKey('entidades', mesIdx, anio, startDate, endDate) + (diaSemana !== undefined ? `:d${diaSemana}` : '');
 
     const cached = await cacheGet<{ rows: EntidadRow[]; total: number }>(cacheKey);
     if (cached) return cached;
 
-    const agg = await repo.getEntidadesAgg(mesIdx, anio, startDate, endDate);
+    const agg = await repo.getEntidadesAgg(mesIdx, anio, startDate, endDate, diaSemana);
 
     const totalGeneral = agg.reduce((sum, r) => sum + Number(r.valor_bruto), 0);
 

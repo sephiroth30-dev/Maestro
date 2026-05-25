@@ -21,15 +21,26 @@ const node_crypto_1 = require("node:crypto");
  * Returns a [whereClause, params] tuple for filtering atenciones by date range
  * or by mes_idx/anio.
  */
-function buildDateWhere(mesIdx, anio, startDate, endDate) {
+function buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana) {
+    let clause;
+    let params;
     if (startDate && endDate) {
-        return ['fecha_dia >= ? AND fecha_dia <= ?', [startDate, endDate]];
+        clause = 'fecha_dia >= ? AND fecha_dia <= ?';
+        params = [startDate, endDate];
     }
-    return ['mes_idx = ? AND anio = ?', [mesIdx ?? 0, anio ?? 0]];
+    else {
+        clause = 'mes_idx = ? AND anio = ?';
+        params = [mesIdx ?? 0, anio ?? 0];
+    }
+    if (diaSemana !== undefined) {
+        clause += ' AND DAYOFWEEK(fecha_dia) = ?';
+        params.push(diaSemana);
+    }
+    return [clause, params];
 }
 // ─── Repository ───────────────────────────────────────────────────────────────
-async function getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate) {
-    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+async function getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate, diaSemana) {
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
     // Sum ALL records — es_grupo_caja (PARTICULARES etc.) is real income and must count.
     // That flag is only used for visual grouping in charts, not for filtering totals.
     let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
@@ -61,8 +72,8 @@ async function getFechasDelMes(mesIdx, anio) {
     const [rows] = await prisma_js_1.pool.query('SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ? ORDER BY fecha_dia ASC', [mesIdx, anio]);
     return rows.map((r) => r.fecha_dia);
 }
-async function getEntidadesAgg(mesIdx, anio, startDate, endDate) {
-    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+async function getEntidadesAgg(mesIdx, anio, startDate, endDate, diaSemana) {
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
     const [rows] = await prisma_js_1.pool.query(`SELECT
       a.entidad_id,
       e.nombre,

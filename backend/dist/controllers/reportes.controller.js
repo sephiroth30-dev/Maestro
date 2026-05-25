@@ -57,14 +57,20 @@ const mesAnioSchema = zod_1.z.object({
         .transform((v) => (v ? parseInt(v, 10) : DEFAULT_ANIO))
         .pipe(zod_1.z.number().min(2020).max(2100)),
 });
+const diaSemanaField = zod_1.z.string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(zod_1.z.number().min(2).max(6).optional()); // MySQL DAYOFWEEK: 2=Lun … 6=Vie
 const kpisQuerySchema = mesAnioSchema.extend({
     entidad_id: zod_1.z.string().optional(),
     start_date: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     end_date: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dia_semana: diaSemanaField,
 });
 const mesAnioDateSchema = mesAnioSchema.extend({
     start_date: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     end_date: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dia_semana: diaSemanaField,
 });
 const tendenciaQuerySchema = zod_1.z.object({
     meses: zod_1.z
@@ -94,13 +100,14 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, entidad_id, start_date, end_date } = parsed.data;
+        const { mes_idx, anio, entidad_id, start_date, end_date, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getKpis({
             mesIdx: mes_idx,
             anio,
             entidadId: entidad_id,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
+            diaSemana: dia_semana,
         });
         return reply.send(result);
     });
@@ -114,12 +121,13 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const { mes_idx, anio, start_date, end_date, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getEntidades({
             mesIdx: mes_idx,
             anio,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
+            diaSemana: dia_semana,
         });
         return reply.send(result);
     });

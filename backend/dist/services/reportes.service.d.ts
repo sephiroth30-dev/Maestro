@@ -44,12 +44,14 @@ declare class ReportesService {
         entidadId?: string;
         startDate?: Date;
         endDate?: Date;
+        diaSemana?: number;
     }): Promise<KpisResult>;
     getEntidades(params: {
         mesIdx: number;
         anio: number;
         startDate?: Date;
         endDate?: Date;
+        diaSemana?: number;
     }): Promise<{
         rows: EntidadRow[];
         total: number;

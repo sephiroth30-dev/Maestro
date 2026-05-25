@@ -30,14 +30,14 @@ export interface PresupuestoRow {
     monto: number;
     notas: string | null;
 }
-export declare function getAgregadoMes(mesIdx: number, anio: number, entidadId?: string, startDate?: Date, endDate?: Date): Promise<{
+export declare function getAgregadoMes(mesIdx: number, anio: number, entidadId?: string, startDate?: Date, endDate?: Date, diaSemana?: number): Promise<{
     total: number;
     atenciones: number;
 }>;
 export declare function getFacturacionDia(fecha: Date): Promise<number>;
 export declare function getDiasTranscurridos(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<number>;
 export declare function getFechasDelMes(mesIdx: number, anio: number): Promise<Date[]>;
-export declare function getEntidadesAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<EntidadAggRow[]>;
+export declare function getEntidadesAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date, diaSemana?: number): Promise<EntidadAggRow[]>;
 export declare function getDiariosDelMes(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<Array<{
     fecha_dia: Date;
     total: number;

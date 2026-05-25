@@ -54,11 +54,25 @@ function buildDateWhere(
   anio?: number,
   startDate?: Date,
   endDate?: Date,
+  diaSemana?: number, // MySQL DAYOFWEEK: 2=Lun, 3=Mar, 4=Mié, 5=Jue, 6=Vie
 ): [string, (Date | number)[]] {
+  let clause: string;
+  let params: (Date | number)[];
+
   if (startDate && endDate) {
-    return ['fecha_dia >= ? AND fecha_dia <= ?', [startDate, endDate]];
+    clause = 'fecha_dia >= ? AND fecha_dia <= ?';
+    params = [startDate, endDate];
+  } else {
+    clause = 'mes_idx = ? AND anio = ?';
+    params = [mesIdx ?? 0, anio ?? 0];
   }
-  return ['mes_idx = ? AND anio = ?', [mesIdx ?? 0, anio ?? 0]];
+
+  if (diaSemana !== undefined) {
+    clause += ' AND DAYOFWEEK(fecha_dia) = ?';
+    params.push(diaSemana);
+  }
+
+  return [clause, params];
 }
 
 // ─── Repository ───────────────────────────────────────────────────────────────
@@ -69,8 +83,9 @@ export async function getAgregadoMes(
   entidadId?: string,
   startDate?: Date,
   endDate?: Date,
+  diaSemana?: number,
 ): Promise<{ total: number; atenciones: number }> {
-  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
   // Sum ALL records — es_grupo_caja (PARTICULARES etc.) is real income and must count.
   // That flag is only used for visual grouping in charts, not for filtering totals.
   let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
@@ -134,8 +149,9 @@ export async function getEntidadesAgg(
   anio: number,
   startDate?: Date,
   endDate?: Date,
+  diaSemana?: number,
 ): Promise<EntidadAggRow[]> {
-  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
   const [rows] = await pool.query<(RowDataPacket & EntidadAggRow)[]>(
     `SELECT
       a.entidad_id,

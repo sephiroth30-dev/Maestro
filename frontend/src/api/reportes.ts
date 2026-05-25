@@ -79,7 +79,7 @@ const REFETCH_INTERVAL = 10 * 60 * 1000; // 10 min
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-export function useKpis(mesIdx: number, anio: number, entidadId?: string, startDate?: string, endDate?: string) {
+export function useKpis(mesIdx: number, anio: number, entidadId?: string, startDate?: string, endDate?: string, diaSemana?: number) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -89,9 +89,10 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string, startD
     params.set('anio', String(anio));
   }
   if (entidadId) params.set('entidad_id', entidadId);
+  if (diaSemana !== undefined) params.set('dia_semana', String(diaSemana));
 
   return useQuery<KpisResult>({
-    queryKey: ['kpis', mesIdx, anio, entidadId, startDate, endDate],
+    queryKey: ['kpis', mesIdx, anio, entidadId, startDate, endDate, diaSemana],
     queryFn: async () => {
       const response = await apiClient.get<KpisResult>(`/reportes/kpis?${params}`);
       return response.data;
@@ -101,7 +102,7 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string, startD
   });
 }
 
-export function useEntidades(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+export function useEntidades(mesIdx: number, anio: number, startDate?: string, endDate?: string, diaSemana?: number) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -110,9 +111,10 @@ export function useEntidades(mesIdx: number, anio: number, startDate?: string, e
     params.set('mes_idx', String(mesIdx));
     params.set('anio', String(anio));
   }
+  if (diaSemana !== undefined) params.set('dia_semana', String(diaSemana));
 
   return useQuery<EntidadesResult>({
-    queryKey: ['entidades', mesIdx, anio, startDate, endDate],
+    queryKey: ['entidades', mesIdx, anio, startDate, endDate, diaSemana],
     queryFn: async () => {
       const response = await apiClient.get<EntidadesResult>(`/reportes/entidades?${params}`);
       return response.data;

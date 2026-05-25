@@ -28,15 +28,22 @@ const mesAnioSchema = z.object({
     .pipe(z.number().min(2020).max(2100)),
 });
 
+const diaSemanaField = z.string()
+  .optional()
+  .transform((v) => (v ? parseInt(v, 10) : undefined))
+  .pipe(z.number().min(2).max(6).optional()); // MySQL DAYOFWEEK: 2=Lun … 6=Vie
+
 const kpisQuerySchema = mesAnioSchema.extend({
   entidad_id: z.string().optional(),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dia_semana: diaSemanaField,
 });
 
 const mesAnioDateSchema = mesAnioSchema.extend({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dia_semana: diaSemanaField,
 });
 
 const tendenciaQuerySchema = z.object({
@@ -75,13 +82,14 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, entidad_id, start_date, end_date } = parsed.data;
+      const { mes_idx, anio, entidad_id, start_date, end_date, dia_semana } = parsed.data;
       const result = await reportesService.getKpis({
         mesIdx: mes_idx,
         anio,
         entidadId: entidad_id,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate: end_date ? new Date(end_date) : undefined,
+        diaSemana: dia_semana,
       });
       return reply.send(result);
     }
@@ -101,12 +109,13 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const { mes_idx, anio, start_date, end_date, dia_semana } = parsed.data;
       const result = await reportesService.getEntidades({
         mesIdx: mes_idx,
         anio,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate: end_date ? new Date(end_date) : undefined,
+        diaSemana: dia_semana,
       });
       return reply.send(result);
     }
