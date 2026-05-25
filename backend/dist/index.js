@@ -6,7 +6,7 @@ const prisma_js_1 = require("./config/prisma.js");
 const app_js_1 = require("./app.js");
 const cron_service_js_1 = require("./services/cron.service.js");
 const redis_js_1 = require("./config/redis.js");
-const migrations_service_js_1 = require("./services/migrations.service.js");
+const entity_seed_service_js_1 = require("./services/entity-seed.service.js");
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
 // ─── Crash handlers ───────────────────────────────────────────────────────────
@@ -112,8 +112,15 @@ async function connectInBackground() {
             console.log(`[DB] Connect attempt ${attempt}...`);
             await (0, prisma_js_1.connectDatabase)();
             console.log('[DB] Connected successfully');
-            // Apply entity catalog migration (idempotent — safe to run every startup).
-            await (0, migrations_service_js_1.runEntityMigration)();
+            // Sync entity catalog on every startup so deploys automatically pick up new entities
+            try {
+                await (0, entity_seed_service_js_1.autoSeedEntidades)();
+            }
+            catch (seedErr) {
+                logger_js_1.logger.warn('Entity seed failed (non-fatal)', {
+                    error: seedErr instanceof Error ? seedErr.message : String(seedErr),
+                });
+            }
             // Schedule cron jobs only after the pool is warm — avoids a cold
             // Prisma lazy-connect on the very first API request.
             try {

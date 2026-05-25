@@ -67,9 +67,9 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.Re
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ChartDiasSemana({ rows }: ChartDiasSemanaProps): React.ReactElement {
-  // Sort by day number, exclude Sunday (0) for display
+  // Sort by day number, exclude Sunday (0) and Saturday (6)
   const data = rows
-    .filter((r) => r.dia_num !== 0)
+    .filter((r) => r.dia_num !== 0 && r.dia_num !== 6)
     .sort((a, b) => a.dia_num - b.dia_num)
     .map((r) => ({
       ...r,

@@ -18,6 +18,8 @@ const error_middleware_js_1 = require("./middlewares/error.middleware.js");
 const auth_routes_js_1 = require("./routes/auth.routes.js");
 const connectors_routes_js_1 = require("./routes/connectors.routes.js");
 const reportes_routes_js_1 = require("./routes/reportes.routes.js");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const APP_VERSION = require('../../package.json').version;
 // __dirname is reliable in CommonJS output regardless of cwd
 // compiled file lives at backend/dist/app.js → ../../frontend/dist = frontend/dist
 const FRONTEND_DIST = path_1.default.resolve(__dirname, '../../frontend/dist');
@@ -75,6 +77,10 @@ async function buildApp() {
     });
     // ─── Global error handler ─────────────────────────────────────────────────
     fastify.setErrorHandler(error_middleware_js_1.errorHandler);
+    // ─── Version endpoint (public) ───────────────────────────────────────────
+    fastify.get('/api/version', async (_request, reply) => {
+        return reply.send({ version: APP_VERSION, env: env_js_1.env.NODE_ENV });
+    });
     // ─── Routes ───────────────────────────────────────────────────────────────
     await (0, auth_routes_js_1.registerAuthRoutes)(fastify);
     await (0, connectors_routes_js_1.registerConnectorRoutes)(fastify);

@@ -23,7 +23,14 @@ const PATTERNS = {
 function detectColumnMapping(columns) {
     const result = {};
     for (const field of Object.keys(PATTERNS)) {
-        result[field] = columns.find((c) => PATTERNS[field].test(c.trim())) ?? null;
+        if (field === 'valor') {
+            // Prefer "VALOR BRUTO" specifically — avoids picking "VALOR TOTAL" or "VALOR NETO" first
+            const brutoCol = columns.find((c) => /^valor\s*bruto\b/i.test(c.trim()));
+            result[field] = brutoCol ?? columns.find((c) => PATTERNS[field].test(c.trim())) ?? null;
+        }
+        else {
+            result[field] = columns.find((c) => PATTERNS[field].test(c.trim())) ?? null;
+        }
     }
     return result;
 }

@@ -33,20 +33,62 @@ interface SeedEntidad {
 }
 
 const SEED_ENTIDADES: SeedEntidad[] = [
-  { nombre: 'COMFAMILIAR',   nombresRaw: ['COMFAMILIAR', 'COMFAMILIAR RISARALDA'], tipo: TipoEntidad.EPS },
-  { nombre: 'SANITAS',       nombresRaw: ['SANITAS', 'EPS SANITAS'],               tipo: TipoEntidad.EPS },
-  { nombre: 'SURAMERICANA',  nombresRaw: ['SURAMERICANA', 'EPS SURA', 'SURAMERCIANA'], tipo: TipoEntidad.EPS },
-  { nombre: 'NUEVA EPS',     nombresRaw: ['NUEVA EPS', 'NUEVAEPS'],                tipo: TipoEntidad.EPS },
-  { nombre: 'VIVA 1A',       nombresRaw: ['VIVA 1A', 'VIVA1A', 'VIVA'],           tipo: TipoEntidad.EPS },
-  { nombre: 'COMPENSAR',     nombresRaw: ['COMPENSAR'],                            tipo: TipoEntidad.EPS },
-  { nombre: 'FAMISANAR',     nombresRaw: ['FAMISANAR'],                            tipo: TipoEntidad.EPS },
-  { nombre: 'MEDIMAS',       nombresRaw: ['MEDIMAS', 'MÉDIMAS'],                   tipo: TipoEntidad.EPS },
-  { nombre: 'SURA',          nombresRaw: ['SURA', 'EPS SURA'],                     tipo: TipoEntidad.EPS },
-  { nombre: 'ALIANSALUD',    nombresRaw: ['ALIANSALUD', 'ALIAN SALUD'],            tipo: TipoEntidad.EPS },
-  { nombre: 'DALELA',        nombresRaw: ['DALELA'],                               tipo: TipoEntidad.CONVENIO },
-  { nombre: 'CONVENIO EMPRESARIAL', nombresRaw: ['CONVENIO EMPRESARIAL', 'CONVENIO'], tipo: TipoEntidad.CONVENIO },
-  { nombre: 'PARTICULARES',  nombresRaw: ['PARTICULARES', 'PARTICULAR'],           tipo: TipoEntidad.PARTICULAR, esGrupoCaja: true },
-  { nombre: 'PARTICULAR',    nombresRaw: ['PARTICULAR', 'PART'],                   tipo: TipoEntidad.PARTICULAR, esGrupoCaja: true },
+  // ── EPS principales ──────────────────────────────────────────────────────────
+  { nombre: 'COMFAMILIAR',         nombresRaw: ['COMFAMILIAR', 'COMFAMILIAR RISARALDA'],                tipo: TipoEntidad.EPS },
+  { nombre: 'SANITAS',             nombresRaw: ['SANITAS', 'EPS SANITAS', 'ENTIDAD PROMOTORA DE SALUD SANITAS'], tipo: TipoEntidad.EPS },
+  { nombre: 'SURAMERICANA',        nombresRaw: ['SURAMERICANA', 'EPS SURA', 'SURAMERCIANA', 'EPS SURAMERICANA'], tipo: TipoEntidad.EPS },
+  { nombre: 'NUEVA EPS',           nombresRaw: ['NUEVA EPS', 'NUEVAEPS'],                              tipo: TipoEntidad.EPS },
+  { nombre: 'VIVA 1A',             nombresRaw: ['VIVA 1A', 'VIVA1A', 'VIVA'],                         tipo: TipoEntidad.EPS },
+  { nombre: 'COMPENSAR',           nombresRaw: ['COMPENSAR'],                                          tipo: TipoEntidad.EPS },
+  { nombre: 'FAMISANAR',           nombresRaw: ['FAMISANAR', 'CAJA DE COMPENSACION FAMILIAR FAMISANAR'], tipo: TipoEntidad.EPS },
+  { nombre: 'MEDIMAS',             nombresRaw: ['MEDIMAS', 'MÉDIMAS'],                                 tipo: TipoEntidad.EPS },
+  { nombre: 'SURA',                nombresRaw: ['SURA', 'EPS SURA'],                                   tipo: TipoEntidad.EPS },
+  { nombre: 'ALIANSALUD',          nombresRaw: ['ALIANSALUD', 'ALIAN SALUD'],                          tipo: TipoEntidad.EPS },
+  // Entidades identificadas en Febrero 2026 que faltaban en el catálogo
+  { nombre: 'COMFENALCO VALLE',    nombresRaw: ['COMFENALCO VALLE', 'COMFENALCO', 'CAJA DE COMPENSACION FAMILIAR DEL VALLE', 'CAJA COMPENSACION FAMILIAR DEL VALLE'], tipo: TipoEntidad.EPS },
+  { nombre: 'SALUD TOTAL',         nombresRaw: ['SALUD TOTAL', 'SALUD TOTAL SA'],                      tipo: TipoEntidad.EPS },
+  { nombre: 'EPS SERVICIO',        nombresRaw: ['EPS SERVICIO', 'ENTIDAD PROMOTORA DE SALUD SERVICIO C', 'ENTIDAD PROMOTORA DE SALUD SERVICIO'], tipo: TipoEntidad.EPS },
+  { nombre: 'UNISALUD',            nombresRaw: ['UNISALUD'],                                            tipo: TipoEntidad.EPS },
+  { nombre: 'ALIANZA EPS',         nombresRaw: ['ALIANZA EPS', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACIONALES', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACI', 'ALIANZA ESTRATEGICAS'], tipo: TipoEntidad.EPS },
+  // Entidades que causaban over-matching (MEDISANITAS/COLSANITAS → SANITAS por substring)
+  // El exact-match en paso 1 las captura antes de que paso 2 las asigne a SANITAS
+  { nombre: 'MEDISANITAS',         nombresRaw: ['MEDISANITAS', 'MEDISANITAS SA'],                      tipo: TipoEntidad.EPS },
+  { nombre: 'COLSANITAS',          nombresRaw: ['COLSANITAS', 'COLSANITAS SA'],                        tipo: TipoEntidad.EPS },
+  // Seguros de vida: entidad diferente a EPS SURAMERICANA (evita over-matching por substring)
+  { nombre: 'SEGUROS SURAMERICANA', nombresRaw: ['SEGUROS DE VIDA SURAMERICANA', 'SEGUROS SURAMERICANA', 'SURAMERICANA SEGUROS DE VIDA'], tipo: TipoEntidad.OTRO },
+  // ── Medicina prepagada ───────────────────────────────────────────────────────
+  { nombre: 'COLMEDICA',           nombresRaw: ['COLMEDICA', 'COLMEDICA MEDICINA PREPAGADA SA', 'COLMEDICA MEDICINA PREPAGADA', 'COLMEDICA LINEA ESMERALDA', 'COLMEDICA LINEA RUBI', 'COLMEDICA LINEA ESMERALDA SA'], tipo: TipoEntidad.OTRO },
+  { nombre: 'COOMEVA',             nombresRaw: ['COOMEVA', 'COOMEVA MEDICINA PREPAGADA SA', 'COOMEVA MEDICINA PREPAGADA', 'COOMEVA EPS'],                              tipo: TipoEntidad.OTRO },
+  { nombre: 'MEDPLUS',             nombresRaw: ['MEDPLUS', 'MEDPLUS MEDICINA PREPAGADA SA', 'MEDPLUS MEDICINA PREPAGADA'],                                             tipo: TipoEntidad.OTRO },
+  { nombre: 'AXA COLPATRIA',       nombresRaw: ['AXA COLPATRIA', 'AXA COLPATRIA MEDICINA PREPAGADA', 'AXA COLPATRIA SEGUROS DE VIDA SA', 'AXA COLPATRIA SEGUROS DE VIDA'], tipo: TipoEntidad.OTRO },
+  // ── Seguros / Fondos ─────────────────────────────────────────────────────────
+  { nombre: 'SEGUROS BOLIVAR',     nombresRaw: ['SEGUROS BOLIVAR', 'COMPANIA DE SEGUROS BOLIVAR SA', 'COMPAÑIA DE SEGUROS BOLIVAR SA', 'SEGUROS BOLIVAR SA'],          tipo: TipoEntidad.OTRO },
+  { nombre: 'FOMAG',               nombresRaw: ['FOMAG', 'FIDUCIARIA LA PREVISORA SA FOMAG', 'FIDUCIARIA LA PREVISORA FOMAG', 'PREVISORA FOMAG'],                     tipo: TipoEntidad.CONVENIO },
+  { nombre: 'ECOPETROL',           nombresRaw: ['ECOPETROL', 'ECOPETROL SA'],                          tipo: TipoEntidad.CONVENIO },
+  // ── IPS / Clínicas ───────────────────────────────────────────────────────────
+  { nombre: 'CLINICA DE OCCIDENTE', nombresRaw: ['CLINICA DE OCCIDENTE', 'CLINICA DE OCCIDENTE SA'],  tipo: TipoEntidad.OTRO },
+  { nombre: 'CLINICA VERSALLES',   nombresRaw: ['CLINICA VERSALLES', 'CLINICA VERSALLES SA'],          tipo: TipoEntidad.OTRO },
+  { nombre: 'IPS SANTA CLARA',     nombresRaw: ['IPS SANTA CLARA', 'IPS OCUPACIONAL SANTA CLARA SAS', 'IPS OCUPACIONAL SANTA CLARA'],                                 tipo: TipoEntidad.OTRO },
+  { nombre: 'MEDISALUD',           nombresRaw: ['MEDISALUD', 'CENTRO MEDICO MEDISALUD IPS SAS', 'CENTRO MEDICO MEDISALUD'],                                           tipo: TipoEntidad.OTRO },
+  { nombre: 'IPS SOLUCIONES MEDICAS', nombresRaw: ['IPS SOLUCIONES MEDICAS', 'IPS SOLUCIONES MEDICAS EN SALUD SAS', 'IPS SOLUCIONES MEDICAS EN SALUD'],               tipo: TipoEntidad.OTRO },
+  { nombre: 'ALIANZAS VIP',        nombresRaw: ['ALIANZAS VIP'],                                       tipo: TipoEntidad.CONVENIO },
+  // ── Salud ocupacional / ARL ──────────────────────────────────────────────────
+  { nombre: 'UNIDAD SALUD OCUPACIONAL', nombresRaw: ['UNIDAD SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONAL SAS', 'UNIDAD DE SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONALSAS'], tipo: TipoEntidad.ARL },
+  { nombre: 'UNIDAD MEDICA LER',   nombresRaw: ['UNIDAD MEDICA LER', 'UNIDAD MÉDICA LER'],             tipo: TipoEntidad.OTRO },
+  { nombre: 'PROTEGEMOS',          nombresRaw: ['PROTEGEMOS'],                                         tipo: TipoEntidad.ARL },
+  // ── Entidades diversas ───────────────────────────────────────────────────────
+  { nombre: 'INSTITUTO RELIGIOSAS SAN JOSE', nombresRaw: ['INSTITUTO DE RELIGIOSAS DE SAN JOSE', 'RELIGIOSAS SAN JOSE', 'INSTITUTO DE RELIGIOSAS DE SAN JOSE DE CLUNY'], tipo: TipoEntidad.CONVENIO },
+  { nombre: 'ORGANIZACION ODONTOLOGICA', nombresRaw: ['ORGANIZACION MEDICO ODONTOLOGICA NACIONAL', 'ORGANIZACION MEDICO ODONTOLOGICA NAL', 'ORGANIZACION MEDICO ODONTOLOGICA'], tipo: TipoEntidad.OTRO },
+  { nombre: 'TARJETA LA MEDICA',   nombresRaw: ['TARJETA LA MEDICA', 'LA MEDICA'],                     tipo: TipoEntidad.OTRO },
+  { nombre: 'GLADYS GOMEZ BERMEO', nombresRaw: ['GLADYS GOMEZ BERMEO', 'GLADYS GOMEZ'],                tipo: TipoEntidad.CONVENIO },
+  { nombre: 'COSERSSA',            nombresRaw: ['COSERSSA'],                                            tipo: TipoEntidad.OTRO },
+  { nombre: 'TSERVIMOS',           nombresRaw: ['TSERVIMOS'],                                           tipo: TipoEntidad.OTRO },
+  // ── Convenios ────────────────────────────────────────────────────────────────
+  { nombre: 'DALELA',              nombresRaw: ['DALELA'],                                              tipo: TipoEntidad.CONVENIO },
+  { nombre: 'CONVENIO EMPRESARIAL', nombresRaw: ['CONVENIO EMPRESARIAL', 'CONVENIO CM PLUS', 'CONVENIO CM'], tipo: TipoEntidad.CONVENIO },
+  // ── Particulares ─────────────────────────────────────────────────────────────
+  { nombre: 'PARTICULARES',        nombresRaw: ['PARTICULARES', 'PARTICULARES/CONVENIOS'],              tipo: TipoEntidad.PARTICULAR, esGrupoCaja: true },
+  { nombre: 'PARTICULAR',          nombresRaw: ['PARTICULAR', 'PART'],                                  tipo: TipoEntidad.PARTICULAR, esGrupoCaja: true },
 ];
 
 // ─── Profesionales seed data ──────────────────────────────────────────────────
