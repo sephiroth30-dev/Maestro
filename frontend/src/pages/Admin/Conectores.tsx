@@ -30,11 +30,13 @@ import {
   useSyncHistory,
   useDeleteConnectorData,
   useDeleteOrphanData,
+  useColumnDiagnostico,
   type Conector,
   type TipoConector,
   type FrecuenciaSync,
   type Sincronizacion,
   type ConnectionTestResult,
+  type ColumnDiagnosticoResult,
   type CreateConnectorInput,
   type UpdateConnectorInput,
 } from '../../api/connectors.js';
@@ -115,9 +117,12 @@ function ConnectorCard({
   const testMutation = useTestConnector();
   const syncMutation = useTriggerSync();
   const wipeMutation = useDeleteConnectorData();
+  const colDiagMutation = useColumnDiagnostico();
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [syncPolling, setSyncPolling] = useState(false);
   const [wipeResult, setWipeResult] = useState<string | null>(null);
+  const [colDiagResult, setColDiagResult] = useState<ColumnDiagnosticoResult | null>(null);
+  const [colDiagError, setColDiagError] = useState<string | null>(null);
 
   // Only fetch history while polling; invalidate every 3s to detect completion
   const { data: polledHistory } = useSyncHistory(syncPolling ? conector.id : '');
@@ -172,6 +177,17 @@ function ConnectorCard({
       void qc.invalidateQueries({ queryKey: ['tendencia'] });
     } catch {
       setWipeResult('Error al limpiar los datos.');
+    }
+  };
+
+  const handleColDiag = async (): Promise<void> => {
+    setColDiagResult(null);
+    setColDiagError(null);
+    try {
+      const result = await colDiagMutation.mutateAsync(conector.id);
+      setColDiagResult(result);
+    } catch (err) {
+      setColDiagError(err instanceof Error ? err.message : 'Sin datos en caché. Sincroniza primero.');
     }
   };
 
@@ -294,6 +310,50 @@ function ConnectorCard({
         </div>
       )}
 
+      {colDiagError && (
+        <div className="connector-test-result connector-test-result--error">
+          <XCircle size={14} />
+          <span>{colDiagError}</span>
+        </div>
+      )}
+
+      {colDiagResult && (
+        <div className="col-diag-panel">
+          <div className="col-diag-title">
+            Diagnóstico de columnas — {colDiagResult.totalRows.toLocaleString('es-CO')} filas en caché
+          </div>
+          {colDiagResult.columnSets.map((set, i) => {
+            const valorCol = set.detectedMapping['valor'];
+            const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+            return (
+              <div key={i} className="col-diag-set">
+                {colDiagResult.columnSets.length > 1 && (
+                  <div className="col-diag-set-header">
+                    Conjunto {i + 1} · {set.rowCount.toLocaleString('es-CO')} filas
+                  </div>
+                )}
+                <div className="col-diag-detected">
+                  <span className="col-diag-label">Columna de valor detectada:</span>
+                  <span className={`col-diag-value ${valorCol ? 'col-diag-value--ok' : 'col-diag-value--err'}`}>
+                    {valorCol ?? '⚠ No detectada'}
+                  </span>
+                </div>
+                <div className="col-diag-sums">
+                  <div className="col-diag-sums-title">Sumas de columnas numéricas:</div>
+                  {Object.entries(set.numericColumnSums).slice(0, 10).map(([col, sum]) => (
+                    <div key={col} className={`col-diag-sum-row ${col === valorCol ? 'col-diag-sum-row--active' : ''}`}>
+                      <span className="col-diag-sum-name">{col}</span>
+                      <span className="col-diag-sum-val">{COP.format(sum)}</span>
+                      {col === valorCol && <span className="col-diag-sum-badge">← usada</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="connector-card-actions">
         <button
           type="button"
@@ -349,6 +409,19 @@ function ConnectorCard({
           )}
           Limpiar datos
         </button>
+
+        {conector.tipo === 'GOOGLE_SHEETS' && (
+          <button
+            type="button"
+            className="btn btn--sm btn--ghost"
+            onClick={() => { void handleColDiag(); }}
+            disabled={colDiagMutation.isPending}
+            title="Ver qué columnas detecta este conector y las sumas por columna"
+          >
+            {colDiagMutation.isPending ? <Loader2 size={13} className="spin" /> : <Activity size={13} />}
+            Columnas
+          </button>
+        )}
 
         <div className="connector-card-actions-right">
           <button

@@ -2568,3 +2568,94 @@ body,
   background: #fef3c7;
   color: #92400e;
 }
+
+/* ─── Column diagnostico panel ─────────────────────────────────────────────── */
+
+.col-diag-panel {
+  margin-top: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+}
+
+.col-diag-title {
+  background: #f8fafc;
+  padding: 6px 10px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.col-diag-set {
+  padding: 8px 10px;
+}
+
+.col-diag-set-header {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.col-diag-detected {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.col-diag-label {
+  color: var(--color-text-secondary);
+}
+
+.col-diag-value--ok {
+  font-weight: 600;
+  color: #16a34a;
+  background: #f0fdf4;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.col-diag-value--err {
+  font-weight: 600;
+  color: #dc2626;
+  background: #fef2f2;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.col-diag-sums-title {
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.col-diag-sum-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  border-radius: 4px;
+}
+
+.col-diag-sum-row--active {
+  background: #eff6ff;
+  padding: 2px 6px;
+  margin: 0 -6px;
+}
+
+.col-diag-sum-name {
+  flex: 1;
+  color: var(--color-text-primary);
+  font-family: monospace;
+}
+
+.col-diag-sum-val {
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.col-diag-sum-badge {
+  font-size: 10px;
+  color: #2563eb;
+  font-weight: 600;
+}

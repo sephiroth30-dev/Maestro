@@ -274,6 +274,28 @@ export function useDeleteConnectorData(): UseMutationResult<
   });
 }
 
+export interface ColumnDiagnosticoSet {
+  columns: string[];
+  rowCount: number;
+  detectedMapping: Record<string, string | null>;
+  numericColumnSums: Record<string, number>;
+}
+
+export interface ColumnDiagnosticoResult {
+  conectorId: string;
+  totalRows: number;
+  columnSets: ColumnDiagnosticoSet[];
+}
+
+export function useColumnDiagnostico(): UseMutationResult<ColumnDiagnosticoResult, Error, string> {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.get<ColumnDiagnosticoResult>(`/connectors/${id}/column-diagnostico`);
+      return res.data;
+    },
+  });
+}
+
 export function useDeleteOrphanData(): UseMutationResult<
   { deleted: number },
   Error,
