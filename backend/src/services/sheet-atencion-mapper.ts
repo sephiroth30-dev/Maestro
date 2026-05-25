@@ -8,23 +8,42 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 // ─── Column auto-detection patterns ──────────────────────────────────────────
 
 const PATTERNS = {
-  // Exclude "AUTORIZACION" so "FECHA DE ATENCIÓN DEL PACIENTE" is preferred over "FECHA DE AUTORIZACIÓN"
   fecha:        /^fecha(?!.*autori)/i,
   descripcion:  /^(descripcion|descripci[oó]n|servicio|description|detalle|item|concepto|procedimiento)/i,
   autorizacion: /^(autorizacion|autorizaci[oó]n|autori\b|auth\b|nro\.?\s*aut|n[uú]m\.?\s*aut|no\.?\s*aut|numero.*autori)/i,
   entidad:      /^(entidad|pagador|eps\b|aseguradora|empresa|convenio|paga)/i,
   profesional:  /^(profesional|m[eé]dico|doctor|terapeuta|especialista|prestador)/i,
-  // Prefer "VALOR BRUTO" over "VALOR BRUTO POR CANTIDAD", "VALOR TOTAL", etc.
   valor:        /^valor\s*bruto\b|^(valor\b|monto|tarifa|precio|importe|vr\b|vlr\b)/i,
 };
+
+// Terms that disqualify a column from being the gross billing amount
+const VALOR_EXCLUSION = /neto|copago|cuota|moderadora|paciente|descuento|bonif/i;
 
 export function detectColumnMapping(columns: string[]): Record<keyof typeof PATTERNS, string | null> {
   const result = {} as Record<keyof typeof PATTERNS, string | null>;
   for (const field of Object.keys(PATTERNS) as Array<keyof typeof PATTERNS>) {
     if (field === 'valor') {
-      // Prefer "VALOR BRUTO" specifically — avoids picking "VALOR TOTAL" or "VALOR NETO" first
-      const brutoCol = columns.find((c) => /^valor\s*bruto\b/i.test(c.trim()));
-      result[field] = brutoCol ?? columns.find((c) => PATTERNS[field].test(c.trim())) ?? null;
+      // P1: exact "VALOR BRUTO" (no trailing words)
+      const exact = columns.find((c) => /^valor\s*bruto$/i.test(c.trim()));
+      if (exact) { result[field] = exact; continue; }
+
+      // P2: "VALOR BRUTO *" without neto/copago/cuota qualifiers
+      const brutoClean = columns.find((c) => {
+        const t = c.trim();
+        return /^valor\s*bruto\b/i.test(t) && !VALOR_EXCLUSION.test(t);
+      });
+      if (brutoClean) { result[field] = brutoClean; continue; }
+
+      // P3: any "VALOR BRUTO *" (even with qualifier — last resort before generic)
+      const brutoAny = columns.find((c) => /^valor\s*bruto\b/i.test(c.trim()));
+      if (brutoAny) { result[field] = brutoAny; continue; }
+
+      // P4: generic value columns, but exclude neto/copago/cuota columns
+      result[field] = columns.find((c) => {
+        const t = c.trim();
+        if (VALOR_EXCLUSION.test(t)) return false;
+        return PATTERNS[field].test(t);
+      }) ?? null;
     } else {
       result[field] = columns.find((c) => PATTERNS[field].test(c.trim())) ?? null;
     }
@@ -197,24 +216,42 @@ export interface MapperResult {
   errors: number;
 }
 
+// Per-row column mapping cache (keyed by sorted column names signature).
+// Needed because folder-mode connectors combine rows from multiple files,
+// each potentially having different column names for the same semantic field.
+function getColMapForRow(
+  row: DataRow,
+  cache: Map<string, Record<keyof typeof PATTERNS, string | null>>
+): Record<keyof typeof PATTERNS, string | null> {
+  const sig = Object.keys(row).sort().join('\x00');
+  if (!cache.has(sig)) {
+    const colMap = detectColumnMapping(Object.keys(row));
+    cache.set(sig, colMap);
+    logger.info('Column mapping detected for row set', {
+      columns: Object.keys(row),
+      colMap,
+    });
+  }
+  return cache.get(sig)!;
+}
+
 export async function mapRowsToAtenciones(
   rows: DataRow[],
   conectorId: string
 ): Promise<MapperResult> {
   if (rows.length === 0) return { created: 0, skipped: 0, errors: 0 };
 
-  // Detect columns from first row keys
-  const columns = Object.keys(rows[0] ?? {});
-  const colMap = detectColumnMapping(columns);
-
-  logger.info('Sheet column mapping detected', { colMap });
-
-  if (!colMap.descripcion && !colMap.valor) {
-    logger.warn('Cannot map sheet rows: no descripcion or valor column found', { columns });
+  // Verify at least the first row has usable columns
+  const firstColMap = detectColumnMapping(Object.keys(rows[0] ?? {}));
+  if (!firstColMap.descripcion && !firstColMap.valor) {
+    logger.warn('Cannot map sheet rows: no descripcion or valor column found', {
+      columns: Object.keys(rows[0] ?? {}),
+    });
     return { created: 0, skipped: 0, errors: 0 };
   }
 
-  const cache = await buildCache();
+  const colMapCache = new Map<string, Record<keyof typeof PATTERNS, string | null>>();
+  const entityCache = await buildCache();
   let created = 0;
   let skipped = 0;
   let errors = 0;
@@ -238,12 +275,16 @@ export async function mapRowsToAtenciones(
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     const row = rows[rowIndex]!;
     try {
-      const rawDescripcion = colMap.descripcion ? String(row[colMap.descripcion] ?? '') : '';
-      const rawValor       = colMap.valor        ? row[colMap.valor]        : null;
-      const rawFecha       = colMap.fecha        ? row[colMap.fecha]        : null;
-      const rawAutorizacion = colMap.autorizacion ? String(row[colMap.autorizacion] ?? '') : '';
-      const rawEntidad     = colMap.entidad      ? String(row[colMap.entidad] ?? '')      : '';
-      const rawProfesional = colMap.profesional  ? String(row[colMap.profesional] ?? '')  : '';
+      // Use per-row column mapping — critical for folder-mode where different
+      // files may have different column names for the same semantic field.
+      const colMap = getColMapForRow(row, colMapCache);
+
+      const rawDescripcion  = colMap.descripcion  ? String(row[colMap.descripcion]  ?? '') : '';
+      const rawValor        = colMap.valor         ? row[colMap.valor]                : null;
+      const rawFecha        = colMap.fecha         ? row[colMap.fecha]                : null;
+      const rawAutorizacion = colMap.autorizacion  ? String(row[colMap.autorizacion] ?? '') : '';
+      const rawEntidad      = colMap.entidad       ? String(row[colMap.entidad]      ?? '') : '';
+      const rawProfesional  = colMap.profesional   ? String(row[colMap.profesional]  ?? '') : '';
 
       // Skip rows without meaningful data
       const valor = parseSheetValue(rawValor);
@@ -261,8 +302,8 @@ export async function mapRowsToAtenciones(
       const mesIdx = fechaDia.getUTCMonth() + 1;
       const anio   = fechaDia.getUTCFullYear();
 
-      const entidadId     = resolveId(rawEntidad, cache.entidades);
-      const profesionalId = resolveId(rawProfesional, cache.profesionales);
+      const entidadId     = resolveId(rawEntidad,     entityCache.entidades);
+      const profesionalId = resolveId(rawProfesional, entityCache.profesionales);
 
       const fechaStr = fechaDia.toISOString().slice(0, 10);
       const hash = hashFila({
@@ -299,6 +340,18 @@ export async function mapRowsToAtenciones(
   }
 
   if (toInsert.length > 0) {
+    const totalValor = toInsert.reduce((s, r) => s + r.valorBruto, 0);
+    const zeroValor  = toInsert.filter((r) => r.valorBruto === 0).length;
+    logger.info('Mapper summary before insert', {
+      conectorId,
+      rows: toInsert.length,
+      skipped,
+      errors,
+      totalValorBruto: totalValor,
+      rowsWithValorCero: zeroValor,
+      columnSets: colMapCache.size,
+    });
+
     // Full-refresh: wipe previous records for this connector then re-insert all rows
     await pool.execute<ResultSetHeader>('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
 

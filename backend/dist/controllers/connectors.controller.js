@@ -9,6 +9,7 @@ const sync_service_js_1 = require("../services/sync.service.js");
 const logger_js_1 = require("../config/logger.js");
 const prisma_js_1 = require("../config/prisma.js");
 const redis_js_1 = require("../config/redis.js");
+const sheet_atencion_mapper_js_1 = require("../services/sheet-atencion-mapper.js");
 // ─── Request schemas ──────────────────────────────────────────────────────────
 const CreateConnectorSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(1, 'nombre es requerido').max(100),
@@ -152,6 +153,43 @@ async function connectorRoutes(fastify) {
         (0, redis_js_1.flushReportesCache)();
         logger_js_1.logger.info('Orphan atenciones wiped', { deleted: deleteResult.affectedRows });
         await reply.send({ deleted: deleteResult.affectedRows });
+    });
+    // GET /api/connectors/:id/column-diagnostico
+    // Shows which columns were detected + sum of every numeric column in cached data.
+    // Use this to verify that the correct VALOR BRUTO column is being picked.
+    fastify.get('/connectors/:id/column-diagnostico', { preHandler: [...adminOnly] }, async (req, reply) => {
+        const { id } = req.params;
+        const cached = await sync_service_js_1.syncService.getCachedData(id);
+        if (!cached || cached.rows.length === 0) {
+            await reply.status(404).send({ error: 'No hay datos en caché para este conector. Ejecuta una sincronización primero.' });
+            return;
+        }
+        // Collect all unique column sets (multi-file mode may have different structures)
+        const sigMap = new Map();
+        for (const row of cached.rows) {
+            const keys = Object.keys(row);
+            const sig = keys.slice().sort().join('\x00');
+            if (!sigMap.has(sig)) {
+                const numericSums = {};
+                for (const k of keys)
+                    numericSums[k] = 0;
+                sigMap.set(sig, { columns: keys, rowCount: 0, colMap: (0, sheet_atencion_mapper_js_1.detectColumnMapping)(keys), numericSums });
+            }
+            const entry = sigMap.get(sig);
+            entry.rowCount++;
+            for (const k of keys) {
+                const v = row[k];
+                if (typeof v === 'number')
+                    entry.numericSums[k] = (entry.numericSums[k] ?? 0) + v;
+            }
+        }
+        const result = Array.from(sigMap.values()).map((e) => ({
+            columns: e.columns,
+            rowCount: e.rowCount,
+            detectedMapping: e.colMap,
+            numericColumnSums: Object.fromEntries(Object.entries(e.numericSums).filter(([, v]) => v !== 0).sort(([, a], [, b]) => b - a)),
+        }));
+        await reply.send({ conectorId: id, totalRows: cached.rows.length, columnSets: result });
     });
 }
 //# sourceMappingURL=connectors.controller.js.map
