@@ -169,6 +169,11 @@ async function registerReportesController(fastify) {
         const result = await reportes_service_js_1.reportesService.getTendencia({ meses: parsed.data.meses });
         return reply.send(result);
     });
+    // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
+    fastify.get('/api/reportes/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.getDiagnosticoConectores();
+        return reply.send(rows);
+    });
     // GET /api/entidades (catalog for config UI — ADMIN only)
     fastify.get('/api/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.listEntidades();

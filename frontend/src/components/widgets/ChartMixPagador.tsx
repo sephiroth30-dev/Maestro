@@ -100,16 +100,10 @@ function CustomTooltip({ active, payload }: CustomTooltipProps): React.ReactElem
 
 export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.ReactElement {
   const { slices, epsTotal, cajaTotal } = aggregateByTipo(rows);
+  const grandTotal = epsTotal + cajaTotal;
 
-  const centerLabel = epsTotal >= 1_000_000
-    ? `$${(epsTotal / 1_000_000).toFixed(1)}M`
-    : `$${(epsTotal / 1_000).toFixed(0)}K`;
-
-  const cajaLabel = cajaTotal > 0
-    ? (cajaTotal >= 1_000_000
-      ? `$${(cajaTotal / 1_000_000).toFixed(1)}M`
-      : `$${(cajaTotal / 1_000).toFixed(0)}K`)
-    : null;
+  const fmt = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -133,25 +127,22 @@ export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.R
         <Legend
           formatter={(value: string) => (
             <span style={{ fontSize: 12, color: '#475569' }}>
-              {value === 'CAJA' ? '💵 CAJA' : value}
+              {value === 'CAJA' ? '💵 Caja' : value}
             </span>
           )}
         />
-        {/* Center labels: EPS total + optional Caja */}
+        {/* Center: grand total (EPS + Caja), Caja subtotal below when present */}
         <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central">
-          <tspan x="50%" dy={cajaLabel ? '-1em' : '-0.5em'} fontSize={10} fill="#64748b">
-            EPS/Convenios
+          <tspan x="50%" dy={cajaTotal > 0 ? '-1em' : '-0.5em'} fontSize={10} fill="#64748b">
+            Total
           </tspan>
           <tspan x="50%" dy="1.3em" fontSize={13} fontWeight={600} fill="#1e293b">
-            {centerLabel}
+            {fmt(grandTotal)}
           </tspan>
-          {cajaLabel && (
+          {cajaTotal > 0 && (
             <>
-              <tspan x="50%" dy="1.3em" fontSize={9} fill="#10b981">
-                Caja
-              </tspan>
-              <tspan x="50%" dy="1.1em" fontSize={11} fontWeight={500} fill="#10b981">
-                {cajaLabel}
+              <tspan x="50%" dy="1.2em" fontSize={9} fill="#10b981">
+                Caja: {fmt(cajaTotal)}
               </tspan>
             </>
           )}

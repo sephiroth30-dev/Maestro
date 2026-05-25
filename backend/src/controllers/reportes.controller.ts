@@ -176,6 +176,16 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
+  fastify.get(
+    '/api/reportes/diagnostico',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.getDiagnosticoConectores();
+      return reply.send(rows);
+    }
+  );
+
   // GET /api/entidades (catalog for config UI — ADMIN only)
   fastify.get(
     '/api/entidades',

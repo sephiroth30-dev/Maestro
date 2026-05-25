@@ -72,6 +72,17 @@ export interface EntidadCatalogRow {
 }
 export declare function listEntidades(): Promise<EntidadCatalogRow[]>;
 export declare function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void>;
+export interface DiagnosticoRow {
+    conector_id: string;
+    conector_nombre: string;
+    anio: number;
+    mes_idx: number;
+    atenciones: number;
+    valor_bruto: number;
+    sin_entidad: number;
+    sin_valor: number;
+}
+export declare function getDiagnosticoConectores(): Promise<DiagnosticoRow[]>;
 export declare function upsertPresupuesto(anio: number, mes: number, monto: number, notas?: string): Promise<{
     id: string;
     anio: number;
