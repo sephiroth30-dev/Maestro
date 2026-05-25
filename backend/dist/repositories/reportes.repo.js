@@ -104,6 +104,7 @@ async function getDiasSemanaAgg(mesIdx, anio, startDate, endDate) {
       COUNT(id)                  AS atenciones
     FROM atenciones
     WHERE ${whereClause}
+      AND DAYOFWEEK(fecha_dia) BETWEEN 2 AND 6
     GROUP BY dia_num
     ORDER BY dia_num ASC`, params);
     return rows.map((r) => ({

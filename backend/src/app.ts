@@ -13,6 +13,9 @@ import { registerAuthRoutes } from './routes/auth.routes.js';
 import { registerConnectorRoutes } from './routes/connectors.routes.js';
 import { registerReportesRoutes } from './routes/reportes.routes.js';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const APP_VERSION: string = (require('../../package.json') as { version: string }).version;
+
 // __dirname is reliable in CommonJS output regardless of cwd
 // compiled file lives at backend/dist/app.js → ../../frontend/dist = frontend/dist
 const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
@@ -78,6 +81,11 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Global error handler ─────────────────────────────────────────────────
   fastify.setErrorHandler(errorHandler);
+
+  // ─── Version endpoint (public) ───────────────────────────────────────────
+  fastify.get('/api/version', async (_request, reply) => {
+    return reply.send({ version: APP_VERSION, env: env.NODE_ENV });
+  });
 
   // ─── Routes ───────────────────────────────────────────────────────────────
   await registerAuthRoutes(fastify);

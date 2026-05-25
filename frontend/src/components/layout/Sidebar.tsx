@@ -203,6 +203,10 @@ export default function Sidebar(): React.ReactElement {
           <LogOut size={16} />
         </button>
       </div>
+      {/* Version tag */}
+      <div style={{ padding: '4px 16px 8px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', letterSpacing: '0.04em' }}>
+        v{__APP_VERSION__}
+      </div>
     </div>
   );
 
