@@ -24,6 +24,12 @@ function detectColumnMapping(columns) {
     const result = {};
     for (const field of Object.keys(PATTERNS)) {
         if (field === 'valor') {
+            // P0: "VALOR BRUTO POR CANTIDAD" — tarifa × unidades = total facturado real
+            const brutoXCant = columns.find((c) => /^valor\s*bruto\s*(por\s*cant|x\s*cant|\*\s*cant)/i.test(c.trim()));
+            if (brutoXCant) {
+                result[field] = brutoXCant;
+                continue;
+            }
             // P1: exact "VALOR BRUTO" (no trailing words)
             const exact = columns.find((c) => /^valor\s*bruto$/i.test(c.trim()));
             if (exact) {
