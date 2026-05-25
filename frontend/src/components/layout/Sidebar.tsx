@@ -7,7 +7,6 @@ import {
   ClipboardList,
   FileUp,
   Users,
-  Database,
   Settings,
   LogOut,
   Menu,
@@ -81,12 +80,6 @@ const NAV_SECTIONS: NavSection[] = [
         icon: <Users size={18} />,
         roles: ['ADMIN'],
         disabled: true,
-      },
-      {
-        label: 'Fuentes de datos',
-        to: '/admin/conectores',
-        icon: <Database size={18} />,
-        roles: ['ADMIN'],
       },
       {
         label: 'Configuración',

@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Loader2, CheckCircle, AlertCircle, Settings } from 'lucide-react';
+import { Save, Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3 } from 'lucide-react';
 import { usePresupuestos, useUpsertPresupuesto } from '../../api/reportes.js';
 import type { Presupuesto } from '../../api/reportes.js';
+import TabEntidades from './TabEntidades.js';
+import Conectores from './Conectores.js';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Tab type ─────────────────────────────────────────────────────────────────
+
+type ConfigTab = 'fuentes' | 'entidades' | 'presupuestos';
+
+// ─── Presupuestos helpers ─────────────────────────────────────────────────────
 
 const MESES_ES = [
   '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -41,7 +47,6 @@ function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
 
   const upsert = useUpsertPresupuesto();
 
-  // Sync state when the loaded data changes (e.g. year switch)
   useEffect(() => {
     setMonto(current ? String(current.monto) : '0');
     setNotas(current?.notas ?? '');
@@ -55,12 +60,7 @@ function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
     setStatus('saving');
     setErrorMsg('');
     try {
-      await upsert.mutateAsync({
-        anio,
-        mes,
-        monto: montoNum,
-        notas: notas.trim() || undefined,
-      });
+      await upsert.mutateAsync({ anio, mes, monto: montoNum, notas: notas.trim() || undefined });
       setStatus('success');
       setTimeout(() => setStatus('idle'), 2500);
     } catch (err) {
@@ -86,9 +86,7 @@ function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
 
       <div className="config-month-form">
         <div className="form-group">
-          <label className="form-label" htmlFor={`monto-${anio}-${mes}`}>
-            Monto (COP)
-          </label>
+          <label className="form-label" htmlFor={`monto-${anio}-${mes}`}>Monto (COP)</label>
           <input
             id={`monto-${anio}-${mes}`}
             type="number"
@@ -99,7 +97,6 @@ function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
             onChange={(e) => setMonto(e.target.value)}
           />
         </div>
-
         <div className="form-group">
           <label className="form-label" htmlFor={`notas-${anio}-${mes}`}>
             Notas <span className="config-optional">(opcional)</span>
@@ -143,37 +140,25 @@ function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Presupuestos tab ─────────────────────────────────────────────────────────
 
-export default function Configuracion(): React.ReactElement {
+function TabPresupuestos(): React.ReactElement {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const yearOptions = getYearOptions();
-
   const { data: presupuestos, isLoading, isError } = usePresupuestos();
 
   const byMonthKey = React.useMemo(() => {
     const map = new Map<string, Presupuesto>();
     if (presupuestos) {
-      for (const p of presupuestos) {
-        map.set(`${p.anio}-${p.mes}`, p);
-      }
+      for (const p of presupuestos) map.set(`${p.anio}-${p.mes}`, p);
     }
     return map;
   }, [presupuestos]);
 
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Settings size={24} />
-            Configuración
-          </h1>
-          <p className="page-subtitle">Presupuestos mensuales de facturación</p>
-        </div>
-
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
         <div className="config-year-selector">
           <label className="form-label" htmlFor="year-select">Año</label>
           <select
@@ -182,9 +167,7 @@ export default function Configuracion(): React.ReactElement {
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
+            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
       </div>
@@ -213,6 +196,54 @@ export default function Configuracion(): React.ReactElement {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+const TABS: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'fuentes',      label: 'Fuentes de datos', icon: <Database size={15} /> },
+  { id: 'entidades',    label: 'Entidades',         icon: <Building2 size={15} /> },
+  { id: 'presupuestos', label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
+];
+
+export default function Configuracion(): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<ConfigTab>('fuentes');
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ marginBottom: '1.25rem' }}>
+        <div>
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Settings size={24} />
+            Configuración
+          </h1>
+          <p className="page-subtitle">Parámetros del sistema · Fuentes de datos · Entidades · Presupuestos</p>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="config-tabs">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`config-tab ${activeTab === tab.id ? 'config-tab--active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="config-tab-content">
+        {activeTab === 'fuentes'      && <Conectores />}
+        {activeTab === 'entidades'    && <TabEntidades />}
+        {activeTab === 'presupuestos' && <TabPresupuestos />}
+      </div>
     </div>
   );
 }

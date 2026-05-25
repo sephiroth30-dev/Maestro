@@ -71,12 +71,20 @@ export async function getAgregadoMes(
   endDate?: Date,
 ): Promise<{ total: number; atenciones: number }> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
-  let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
+  // Always LEFT JOIN entidades so we can exclude "grupo caja" (cash-only) entities
+  // from billing KPIs. When a specific entity is requested, the exclusion is skipped.
+  let sql = `SELECT SUM(a.valor_bruto) AS total, COUNT(a.id) AS cnt
+    FROM atenciones a
+    LEFT JOIN entidades e ON e.id = a.entidad_id
+    WHERE ${whereClause}`;
   const allParams: (Date | number | string)[] = [...params];
 
   if (entidadId) {
-    sql += ' AND entidad_id = ?';
+    sql += ' AND a.entidad_id = ?';
     allParams.push(entidadId);
+  } else {
+    // Exclude entities flagged as flujo-de-caja only (PARTICULARES, etc.)
+    sql += ' AND COALESCE(e.es_grupo_caja, 0) = 0';
   }
 
   const [rows] = await pool.query<(RowDataPacket & { total: string | null; cnt: string })[]>(
@@ -256,6 +264,36 @@ export async function listPresupuestos(): Promise<
     notas: r.notas,
     createdAt: r.created_at,
   }));
+}
+
+// ─── Entidades catalog (config) ───────────────────────────────────────────────
+
+export interface EntidadCatalogRow {
+  id: string;
+  nombre: string;
+  tipo: string;
+  es_grupo_caja: boolean;
+  activa: boolean;
+}
+
+export async function listEntidades(): Promise<EntidadCatalogRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number })[]>(
+    'SELECT id, nombre, tipo, es_grupo_caja, activa FROM entidades ORDER BY tipo ASC, nombre ASC'
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    nombre: r.nombre,
+    tipo: r.tipo,
+    es_grupo_caja: Boolean(r.es_grupo_caja),
+    activa: Boolean(r.activa),
+  }));
+}
+
+export async function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void> {
+  await pool.execute<ResultSetHeader>(
+    'UPDATE entidades SET es_grupo_caja = ? WHERE id = ?',
+    [esGrupoCaja ? 1 : 0, id]
+  );
 }
 
 export async function upsertPresupuesto(

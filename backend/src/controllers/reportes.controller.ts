@@ -47,6 +47,10 @@ const tendenciaQuerySchema = z.object({
     .pipe(z.number().min(1).max(36)),
 });
 
+const patchEntidadBodySchema = z.object({
+  es_grupo_caja: z.boolean(),
+});
+
 const presupuestoBodySchema = z.object({
   anio: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(1).max(12),
@@ -169,6 +173,35 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
 
       const result = await reportesService.getTendencia({ meses: parsed.data.meses });
       return reply.send(result);
+    }
+  );
+
+  // GET /api/entidades (catalog for config UI — ADMIN only)
+  fastify.get(
+    '/api/entidades',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.listEntidades();
+      return reply.send(rows);
+    }
+  );
+
+  // PATCH /api/entidades/:id (toggle es_grupo_caja — ADMIN only)
+  fastify.patch(
+    '/api/entidades/:id',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const parsed = patchEntidadBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join(', '),
+          statusCode: 400,
+        });
+      }
+      await repo.updateEntidadGrupoCaja(id, parsed.data.es_grupo_caja);
+      return reply.status(200).send({ ok: true });
     }
   );
 

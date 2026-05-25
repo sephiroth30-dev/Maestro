@@ -63,6 +63,15 @@ export declare function listPresupuestos(): Promise<Array<{
     notas: string | null;
     createdAt: Date;
 }>>;
+export interface EntidadCatalogRow {
+    id: string;
+    nombre: string;
+    tipo: string;
+    es_grupo_caja: boolean;
+    activa: boolean;
+}
+export declare function listEntidades(): Promise<EntidadCatalogRow[]>;
+export declare function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void>;
 export declare function upsertPresupuesto(anio: number, mes: number, monto: number, notas?: string): Promise<{
     id: string;
     anio: number;
