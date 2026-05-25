@@ -14,6 +14,17 @@ const MESES = new Set([
 function stripDiacritics(s) {
     return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
+// Consolidated annual/base tabs — contain ALL records pre-merged.
+// Preferred over individual date tabs when present.
+const CONSOLIDATED_PATTERNS = [
+    /base.*consolidada/i,
+    /consolidada.*anual/i,
+    /consolidada/i,
+    /base.*anual/i,
+];
+function isConsolidatedSheetName(name) {
+    return CONSOLIDATED_PATTERNS.some((p) => p.test(name));
+}
 function isDateSheetName(name) {
     const normalized = stripDiacritics(name)
         .toUpperCase()
@@ -103,12 +114,28 @@ class SheetsConnector extends base_connector_js_1.BaseConnector {
         const latencyMs = Date.now() - start;
         const title = response.data.properties?.title ?? 'Untitled';
         const tabNames = (response.data.sheets ?? []).map((s) => s.properties?.title ?? '');
-        const dateTabs = tabNames.filter(isDateSheetName);
+        // Report which reading strategy will be used
+        let strategy;
+        if (this.config.sheetName && tabNames.includes(this.config.sheetName)) {
+            strategy = `hoja explícita "${this.config.sheetName}"`;
+        }
+        else {
+            const consolidatedTab = tabNames.find(isConsolidatedSheetName);
+            if (consolidatedTab) {
+                strategy = `hoja consolidada "${consolidatedTab}"`;
+            }
+            else {
+                const dateTabs = tabNames.filter(isDateSheetName);
+                strategy = dateTabs.length > 0
+                    ? `${dateTabs.length} hoja(s) de fechas (${dateTabs.slice(0, 3).join(', ')}…)`
+                    : `primera hoja (sin hojas de fecha ni consolidada)`;
+            }
+        }
         return {
             success: true,
-            message: `Conectado a "${title}" — ${dateTabs.length} hoja(s) de atención encontradas`,
+            message: `Conectado a "${title}" — ${strategy}`,
             latencyMs,
-            details: { spreadsheetId: this.config.spreadsheetId, title, totalTabs: tabNames.length, dateTabs: dateTabs.length },
+            details: { spreadsheetId: this.config.spreadsheetId, title, totalTabs: tabNames.length, strategy },
         };
     }
     async testFolder(start) {
@@ -175,11 +202,11 @@ class SheetsConnector extends base_connector_js_1.BaseConnector {
     // ─── Spreadsheet mode: detect date tabs + merge rows ─────────────────────
     async fetchFromSpreadsheet(spreadsheetId, query) {
         const sheets = await this.getSheets();
-        // If a specific tab is requested, use it directly
+        // If a specific tab is requested via query, use it directly
         if (query.sheetName) {
             return this.readTab(sheets, spreadsheetId, query.sheetName, query);
         }
-        // Auto-detect date-named tabs (V10.2 monthly spreadsheet pattern)
+        // List all tabs to decide reading strategy
         const response = await sheets.spreadsheets.get({
             spreadsheetId,
             fields: 'sheets.properties.title',
@@ -187,9 +214,25 @@ class SheetsConnector extends base_connector_js_1.BaseConnector {
         const allTabNames = (response.data.sheets ?? [])
             .map((s) => s.properties?.title ?? '')
             .filter(Boolean);
+        // ── Priority 1: explicit sheetName from connector config ──────────────────
+        if (this.config.sheetName) {
+            if (allTabNames.includes(this.config.sheetName)) {
+                logger_js_1.logger.info('Reading explicit tab from config', { spreadsheetId, tab: this.config.sheetName });
+                return this.readTab(sheets, spreadsheetId, this.config.sheetName, query);
+            }
+            // Tab not present in this spreadsheet — fall through to auto-detection
+            logger_js_1.logger.info('Configured sheetName not found, auto-detecting', { spreadsheetId, sheetName: this.config.sheetName });
+        }
+        // ── Priority 2: consolidated annual base tab (has all records in one place) ─
+        const consolidatedTab = allTabNames.find(isConsolidatedSheetName);
+        if (consolidatedTab) {
+            logger_js_1.logger.info('Found consolidated tab, reading it directly', { spreadsheetId, tab: consolidatedTab });
+            return this.readTab(sheets, spreadsheetId, consolidatedTab, query);
+        }
+        // ── Priority 3: date-named tabs (V10.2 monthly spreadsheet pattern) ───────
         const dateTabs = allTabNames.filter(isDateSheetName);
         if (dateTabs.length === 0) {
-            logger_js_1.logger.warn('No date-named tabs found, falling back to default range', { spreadsheetId, tabs: allTabNames });
+            logger_js_1.logger.warn('No date-named or consolidated tabs found, using default range', { spreadsheetId, tabs: allTabNames });
             return this.readTab(sheets, spreadsheetId, '', query);
         }
         logger_js_1.logger.info('Reading date tabs', { spreadsheetId, count: dateTabs.length, tabs: dateTabs });

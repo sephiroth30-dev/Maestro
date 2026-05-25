@@ -9,6 +9,13 @@ export interface SheetsConnectorConfig {
      * Only files whose name matches are synced. Example: "^CUADRE"
      */
     fileNamePattern?: string;
+    /**
+     * Explicit sheet/tab name to read. When set, that tab is tried first.
+     * In folder mode, each spreadsheet uses this tab if it exists, otherwise
+     * falls back to auto-detection (consolidated → date tabs → first sheet).
+     * Example: "BASE_CONSOLIDADA_ANUAL"
+     */
+    sheetName?: string;
     credentials: Record<string, unknown> | string;
     name?: string;
 }

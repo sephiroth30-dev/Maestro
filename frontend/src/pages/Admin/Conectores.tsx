@@ -495,6 +495,7 @@ interface ConnectorFormState {
   spreadsheetId: string;
   folderId: string;
   fileNamePattern: string;
+  sheetName: string;
   credentialsJson: string;
   // REST fields
   baseUrl: string;
@@ -511,6 +512,7 @@ const DEFAULT_FORM: ConnectorFormState = {
   spreadsheetId: '',
   folderId: '',
   fileNamePattern: '',
+  sheetName: '',
   credentialsJson: '',
   baseUrl: '',
   authType: 'none',
@@ -547,6 +549,7 @@ function ConnectorModal({
       spreadsheetId: '',
       folderId: '',
       fileNamePattern: '',
+      sheetName: '',
       credentialsJson: '',
       baseUrl: '',
       authType: 'none',
@@ -558,6 +561,7 @@ function ConnectorModal({
       base.spreadsheetId = (cfg['spreadsheetId'] as string) ?? '';
       base.sheetsMode = base.folderId ? 'folder' : 'spreadsheet';
       base.fileNamePattern = (cfg['fileNamePattern'] as string) ?? '';
+      base.sheetName = (cfg['sheetName'] as string) ?? '';
       base.credentialsJson =
         typeof cfg['credentials'] === 'object'
           ? JSON.stringify(cfg['credentials'], null, 2)
@@ -598,11 +602,16 @@ function ConnectorModal({
       if (form.sheetsMode === 'folder') {
         return {
           folderId: form.folderId.trim(),
+          ...(form.sheetName.trim() && { sheetName: form.sheetName.trim() }),
           ...(form.fileNamePattern.trim() && { fileNamePattern: form.fileNamePattern.trim() }),
           credentials,
         };
       }
-      return { spreadsheetId: form.spreadsheetId.trim(), credentials };
+      return {
+        spreadsheetId: form.spreadsheetId.trim(),
+        ...(form.sheetName.trim() && { sheetName: form.sheetName.trim() }),
+        credentials,
+      };
     }
     if (form.tipo === 'REST_API') {
       const headersObj: Record<string, string> = {};
@@ -908,6 +917,24 @@ function ConnectorModal({
                       </div>
                     </>
                   )}
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="conn-sheet-name">
+                      Hoja específica <span className="config-optional">(opcional)</span>
+                    </label>
+                    <input
+                      id="conn-sheet-name"
+                      type="text"
+                      className="form-input"
+                      value={form.sheetName}
+                      onChange={(e) => setField('sheetName', e.target.value)}
+                      placeholder="BASE_CONSOLIDADA_ANUAL"
+                    />
+                    <p className="form-hint">
+                      Nombre exacto de la hoja a leer. Dejar vacío para detección automática
+                      (prioridad: hoja consolidada → hojas de fecha → primera hoja).
+                    </p>
+                  </div>
 
                   <div className="form-group">
                     <label className="form-label" htmlFor="conn-credentials">
