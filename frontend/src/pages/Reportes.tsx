@@ -238,6 +238,9 @@ export default function Reportes(): React.ReactElement {
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
 
+  // Context flag: adapts layout when a weekday filter is active
+  const isDayFilter = selectedDia !== null;
+
   function clearDayFilter(): void { setSelectedDia(null); }
 
   function handleDayClick(diaNum: number): void {
@@ -247,7 +250,7 @@ export default function Reportes(): React.ReactElement {
   function handleRefresh(): void {
     void kpisQ.refetch();
     void entidadesQ.refetch();
-    void cumplimientoQ.refetch();
+    if (!isDayFilter) void cumplimientoQ.refetch();
     void diasQ.refetch();
   }
 
@@ -268,8 +271,7 @@ export default function Reportes(): React.ReactElement {
     setSelectedDia(null);
   }
 
-  // Badge label: just the weekday name (filter spans all occurrences in the period)
-  const diaLabel = selectedDia !== null ? (DIA_NOMBRES[selectedDia] ?? null) : null;
+  const diaLabel = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
 
   return (
     <div className="page">
@@ -281,31 +283,18 @@ export default function Reportes(): React.ReactElement {
         </div>
         <div className="reportes-header-controls">
           <div className="filter-mode-tabs">
-            <button
-              type="button"
+            <button type="button"
               className={`filter-mode-tab${filterMode === 'mes' ? ' filter-mode-tab--active' : ''}`}
-              onClick={() => handleModeSwitch('mes')}
-            >
-              Mes
-            </button>
-            <button
-              type="button"
+              onClick={() => handleModeSwitch('mes')}>Mes</button>
+            <button type="button"
               className={`filter-mode-tab${filterMode === 'rango' ? ' filter-mode-tab--active' : ''}`}
-              onClick={() => handleModeSwitch('rango')}
-            >
-              Rango
-            </button>
+              onClick={() => handleModeSwitch('rango')}>Rango</button>
           </div>
 
           {filterMode === 'mes' && (
-            <select
-              className="reportes-month-select"
-              value={selectedIdx}
-              onChange={(e) => { setSelectedIdx(Number(e.target.value)); setSelectedDia(null); }}
-            >
-              {meses.map((m, i) => (
-                <option key={i} value={i}>{m.label}</option>
-              ))}
+            <select className="reportes-month-select" value={selectedIdx}
+              onChange={(e) => { setSelectedIdx(Number(e.target.value)); setSelectedDia(null); }}>
+              {meses.map((m, i) => <option key={i} value={i}>{m.label}</option>)}
             </select>
           )}
 
@@ -321,32 +310,17 @@ export default function Reportes(): React.ReactElement {
                 </button>
               </div>
               <div className="date-range-group">
-                <input
-                  type="date"
-                  className="date-input"
-                  value={rangeStart}
-                  onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); }}
-                  aria-label="Fecha inicio"
-                />
+                <input type="date" className="date-input" value={rangeStart}
+                  onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); }} aria-label="Fecha inicio" />
                 <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
-                <input
-                  type="date"
-                  className="date-input"
-                  value={rangeEnd}
-                  onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); }}
-                  aria-label="Fecha fin"
-                />
+                <input type="date" className="date-input" value={rangeEnd}
+                  onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); }} aria-label="Fecha fin" />
               </div>
             </div>
           )}
 
-          <button
-            type="button"
-            className="btn btn--secondary btn--icon"
-            onClick={handleRefresh}
-            disabled={isLoading}
-            title="Actualizar datos"
-          >
+          <button type="button" className="btn btn--secondary btn--icon"
+            onClick={handleRefresh} disabled={isLoading} title="Actualizar datos">
             <RefreshCw size={15} className={isLoading ? 'spin' : ''} />
           </button>
         </div>
@@ -364,68 +338,105 @@ export default function Reportes(): React.ReactElement {
 
       {hasError && <ErrorState onRetry={handleRefresh} />}
 
-      {/* KPI Row 1 — 4 cards */}
-      <div className="kpi-grid kpi-grid--4">
-        {kpisQ.isLoading ? (
-          <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
-        ) : kpisQ.data ? (
-          <>
-            <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
-              meta={kpisQ.data.presupuesto} metaLabel="Meta" icon={<DollarSign size={16} />} color="blue" />
-            <KpiCard titulo="Cumplimiento" valor={kpisQ.data.cumplimiento_pct} formato="percent"
-              meta={100} metaLabel="Objetivo" icon={<Target size={16} />}
-              color={kpisQ.data.cumplimiento_pct >= 100 ? 'green' : kpisQ.data.cumplimiento_pct >= 80 ? 'amber' : 'rose'} />
-            <KpiCard titulo="Atenciones" valor={kpisQ.data.atenciones} formato="number"
-              icon={<Users size={16} />} color="purple" />
-            <KpiCard titulo="Ticket Promedio" valor={kpisQ.data.ticket_promedio} formato="currency"
-              icon={<BarChart2 size={16} />} color="amber" />
-          </>
-        ) : null}
-      </div>
+      {/* ── MODO DÍA: layout compacto con solo lo relevante ── */}
+      {isDayFilter ? (
+        <>
+          {/* KPI Row: Bruta + Atenciones + Ticket (sin Cumplimiento — no aplica a un subconjunto de días) */}
+          <div className="kpi-grid kpi-grid--3">
+            {kpisQ.isLoading ? (
+              <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
+            ) : kpisQ.data ? (
+              <>
+                <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
+                  icon={<DollarSign size={16} />} color="blue" />
+                <KpiCard titulo="Atenciones" valor={kpisQ.data.atenciones} formato="number"
+                  icon={<Users size={16} />} color="purple" />
+                <KpiCard titulo="Ticket Promedio" valor={kpisQ.data.ticket_promedio} formato="currency"
+                  icon={<BarChart2 size={16} />} color="amber" />
+              </>
+            ) : null}
+          </div>
 
-      {/* KPI Row 2 — compact */}
-      <div className="kpi-grid kpi-grid--3 kpi-grid--sm">
-        {kpisQ.isLoading || diasQ.isLoading ? (
-          <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
-        ) : (
-          <>
-            {diasQ.data && diasQ.data.length > 0 ? (
-              <DiasSemanaMini
-                rows={diasQ.data}
-                selectedDia={selectedDia}
-                onDayClick={handleDayClick}
-              />
-            ) : (
-              <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
-                formato="currency" icon={<Calendar size={14} />} color="green" />
+          {/* Bar chart (full width) + Mix Pagador lado a lado */}
+          <div className="charts-row charts-row--dias-entidades" style={{ marginBottom: 'var(--space-6)' }}>
+            {/* Bar chart — para cambiar/quitar el filtro de día */}
+            {diasQ.data && diasQ.data.length > 0 && (
+              <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
             )}
-            <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
-              formato="currency" icon={<Calendar size={14} />} color="green" />
-            <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
-              formato="number" meta={kpisQ.data?.semanas_total}
-              metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
-              icon={<Award size={14} />} color="purple" />
-          </>
-        )}
-      </div>
 
-      {/* Charts Row 1: Cumplimiento semanal + Mix pagador */}
-      <div className="charts-row">
-        <div className="chart-card chart-card--2-3">
-          <h2 className="chart-title">Cumplimiento Semanal</h2>
-          {cumplimientoQ.isLoading ? <ChartSkeleton /> :
-           cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
-           cumplimientoQ.data      ? <ChartCumplimiento semanas={cumplimientoQ.data.semanas} /> : null}
-        </div>
-        <div className="chart-card chart-card--1-3">
-          <h2 className="chart-title">Mix Pagador</h2>
-          {entidadesQ.isLoading ? <ChartSkeleton /> :
-           entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-           entidadesQ.data      ? <ChartMixPagador rows={entidadesQ.data.rows} /> : null}
-        </div>
-      </div>
+            {/* Mix Pagador */}
+            <div className="chart-card" style={{ flex: 2 }}>
+              <h2 className="chart-title">Mix Pagador — {diaLabel}</h2>
+              {entidadesQ.isLoading ? <ChartSkeleton height={200} /> :
+               entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
+               entidadesQ.data      ? <ChartMixPagador rows={entidadesQ.data.rows} /> : null}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* ── MODO NORMAL: layout completo ── */}
 
-      {/* Facturación por Entidad — ancho completo */}
+          {/* KPI Row 1 — 4 cards */}
+          <div className="kpi-grid kpi-grid--4">
+            {kpisQ.isLoading ? (
+              <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
+            ) : kpisQ.data ? (
+              <>
+                <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
+                  meta={kpisQ.data.presupuesto} metaLabel="Meta" icon={<DollarSign size={16} />} color="blue" />
+                <KpiCard titulo="Cumplimiento" valor={kpisQ.data.cumplimiento_pct} formato="percent"
+                  meta={100} metaLabel="Objetivo" icon={<Target size={16} />}
+                  color={kpisQ.data.cumplimiento_pct >= 100 ? 'green' : kpisQ.data.cumplimiento_pct >= 80 ? 'amber' : 'rose'} />
+                <KpiCard titulo="Atenciones" valor={kpisQ.data.atenciones} formato="number"
+                  icon={<Users size={16} />} color="purple" />
+                <KpiCard titulo="Ticket Promedio" valor={kpisQ.data.ticket_promedio} formato="currency"
+                  icon={<BarChart2 size={16} />} color="amber" />
+              </>
+            ) : null}
+          </div>
+
+          {/* KPI Row 2 — compact: días de semana + Facturación Hoy + Semanas en Meta */}
+          <div className="kpi-grid kpi-grid--3 kpi-grid--sm">
+            {kpisQ.isLoading || diasQ.isLoading ? (
+              <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
+            ) : (
+              <>
+                {diasQ.data && diasQ.data.length > 0 ? (
+                  <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
+                ) : (
+                  <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
+                    formato="currency" icon={<Calendar size={14} />} color="green" />
+                )}
+                <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
+                  formato="currency" icon={<Calendar size={14} />} color="green" />
+                <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
+                  formato="number" meta={kpisQ.data?.semanas_total}
+                  metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
+                  icon={<Award size={14} />} color="purple" />
+              </>
+            )}
+          </div>
+
+          {/* Charts Row: Cumplimiento Semanal + Mix Pagador */}
+          <div className="charts-row">
+            <div className="chart-card chart-card--2-3">
+              <h2 className="chart-title">Cumplimiento Semanal</h2>
+              {cumplimientoQ.isLoading ? <ChartSkeleton /> :
+               cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
+               cumplimientoQ.data      ? <ChartCumplimiento semanas={cumplimientoQ.data.semanas} /> : null}
+            </div>
+            <div className="chart-card chart-card--1-3">
+              <h2 className="chart-title">Mix Pagador</h2>
+              {entidadesQ.isLoading ? <ChartSkeleton /> :
+               entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
+               entidadesQ.data      ? <ChartMixPagador rows={entidadesQ.data.rows} /> : null}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Facturación por Entidad — ancho completo, siempre visible */}
       <div className="chart-card">
         <h2 className="chart-title">
           Facturación por Entidad
