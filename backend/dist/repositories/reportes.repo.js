@@ -10,6 +10,9 @@ exports.getDiasSemanaAgg = getDiasSemanaAgg;
 exports.getTendenciaMeses = getTendenciaMeses;
 exports.getPresupuesto = getPresupuesto;
 exports.listPresupuestos = listPresupuestos;
+exports.listEntidades = listEntidades;
+exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
+exports.getDiagnosticoConectores = getDiagnosticoConectores;
 exports.upsertPresupuesto = upsertPresupuesto;
 const prisma_js_1 = require("../config/prisma.js");
 const node_crypto_1 = require("node:crypto");
@@ -27,6 +30,8 @@ function buildDateWhere(mesIdx, anio, startDate, endDate) {
 // ─── Repository ───────────────────────────────────────────────────────────────
 async function getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate) {
     const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+    // Sum ALL records — es_grupo_caja (PARTICULARES etc.) is real income and must count.
+    // That flag is only used for visual grouping in charts, not for filtering totals.
     let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
     const allParams = [...params];
     if (entidadId) {
@@ -143,6 +148,44 @@ async function listPresupuestos() {
         monto: Number(r.monto),
         notas: r.notas,
         createdAt: r.created_at,
+    }));
+}
+async function listEntidades() {
+    const [rows] = await prisma_js_1.pool.query('SELECT id, nombre, tipo, es_grupo_caja, activa FROM entidades ORDER BY tipo ASC, nombre ASC');
+    return rows.map((r) => ({
+        id: r.id,
+        nombre: r.nombre,
+        tipo: r.tipo,
+        es_grupo_caja: Boolean(r.es_grupo_caja),
+        activa: Boolean(r.activa),
+    }));
+}
+async function updateEntidadGrupoCaja(id, esGrupoCaja) {
+    await prisma_js_1.pool.execute('UPDATE entidades SET es_grupo_caja = ? WHERE id = ?', [esGrupoCaja ? 1 : 0, id]);
+}
+async function getDiagnosticoConectores() {
+    const [rows] = await prisma_js_1.pool.query(`SELECT
+      a.conector_id,
+      COALESCE(c.nombre, a.conector_id) AS conector_nombre,
+      a.anio,
+      a.mes_idx,
+      COUNT(a.id)                              AS atenciones,
+      SUM(a.valor_bruto)                       AS valor_bruto,
+      SUM(CASE WHEN a.entidad_id IS NULL THEN 1 ELSE 0 END) AS sin_entidad,
+      SUM(CASE WHEN a.valor_bruto = 0   THEN 1 ELSE 0 END) AS sin_valor
+    FROM atenciones a
+    LEFT JOIN conectores c ON c.id = a.conector_id
+    GROUP BY a.conector_id, c.nombre, a.anio, a.mes_idx
+    ORDER BY a.anio DESC, a.mes_idx DESC, conector_nombre ASC`);
+    return rows.map((r) => ({
+        conector_id: r.conector_id,
+        conector_nombre: r.conector_nombre,
+        anio: Number(r.anio),
+        mes_idx: Number(r.mes_idx),
+        atenciones: Number(r.atenciones),
+        valor_bruto: Number(r.valor_bruto),
+        sin_entidad: Number(r.sin_entidad),
+        sin_valor: Number(r.sin_valor),
     }));
 }
 async function upsertPresupuesto(anio, mes, monto, notas) {

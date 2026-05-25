@@ -71,6 +71,8 @@ export async function getAgregadoMes(
   endDate?: Date,
 ): Promise<{ total: number; atenciones: number }> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  // Sum ALL records — es_grupo_caja (PARTICULARES etc.) is real income and must count.
+  // That flag is only used for visual grouping in charts, not for filtering totals.
   let sql = `SELECT SUM(valor_bruto) AS total, COUNT(id) AS cnt FROM atenciones WHERE ${whereClause}`;
   const allParams: (Date | number | string)[] = [...params];
 
@@ -255,6 +257,81 @@ export async function listPresupuestos(): Promise<
     monto: Number(r.monto),
     notas: r.notas,
     createdAt: r.created_at,
+  }));
+}
+
+// ─── Entidades catalog (config) ───────────────────────────────────────────────
+
+export interface EntidadCatalogRow {
+  id: string;
+  nombre: string;
+  tipo: string;
+  es_grupo_caja: boolean;
+  activa: boolean;
+}
+
+export async function listEntidades(): Promise<EntidadCatalogRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number })[]>(
+    'SELECT id, nombre, tipo, es_grupo_caja, activa FROM entidades ORDER BY tipo ASC, nombre ASC'
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    nombre: r.nombre,
+    tipo: r.tipo,
+    es_grupo_caja: Boolean(r.es_grupo_caja),
+    activa: Boolean(r.activa),
+  }));
+}
+
+export async function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void> {
+  await pool.execute<ResultSetHeader>(
+    'UPDATE entidades SET es_grupo_caja = ? WHERE id = ?',
+    [esGrupoCaja ? 1 : 0, id]
+  );
+}
+
+// ─── Diagnostic: totals per connector per month ──────────────────────────────
+
+export interface DiagnosticoRow {
+  conector_id: string;
+  conector_nombre: string;
+  anio: number;
+  mes_idx: number;
+  atenciones: number;
+  valor_bruto: number;
+  sin_entidad: number;
+  sin_valor: number;
+}
+
+export async function getDiagnosticoConectores(): Promise<DiagnosticoRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & {
+    conector_id: string; conector_nombre: string;
+    anio: number; mes_idx: number;
+    atenciones: string; valor_bruto: string; sin_entidad: string; sin_valor: string;
+  })[]>(
+    `SELECT
+      a.conector_id,
+      COALESCE(c.nombre, a.conector_id) AS conector_nombre,
+      a.anio,
+      a.mes_idx,
+      COUNT(a.id)                              AS atenciones,
+      SUM(a.valor_bruto)                       AS valor_bruto,
+      SUM(CASE WHEN a.entidad_id IS NULL THEN 1 ELSE 0 END) AS sin_entidad,
+      SUM(CASE WHEN a.valor_bruto = 0   THEN 1 ELSE 0 END) AS sin_valor
+    FROM atenciones a
+    LEFT JOIN conectores c ON c.id = a.conector_id
+    GROUP BY a.conector_id, c.nombre, a.anio, a.mes_idx
+    ORDER BY a.anio DESC, a.mes_idx DESC, conector_nombre ASC`
+  );
+  return rows.map((r) => ({
+    conector_id:     r.conector_id,
+    conector_nombre: r.conector_nombre,
+    anio:            Number(r.anio),
+    mes_idx:         Number(r.mes_idx),
+    atenciones:      Number(r.atenciones),
+    valor_bruto:     Number(r.valor_bruto),
+    sin_entidad:     Number(r.sin_entidad),
+    sin_valor:       Number(r.sin_valor),
   }));
 }
 

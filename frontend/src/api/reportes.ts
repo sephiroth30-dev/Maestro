@@ -171,6 +171,28 @@ export function useTendencia(meses = 6) {
   });
 }
 
+export interface DiagnosticoRow {
+  conector_id: string;
+  conector_nombre: string;
+  anio: number;
+  mes_idx: number;
+  atenciones: number;
+  valor_bruto: number;
+  sin_entidad: number;
+  sin_valor: number;
+}
+
+export function useDiagnostico() {
+  return useQuery<DiagnosticoRow[]>({
+    queryKey: ['diagnostico'],
+    queryFn: async () => {
+      const res = await apiClient.get<DiagnosticoRow[]>('/reportes/diagnostico');
+      return res.data;
+    },
+    staleTime: 30_000,
+  });
+}
+
 // Alias used by Configuracion page (matches spec name)
 export type Presupuesto = PresupuestoRow;
 

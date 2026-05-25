@@ -73,6 +73,9 @@ const tendenciaQuerySchema = zod_1.z.object({
         .transform((v) => (v ? parseInt(v, 10) : 6))
         .pipe(zod_1.z.number().min(1).max(36)),
 });
+const patchEntidadBodySchema = zod_1.z.object({
+    es_grupo_caja: zod_1.z.boolean(),
+});
 const presupuestoBodySchema = zod_1.z.object({
     anio: zod_1.z.number().int().min(2020).max(2100),
     mes: zod_1.z.number().int().min(1).max(12),
@@ -165,6 +168,30 @@ async function registerReportesController(fastify) {
         }
         const result = await reportes_service_js_1.reportesService.getTendencia({ meses: parsed.data.meses });
         return reply.send(result);
+    });
+    // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
+    fastify.get('/api/reportes/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.getDiagnosticoConectores();
+        return reply.send(rows);
+    });
+    // GET /api/entidades (catalog for config UI — ADMIN only)
+    fastify.get('/api/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.listEntidades();
+        return reply.send(rows);
+    });
+    // PATCH /api/entidades/:id (toggle es_grupo_caja — ADMIN only)
+    fastify.patch('/api/entidades/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const { id } = request.params;
+        const parsed = patchEntidadBodySchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: parsed.error.issues.map((i) => i.message).join(', '),
+                statusCode: 400,
+            });
+        }
+        await repo.updateEntidadGrupoCaja(id, parsed.data.es_grupo_caja);
+        return reply.status(200).send({ ok: true });
     });
     // GET /api/reportes/presupuestos
     fastify.get('/api/reportes/presupuestos', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (_request, reply) => {

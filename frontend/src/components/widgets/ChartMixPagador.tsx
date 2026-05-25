@@ -14,24 +14,24 @@ import { formatCOP } from './KpiCard.js';
 
 interface ChartMixPagadorProps {
   rows: EntidadRow[];
-  total: number;
 }
 
-// ─── Color map by tipo ────────────────────────────────────────────────────────
+// ─── Color map by category ────────────────────────────────────────────────────
 
 const TIPO_COLORS: Record<string, string> = {
   EPS:        '#3b82f6', // blue
-  PARTICULAR: '#10b981', // emerald
   CONVENIO:   '#a855f7', // purple
   ARL:        '#f59e0b', // amber
-  OTRO:       '#94a3b8', // gray
+  OTRO:       '#94a3b8', // slate
+  PARTICULAR: '#64748b', // gray (non-caja particulares)
+  CAJA:       '#10b981', // emerald — cash patients
 };
 
 function tipoColor(tipo: string): string {
   return TIPO_COLORS[tipo] ?? TIPO_COLORS['OTRO']!;
 }
 
-// ─── Aggregated by tipo ───────────────────────────────────────────────────────
+// ─── Aggregation ──────────────────────────────────────────────────────────────
 
 interface TipoSlice {
   tipo: string;
@@ -39,18 +39,32 @@ interface TipoSlice {
   pct: number;
 }
 
-function aggregateByTipo(rows: EntidadRow[], total: number): TipoSlice[] {
+function aggregateByTipo(rows: EntidadRow[]): { slices: TipoSlice[]; epsTotal: number; cajaTotal: number } {
   const map = new Map<string, number>();
+  let epsTotal = 0;
+  let cajaTotal = 0;
+
   for (const r of rows) {
-    map.set(r.tipo, (map.get(r.tipo) ?? 0) + r.valor_bruto);
+    // es_grupo_caja entities (PARTICULARES) form a separate "CAJA" slice
+    const key = r.es_grupo ? 'CAJA' : r.tipo;
+    map.set(key, (map.get(key) ?? 0) + r.valor_bruto);
+    if (r.es_grupo) {
+      cajaTotal += r.valor_bruto;
+    } else {
+      epsTotal += r.valor_bruto;
+    }
   }
-  return Array.from(map.entries())
+
+  const fullTotal = epsTotal + cajaTotal;
+  const slices = Array.from(map.entries())
     .map(([tipo, valor]) => ({
       tipo,
       valor,
-      pct: total > 0 ? Math.round((valor / total) * 1000) / 10 : 0,
+      pct: fullTotal > 0 ? Math.round((valor / fullTotal) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.valor - a.valor);
+
+  return { slices, epsTotal, cajaTotal };
 }
 
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
@@ -84,8 +98,12 @@ function CustomTooltip({ active, payload }: CustomTooltipProps): React.ReactElem
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ChartMixPagador({ rows, total }: ChartMixPagadorProps): React.ReactElement {
-  const slices = aggregateByTipo(rows, total);
+export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.ReactElement {
+  const { slices, epsTotal, cajaTotal } = aggregateByTipo(rows);
+  const grandTotal = epsTotal + cajaTotal;
+
+  const fmt = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -104,24 +122,30 @@ export default function ChartMixPagador({ rows, total }: ChartMixPagadorProps): 
           {slices.map((slice, index) => (
             <Cell key={`cell-${index}`} fill={tipoColor(slice.tipo)} />
           ))}
-          {/* Center label rendered via labelLine-less approach */}
         </Pie>
         <Tooltip content={<CustomTooltip />} />
         <Legend
           formatter={(value: string) => (
-            <span style={{ fontSize: 12, color: '#475569' }}>{value}</span>
+            <span style={{ fontSize: 12, color: '#475569' }}>
+              {value === 'CAJA' ? '💵 Caja' : value}
+            </span>
           )}
         />
-        {/* Render center label as absolute overlay via custom shape */}
+        {/* Center: grand total (EPS + Caja), Caja subtotal below when present */}
         <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central">
-          <tspan x="50%" dy="-0.5em" fontSize={11} fill="#64748b">
+          <tspan x="50%" dy={cajaTotal > 0 ? '-1em' : '-0.5em'} fontSize={10} fill="#64748b">
             Total
           </tspan>
-          <tspan x="50%" dy="1.4em" fontSize={13} fontWeight={600} fill="#1e293b">
-            {total >= 1_000_000
-              ? `$${(total / 1_000_000).toFixed(1)}M`
-              : `$${(total / 1_000).toFixed(0)}K`}
+          <tspan x="50%" dy="1.3em" fontSize={13} fontWeight={600} fill="#1e293b">
+            {fmt(grandTotal)}
           </tspan>
+          {cajaTotal > 0 && (
+            <>
+              <tspan x="50%" dy="1.2em" fontSize={9} fill="#10b981">
+                Caja: {fmt(cajaTotal)}
+              </tspan>
+            </>
+          )}
         </text>
       </PieChart>
     </ResponsiveContainer>
