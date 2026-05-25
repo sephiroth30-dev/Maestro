@@ -48,26 +48,41 @@ function getPreset(preset: string): { start: string; end: string } {
   switch (preset) {
     case 'hoy':
       return { start: fmt(today), end: fmt(today) };
+    case 'ayer': {
+      const ayer = new Date(today);
+      ayer.setDate(today.getDate() - 1);
+      return { start: fmt(ayer), end: fmt(ayer) };
+    }
     case 'semana': {
-      const dow = today.getUTCDay(); // 0=Sun
+      const dow = today.getDay(); // 0=Sun
       const mon = new Date(today);
-      mon.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+      mon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
       const sun = new Date(mon);
-      sun.setUTCDate(mon.getUTCDate() + 6);
+      sun.setDate(mon.getDate() + 6);
       return { start: fmt(mon), end: fmt(sun) };
+    }
+    case 'semana_pasada': {
+      const dow = today.getDay(); // 0=Sun
+      // Go back to last Monday
+      const daysToLastMon = (dow === 0 ? 6 : dow - 1) + 7;
+      const lastMon = new Date(today);
+      lastMon.setDate(today.getDate() - daysToLastMon);
+      const lastSun = new Date(lastMon);
+      lastSun.setDate(lastMon.getDate() + 6);
+      return { start: fmt(lastMon), end: fmt(lastSun) };
     }
     case '7dias': {
       const start = new Date(today);
-      start.setUTCDate(today.getUTCDate() - 6);
+      start.setDate(today.getDate() - 6);
       return { start: fmt(start), end: fmt(today) };
     }
     case '30dias': {
       const start = new Date(today);
-      start.setUTCDate(today.getUTCDate() - 29);
+      start.setDate(today.getDate() - 29);
       return { start: fmt(start), end: fmt(today) };
     }
     case 'anio': {
-      const start = new Date(today.getUTCFullYear(), 0, 1);
+      const start = new Date(today.getFullYear(), 0, 1);
       return { start: fmt(start), end: fmt(today) };
     }
     default:
@@ -214,8 +229,14 @@ export default function Reportes(): React.ReactElement {
                 <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>
                   Hoy
                 </button>
+                <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>
+                  Ayer
+                </button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>
                   Esta semana
+                </button>
+                <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>
+                  Sem. pasada
                 </button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('7dias')}>
                   Últimos 7 días
@@ -308,8 +329,8 @@ export default function Reportes(): React.ReactElement {
         ) : null}
       </div>
 
-      {/* KPI Row 2 — 3 cards */}
-      <div className="kpi-grid kpi-grid--3">
+      {/* KPI Row 2 — secondary stats (compact) */}
+      <div className="kpi-grid kpi-grid--3 kpi-grid--sm">
         {kpisQ.isLoading ? (
           <>
             <KpiSkeleton />
@@ -319,19 +340,19 @@ export default function Reportes(): React.ReactElement {
         ) : kpisQ.data ? (
           <>
             <KpiCard
-              titulo="Proyección de Cierre"
+              titulo="Cierre Proyectado"
               valor={kpisQ.data.proyeccion_cierre}
               formato="currency"
               meta={kpisQ.data.presupuesto}
               metaLabel="Meta"
-              icon={<TrendingUp size={16} />}
+              icon={<TrendingUp size={14} />}
               color="blue"
             />
             <KpiCard
               titulo="Facturación Hoy"
               valor={kpisQ.data.facturacion_hoy}
               formato="currency"
-              icon={<Calendar size={16} />}
+              icon={<Calendar size={14} />}
               color="green"
             />
             <KpiCard
@@ -339,8 +360,8 @@ export default function Reportes(): React.ReactElement {
               valor={kpisQ.data.semanas_en_meta}
               formato="number"
               meta={kpisQ.data.semanas_total}
-              metaLabel={`de ${kpisQ.data.semanas_total} semanas`}
-              icon={<Award size={16} />}
+              metaLabel={`de ${kpisQ.data.semanas_total} sem.`}
+              icon={<Award size={14} />}
               color="purple"
             />
           </>
@@ -372,12 +393,12 @@ export default function Reportes(): React.ReactElement {
         </div>
       </div>
 
-      {/* Charts Row 2: Días de semana + Tabla entidades */}
-      <div className="charts-row">
-        <div className="chart-card chart-card--1-2">
+      {/* Charts Row 2: Días de semana (smaller) + Tabla entidades (wider) */}
+      <div className="charts-row charts-row--dias-entidades">
+        <div className="chart-card">
           <h2 className="chart-title">Promedio por Día de Semana</h2>
           {diasQ.isLoading ? (
-            <ChartSkeleton />
+            <ChartSkeleton height={200} />
           ) : diasQ.isError ? (
             <ErrorState onRetry={() => void diasQ.refetch()} />
           ) : diasQ.data ? (
@@ -385,7 +406,7 @@ export default function Reportes(): React.ReactElement {
           ) : null}
         </div>
 
-        <div className="chart-card chart-card--1-2">
+        <div className="chart-card">
           <h2 className="chart-title">Facturación por Entidad</h2>
           {entidadesQ.isLoading ? (
             <ChartSkeleton />

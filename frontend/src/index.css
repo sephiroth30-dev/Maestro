@@ -1740,6 +1740,19 @@ body,
   grid-template-columns: repeat(3, 1fr);
 }
 
+/* Secondary/compact KPI row */
+.kpi-grid--sm .kpi-card {
+  padding: var(--space-3) var(--space-4);
+}
+
+.kpi-grid--sm .kpi-card-value {
+  font-size: 1.15rem;
+}
+
+.kpi-grid--sm .kpi-card-title {
+  font-size: 0.72rem;
+}
+
 @media (max-width: 1100px) {
   .kpi-grid--4 {
     grid-template-columns: repeat(2, 1fr);
@@ -1884,6 +1897,11 @@ body,
   grid-template-columns: 1fr 1fr;
 }
 
+/* Row 2: smaller dias chart (1/3) + wider entity table (2/3) */
+.charts-row--dias-entidades {
+  grid-template-columns: 1fr 2fr;
+}
+
 .chart-card {
   background: var(--color-white);
   border: 1px solid var(--color-gray-200);
@@ -1904,7 +1922,8 @@ body,
 
 @media (max-width: 900px) {
   .charts-row,
-  .charts-row + .charts-row {
+  .charts-row + .charts-row,
+  .charts-row--dias-entidades {
     grid-template-columns: 1fr;
   }
 }
@@ -1935,6 +1954,83 @@ body,
 .chart-tooltip-pct {
   color: var(--color-gray-500);
   margin-top: var(--space-1);
+}
+
+/* ─── Mix Pagador ────────────────────────────────────────────────────────────── */
+
+.mix-pagador {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mix-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.mix-summary-group {
+  background: var(--color-gray-50);
+  border-left: 3px solid;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mix-summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-gray-700);
+}
+
+.mix-summary-sublabel {
+  font-size: 0.65rem;
+  color: var(--color-gray-400);
+}
+
+.mix-summary-valor {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: var(--space-1);
+}
+
+.mix-summary-pct {
+  font-size: 0.72rem;
+  color: var(--color-gray-500);
+}
+
+.mix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-gray-100);
+}
+
+.mix-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: var(--color-gray-600);
+}
+
+.mix-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mix-legend-name {
+  font-weight: 500;
+}
+
+.mix-legend-pct {
+  color: var(--color-gray-400);
 }
 
 /* ─── Tabla Entidades ───────────────────────────────────────────────────────── */
