@@ -374,14 +374,18 @@ class ReportesService {
   async getDiasSemana(params: {
     mesIdx: number;
     anio: number;
+    startDate?: Date;
+    endDate?: Date;
   }): Promise<DiaSemanaRow[]> {
-    const { mesIdx, anio } = params;
-    const cacheKey = `diasemana:${mesIdx}:${anio}`;
+    const { mesIdx, anio, startDate, endDate } = params;
+    const cacheKey = startDate && endDate
+      ? `diasemana:rango:${startDate.toISOString().slice(0,10)}:${endDate.toISOString().slice(0,10)}`
+      : `diasemana:${mesIdx}:${anio}`;
 
     const cached = await cacheGet<DiaSemanaRow[]>(cacheKey);
     if (cached) return cached;
 
-    const agg = await repo.getDiasSemanaAgg(mesIdx, anio);
+    const agg = await repo.getDiasSemanaAgg(mesIdx, anio, startDate, endDate);
 
     const rows: DiaSemanaRow[] = agg.map((r) => ({
       dia: DIA_NOMBRES[r.dia_num] ?? String(r.dia_num),

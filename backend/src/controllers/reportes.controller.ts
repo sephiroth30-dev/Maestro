@@ -142,7 +142,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     '/api/reportes/dias-semana',
     { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = mesAnioSchema.safeParse(request.query);
+      const parsed = mesAnioDateSchema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -151,8 +151,13 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio } = parsed.data;
-      const result = await reportesService.getDiasSemana({ mesIdx: mes_idx, anio });
+      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const result = await reportesService.getDiasSemana({
+        mesIdx: mes_idx,
+        anio,
+        startDate: start_date ? new Date(start_date) : undefined,
+        endDate:   end_date   ? new Date(end_date)   : undefined,
+      });
       return reply.send(result);
     }
   );

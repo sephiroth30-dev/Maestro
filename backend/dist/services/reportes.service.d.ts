@@ -65,6 +65,8 @@ declare class ReportesService {
     getDiasSemana(params: {
         mesIdx: number;
         anio: number;
+        startDate?: Date;
+        endDate?: Date;
     }): Promise<DiaSemanaRow[]>;
     getTendencia(params: {
         meses: number;

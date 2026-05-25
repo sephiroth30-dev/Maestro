@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { RefreshCw, DollarSign, BarChart2, Users, Target, TrendingUp, Calendar, Award } from 'lucide-react';
+import { RefreshCw, DollarSign, BarChart2, Users, Target, Calendar, Award } from 'lucide-react';
 import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana } from '../api/reportes.js';
+import type { DiaSemanaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
-import ChartDiasSemana from '../components/widgets/ChartDiasSemana.js';
 import TablaEntidades from '../components/widgets/TablaEntidades.js';
 
 // ─── Month selector helper ────────────────────────────────────────────────────
@@ -99,6 +99,36 @@ function getCurrentMonthRange(): { start: string; end: string } {
   return { start: fmt(firstDay), end: fmt(lastDay) };
 }
 
+// ─── Días de semana mini card ─────────────────────────────────────────────────
+
+function DiasSemanaMini({ rows }: { rows: DiaSemanaRow[] }): React.ReactElement {
+  const maxVal = Math.max(...rows.map((r) => r.total), 1);
+  const fmtShort = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
+
+  return (
+    <div className="kpi-card kpi-card--blue">
+      <div className="kpi-card-header">
+        <span className="kpi-card-title">Facturado por día</span>
+      </div>
+      <div className="dias-mini">
+        {rows.map((r) => (
+          <div key={r.dia_num} className="dias-mini-row">
+            <span className="dias-mini-label">{r.dia.slice(0, 3)}</span>
+            <div className="dias-mini-bar-wrap">
+              <div
+                className="dias-mini-bar"
+                style={{ width: `${(r.total / maxVal) * 100}%` }}
+              />
+            </div>
+            <span className="dias-mini-val">{fmtShort(r.total)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function KpiSkeleton(): React.ReactElement {
@@ -153,7 +183,7 @@ export default function Reportes(): React.ReactElement {
   const kpisQ = useKpis(selected.mes, selected.anio, undefined, apiStartDate, apiEndDate);
   const entidadesQ = useEntidades(selected.mes, selected.anio, apiStartDate, apiEndDate);
   const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, apiStartDate, apiEndDate);
-  const diasQ = useDiasSemana(selected.mes, selected.anio);
+  const diasQ = useDiasSemana(selected.mes, selected.anio, apiStartDate, apiEndDate);
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError = kpisQ.isError || entidadesQ.isError;
@@ -331,41 +361,43 @@ export default function Reportes(): React.ReactElement {
 
       {/* KPI Row 2 — secondary stats (compact) */}
       <div className="kpi-grid kpi-grid--3 kpi-grid--sm">
-        {kpisQ.isLoading ? (
+        {kpisQ.isLoading || diasQ.isLoading ? (
           <>
             <KpiSkeleton />
             <KpiSkeleton />
             <KpiSkeleton />
           </>
-        ) : kpisQ.data ? (
+        ) : (
           <>
-            <KpiCard
-              titulo="Cierre Proyectado"
-              valor={kpisQ.data.proyeccion_cierre}
-              formato="currency"
-              meta={kpisQ.data.presupuesto}
-              metaLabel="Meta"
-              icon={<TrendingUp size={14} />}
-              color="blue"
-            />
+            {diasQ.data && diasQ.data.length > 0 ? (
+              <DiasSemanaMini rows={diasQ.data} />
+            ) : (
+              <KpiCard
+                titulo="Facturación Hoy"
+                valor={kpisQ.data?.facturacion_hoy ?? 0}
+                formato="currency"
+                icon={<Calendar size={14} />}
+                color="green"
+              />
+            )}
             <KpiCard
               titulo="Facturación Hoy"
-              valor={kpisQ.data.facturacion_hoy}
+              valor={kpisQ.data?.facturacion_hoy ?? 0}
               formato="currency"
               icon={<Calendar size={14} />}
               color="green"
             />
             <KpiCard
               titulo="Semanas en Meta"
-              valor={kpisQ.data.semanas_en_meta}
+              valor={kpisQ.data?.semanas_en_meta ?? 0}
               formato="number"
-              meta={kpisQ.data.semanas_total}
-              metaLabel={`de ${kpisQ.data.semanas_total} sem.`}
+              meta={kpisQ.data?.semanas_total}
+              metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
               icon={<Award size={14} />}
               color="purple"
             />
           </>
-        ) : null}
+        )}
       </div>
 
       {/* Charts Row 1: Cumplimiento semanal + Mix pagador */}
@@ -393,29 +425,16 @@ export default function Reportes(): React.ReactElement {
         </div>
       </div>
 
-      {/* Charts Row 2: Días de semana (smaller) + Tabla entidades (wider) */}
-      <div className="charts-row charts-row--dias-entidades">
-        <div className="chart-card">
-          <h2 className="chart-title">Promedio por Día de Semana</h2>
-          {diasQ.isLoading ? (
-            <ChartSkeleton height={200} />
-          ) : diasQ.isError ? (
-            <ErrorState onRetry={() => void diasQ.refetch()} />
-          ) : diasQ.data ? (
-            <ChartDiasSemana rows={diasQ.data} />
-          ) : null}
-        </div>
-
-        <div className="chart-card">
-          <h2 className="chart-title">Facturación por Entidad</h2>
-          {entidadesQ.isLoading ? (
-            <ChartSkeleton />
-          ) : entidadesQ.isError ? (
-            <ErrorState onRetry={() => void entidadesQ.refetch()} />
-          ) : entidadesQ.data ? (
-            <TablaEntidades rows={entidadesQ.data.rows} />
-          ) : null}
-        </div>
+      {/* Facturación por Entidad — ancho completo */}
+      <div className="chart-card">
+        <h2 className="chart-title">Facturación por Entidad</h2>
+        {entidadesQ.isLoading ? (
+          <ChartSkeleton />
+        ) : entidadesQ.isError ? (
+          <ErrorState onRetry={() => void entidadesQ.refetch()} />
+        ) : entidadesQ.data ? (
+          <TablaEntidades rows={entidadesQ.data.rows} />
+        ) : null}
       </div>
     </div>
   );

@@ -143,13 +143,19 @@ export function useCumplimientoSemanal(mesIdx: number, anio: number, startDate?:
   });
 }
 
-export function useDiasSemana(mesIdx: number, anio: number) {
+export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
   return useQuery<DiaSemanaRow[]>({
-    queryKey: ['dias-semana', mesIdx, anio],
+    queryKey: ['dias-semana', mesIdx, anio, startDate, endDate],
     queryFn: async () => {
-      const response = await apiClient.get<DiaSemanaRow[]>(
-        `/reportes/dias-semana?mes_idx=${mesIdx}&anio=${anio}`
-      );
+      const response = await apiClient.get<DiaSemanaRow[]>(`/reportes/dias-semana?${params}`);
       return response.data;
     },
     staleTime: STALE_TIME,
