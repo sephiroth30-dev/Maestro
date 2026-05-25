@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { RefreshCw, DollarSign, BarChart2, Users, Target, Calendar, Award } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
+  ResponsiveContainer, Cell,
+} from 'recharts';
 import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana } from '../api/reportes.js';
 import type { DiaSemanaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
@@ -106,25 +110,39 @@ function DiasSemanaMini({ rows }: { rows: DiaSemanaRow[] }): React.ReactElement 
   const fmtShort = (n: number): string =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
+  // Highlight the highest bar
+  const maxDay = rows.reduce((best, r) => (r.total > best.total ? r : best), rows[0] ?? rows[0]!);
+
   return (
     <div className="kpi-card kpi-card--blue">
       <div className="kpi-card-header">
         <span className="kpi-card-title">Facturado por día</span>
       </div>
-      <div className="dias-mini">
-        {rows.map((r) => (
-          <div key={r.dia_num} className="dias-mini-row">
-            <span className="dias-mini-label">{r.dia.slice(0, 3)}</span>
-            <div className="dias-mini-bar-wrap">
-              <div
-                className="dias-mini-bar"
-                style={{ width: `${(r.total / maxVal) * 100}%` }}
+      <ResponsiveContainer width="100%" height={110}>
+        <BarChart data={rows} margin={{ top: 4, right: 4, left: 4, bottom: 0 }} barCategoryGap="20%">
+          <XAxis
+            dataKey="dia"
+            tickFormatter={(v: string) => v.slice(0, 3)}
+            tick={{ fontSize: 10, fill: '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis hide domain={[0, maxVal * 1.1]} />
+          <RechartTooltip
+            formatter={(val: number) => [fmtShort(val), 'Total']}
+            contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
+            cursor={{ fill: '#f1f5f9' }}
+          />
+          <Bar dataKey="total" radius={[3, 3, 0, 0]}>
+            {rows.map((r) => (
+              <Cell
+                key={r.dia_num}
+                fill={r.dia_num === maxDay.dia_num ? '#2563eb' : '#93c5fd'}
               />
-            </div>
-            <span className="dias-mini-val">{fmtShort(r.total)}</span>
-          </div>
-        ))}
-      </div>
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
