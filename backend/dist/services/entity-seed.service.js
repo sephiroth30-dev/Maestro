@@ -19,7 +19,7 @@ const ENTIDADES = [
     { nombre: 'SALUD TOTAL', nombresRaw: ['SALUD TOTAL', 'SALUD TOTAL SA'], tipo: 'EPS' },
     { nombre: 'EPS SERVICIO', nombresRaw: ['EPS SERVICIO', 'ENTIDAD PROMOTORA DE SALUD SERVICIO C', 'ENTIDAD PROMOTORA DE SALUD SERVICIO'], tipo: 'EPS' },
     { nombre: 'UNISALUD', nombresRaw: ['UNISALUD'], tipo: 'EPS' },
-    { nombre: 'ALIANZA EPS', nombresRaw: ['ALIANZA EPS', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACIONALES', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACI', 'ALIANZA ESTRATEGICAS'], tipo: 'EPS' },
+    { nombre: 'ALIANZA EPS', nombresRaw: ['ALIANZA EPS', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACIONALES', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACI', 'ALIANZA ESTRATEGICAS', 'ALIANZA ESTRATEGICA EN SERVICIOS NACIONALES', 'ALIANZA ESTRATÉGICA EN SERVICIOS NACIONALES', 'ALIANZAS ESTRATEGICAS EN SERVICIOS NACIONALES'], tipo: 'EPS' },
     { nombre: 'MEDISANITAS', nombresRaw: ['MEDISANITAS', 'MEDISANITAS SA'], tipo: 'EPS' },
     { nombre: 'COLSANITAS', nombresRaw: ['COLSANITAS', 'COLSANITAS SA'], tipo: 'EPS' },
     // ── Seguros de vida / Medicina prepagada ─────────────────────────────────────
@@ -51,9 +51,8 @@ const ENTIDADES = [
     { nombre: 'UNIDAD SALUD OCUPACIONAL', nombresRaw: ['UNIDAD SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONAL SAS', 'UNIDAD DE SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONALSAS'], tipo: 'ARL' },
     { nombre: 'UNIDAD MEDICA LER', nombresRaw: ['UNIDAD MEDICA LER', 'UNIDAD MÉDICA LER'], tipo: 'OTRO' },
     { nombre: 'PROTEGEMOS', nombresRaw: ['PROTEGEMOS'], tipo: 'ARL' },
-    // ── Particulares ─────────────────────────────────────────────────────────────
-    { nombre: 'PARTICULARES', nombresRaw: ['PARTICULARES', 'PARTICULARES/CONVENIOS'], tipo: 'PARTICULAR', esGrupoCaja: true },
-    { nombre: 'PARTICULAR', nombresRaw: ['PARTICULAR', 'PART'], tipo: 'PARTICULAR', esGrupoCaja: true },
+    // ── Particulares (unified — matches both PARTICULARES and PARTICULAR in sheets) ─
+    { nombre: 'PARTICULARES', nombresRaw: ['PARTICULARES', 'PARTICULARES/CONVENIOS', 'PARTICULAR', 'PART'], tipo: 'PARTICULAR', esGrupoCaja: true },
 ];
 async function autoSeedEntidades() {
     let created = 0;
@@ -78,6 +77,24 @@ async function autoSeedEntidades() {
                 error: err instanceof Error ? err.message : String(err),
             });
         }
+    }
+    // Merge duplicate "PARTICULAR" entity (old entry) into "PARTICULARES"
+    try {
+        const [[particulares], [particular]] = await Promise.all([
+            prisma_js_1.pool.query('SELECT id FROM entidades WHERE nombre = ? LIMIT 1', ['PARTICULARES']),
+            prisma_js_1.pool.query('SELECT id FROM entidades WHERE nombre = ? LIMIT 1', ['PARTICULAR']),
+        ]);
+        if (particulares[0] && particular[0]) {
+            // Reassign atenciones that pointed to old "PARTICULAR" entity → "PARTICULARES"
+            await prisma_js_1.pool.execute('UPDATE atenciones SET entidad_id = ? WHERE entidad_id = ?', [particulares[0].id, particular[0].id]);
+            await prisma_js_1.pool.execute('DELETE FROM entidades WHERE id = ?', [particular[0].id]);
+            logger_js_1.logger.info('entity-seed: merged PARTICULAR → PARTICULARES');
+        }
+    }
+    catch (err) {
+        logger_js_1.logger.warn('entity-seed: merge PARTICULAR failed (non-fatal)', {
+            error: err instanceof Error ? err.message : String(err),
+        });
     }
     logger_js_1.logger.info('Entity catalog synced', { total: ENTIDADES.length, created, updated });
 }

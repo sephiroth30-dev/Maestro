@@ -367,7 +367,7 @@ export default function Reportes(): React.ReactElement {
           ) : entidadesQ.isError ? (
             <ErrorState onRetry={() => void entidadesQ.refetch()} />
           ) : entidadesQ.data ? (
-            <ChartMixPagador rows={entidadesQ.data.rows} total={entidadesQ.data.total} />
+            <ChartMixPagador rows={entidadesQ.data.rows} />
           ) : null}
         </div>
       </div>
