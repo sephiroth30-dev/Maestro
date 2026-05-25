@@ -8,7 +8,6 @@ import { logger } from '../config/logger.js';
 import { pool } from '../config/prisma.js';
 import { flushReportesCache } from '../config/redis.js';
 import type { TipoConector } from '@prisma/client';
-import { detectColumnMapping } from '../services/sheet-atencion-mapper.js';
 
 // ─── Request schemas ──────────────────────────────────────────────────────────
 
@@ -230,51 +229,50 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   // GET /api/connectors/:id/column-diagnostico
-  // Shows which columns were detected + sum of every numeric column in cached data.
-  // Use this to verify that the correct VALOR BRUTO column is being picked.
+  // Queries the DB directly — no Redis dependency.
+  // Returns per-month totals so the user can compare against the Excel.
   fastify.get(
     '/connectors/:id/column-diagnostico',
     { preHandler: [...adminOnly] },
     async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const { id } = req.params as { id: string };
 
-      const cached = await syncService.getCachedData(id);
-      if (!cached || cached.rows.length === 0) {
-        await reply.status(404).send({ error: 'No hay datos en caché para este conector. Ejecuta una sincronización primero.' });
+      type MesRow = import('mysql2').RowDataPacket & {
+        anio: number; mes_idx: number;
+        atenciones: string; total: string; sin_valor: string;
+      };
+
+      const [rows] = await pool.query<MesRow[]>(
+        `SELECT
+           anio,
+           mes_idx,
+           COUNT(*)                                            AS atenciones,
+           SUM(valor_bruto)                                   AS total,
+           SUM(CASE WHEN valor_bruto = 0 THEN 1 ELSE 0 END)  AS sin_valor
+         FROM atenciones
+         WHERE conector_id = ?
+         GROUP BY anio, mes_idx
+         ORDER BY anio DESC, mes_idx DESC`,
+        [id]
+      );
+
+      if (rows.length === 0) {
+        await reply.status(404).send({ error: 'Este conector no tiene datos importados. Sincroniza primero.' });
         return;
       }
 
-      // Collect all unique column sets (multi-file mode may have different structures)
-      const sigMap = new Map<string, { columns: string[]; rowCount: number; colMap: Record<string, string | null>; numericSums: Record<string, number> }>();
-
-      for (const row of cached.rows) {
-        const keys = Object.keys(row);
-        const sig = keys.slice().sort().join('\x00');
-
-        if (!sigMap.has(sig)) {
-          const numericSums: Record<string, number> = {};
-          for (const k of keys) numericSums[k] = 0;
-          sigMap.set(sig, { columns: keys, rowCount: 0, colMap: detectColumnMapping(keys) as Record<string, string | null>, numericSums });
-        }
-
-        const entry = sigMap.get(sig)!;
-        entry.rowCount++;
-        for (const k of keys) {
-          const v = row[k];
-          if (typeof v === 'number') entry.numericSums[k] = (entry.numericSums[k] ?? 0) + v;
-        }
-      }
-
-      const result = Array.from(sigMap.values()).map((e) => ({
-        columns: e.columns,
-        rowCount: e.rowCount,
-        detectedMapping: e.colMap,
-        numericColumnSums: Object.fromEntries(
-          Object.entries(e.numericSums).filter(([, v]) => v !== 0).sort(([, a], [, b]) => b - a)
-        ),
+      const meses = rows.map((r) => ({
+        anio:       Number(r.anio),
+        mes:        Number(r.mes_idx),
+        atenciones: Number(r.atenciones),
+        totalValorBruto: Number(r.total),
+        sinValor:   Number(r.sin_valor),
       }));
 
-      await reply.send({ conectorId: id, totalRows: cached.rows.length, columnSets: result });
+      const totalAtenciones = meses.reduce((s, r) => s + r.atenciones, 0);
+      const totalValor      = meses.reduce((s, r) => s + r.totalValorBruto, 0);
+
+      await reply.send({ conectorId: id, totalAtenciones, totalValorBruto: totalValor, meses });
     }
   );
 }

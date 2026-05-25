@@ -274,17 +274,19 @@ export function useDeleteConnectorData(): UseMutationResult<
   });
 }
 
-export interface ColumnDiagnosticoSet {
-  columns: string[];
-  rowCount: number;
-  detectedMapping: Record<string, string | null>;
-  numericColumnSums: Record<string, number>;
+export interface ColumnDiagnosticoMes {
+  anio: number;
+  mes: number;
+  atenciones: number;
+  totalValorBruto: number;
+  sinValor: number;
 }
 
 export interface ColumnDiagnosticoResult {
   conectorId: string;
-  totalRows: number;
-  columnSets: ColumnDiagnosticoSet[];
+  totalAtenciones: number;
+  totalValorBruto: number;
+  meses: ColumnDiagnosticoMes[];
 }
 
 export function useColumnDiagnostico(): UseMutationResult<ColumnDiagnosticoResult, Error, string> {

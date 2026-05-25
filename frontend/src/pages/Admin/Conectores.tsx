@@ -319,38 +319,29 @@ function ConnectorCard({
 
       {colDiagResult && (
         <div className="col-diag-panel">
-          <div className="col-diag-title">
-            Diagnóstico de columnas — {colDiagResult.totalRows.toLocaleString('es-CO')} filas en caché
-          </div>
-          {colDiagResult.columnSets.map((set, i) => {
-            const valorCol = set.detectedMapping['valor'];
+          {(() => {
             const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+            const MESES = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
             return (
-              <div key={i} className="col-diag-set">
-                {colDiagResult.columnSets.length > 1 && (
-                  <div className="col-diag-set-header">
-                    Conjunto {i + 1} · {set.rowCount.toLocaleString('es-CO')} filas
-                  </div>
-                )}
-                <div className="col-diag-detected">
-                  <span className="col-diag-label">Columna de valor detectada:</span>
-                  <span className={`col-diag-value ${valorCol ? 'col-diag-value--ok' : 'col-diag-value--err'}`}>
-                    {valorCol ?? '⚠ No detectada'}
-                  </span>
+              <>
+                <div className="col-diag-title">
+                  Totales en BD — {colDiagResult.totalAtenciones.toLocaleString('es-CO')} atenciones · {COP.format(colDiagResult.totalValorBruto)}
                 </div>
                 <div className="col-diag-sums">
-                  <div className="col-diag-sums-title">Sumas de columnas numéricas:</div>
-                  {Object.entries(set.numericColumnSums).slice(0, 10).map(([col, sum]) => (
-                    <div key={col} className={`col-diag-sum-row ${col === valorCol ? 'col-diag-sum-row--active' : ''}`}>
-                      <span className="col-diag-sum-name">{col}</span>
-                      <span className="col-diag-sum-val">{COP.format(sum)}</span>
-                      {col === valorCol && <span className="col-diag-sum-badge">← usada</span>}
+                  {colDiagResult.meses.map((m) => (
+                    <div key={`${m.anio}-${m.mes}`} className="col-diag-sum-row">
+                      <span className="col-diag-sum-name">{MESES[m.mes]} {m.anio}</span>
+                      <span className="col-diag-sum-val">{COP.format(m.totalValorBruto)}</span>
+                      <span className="col-diag-sum-name" style={{ color: '#94a3b8' }}>{m.atenciones.toLocaleString('es-CO')} atenc.</span>
+                      {m.sinValor > 0 && (
+                        <span style={{ color: '#ef4444', fontSize: '10px' }}>{m.sinValor} sin valor</span>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
+              </>
             );
-          })}
+          })()}
         </div>
       )}
 
