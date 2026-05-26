@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   PieChart,
   Pie,
@@ -15,6 +15,8 @@ interface ChartMixPagadorProps {
   rows: EntidadRow[];
   selectedTipo?: string | null;
   onTipoClick?: (tipo: string) => void;
+  selectedGroup?: 'caja' | 'cobro' | null;
+  onGroupClick?: (group: 'caja' | 'cobro') => void;
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
@@ -169,17 +171,14 @@ function SummaryGroup({ label, sublabel, valor, pct, accent, isActive, isInactiv
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: ChartMixPagadorProps): React.ReactElement {
+export default function ChartMixPagador({ rows, selectedTipo, onTipoClick, selectedGroup, onGroupClick }: ChartMixPagadorProps): React.ReactElement {
   const { slices, cobroTotal, cajaTotal, grandTotal } = aggregateMix(rows);
-  const [selectedGroup, setSelectedGroup] = useState<'caja' | 'cobro' | null>(null);
 
   const cobroPct = grandTotal > 0 ? Math.round((cobroTotal / grandTotal) * 1000) / 10 : 0;
   const cajaPct  = grandTotal > 0 ? Math.round((cajaTotal  / grandTotal) * 1000) / 10 : 0;
 
   function handleGroupClick(group: 'caja' | 'cobro'): void {
-    setSelectedGroup((prev) => (prev === group ? null : group));
-    // clear tipo filter when switching to group view
-    if (selectedTipo && onTipoClick) onTipoClick(selectedTipo);
+    onGroupClick?.(group);
   }
 
   const groupTotal = selectedGroup === 'caja' ? cajaTotal : selectedGroup === 'cobro' ? cobroTotal : 0;

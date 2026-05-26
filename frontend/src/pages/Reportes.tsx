@@ -238,6 +238,9 @@ export default function Reportes(): React.ReactElement {
   // Tipo click filter (client-side, only affects entity table)
   const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
 
+  // Group filter from Mix Pagador summary cards (caja / cobro)
+  const [selectedGroup, setSelectedGroup] = useState<'caja' | 'cobro' | null>(null);
+
   // Entity row click filter (changes KPIs via backend entidad_id)
   const [selectedEntidadId,   setSelectedEntidadId]   = useState<string | null>(null);
   const [selectedEntidadName, setSelectedEntidadName] = useState<string | null>(null);
@@ -264,7 +267,7 @@ export default function Reportes(): React.ReactElement {
   const isEntityFilter = selectedEntidadId !== null;
   const isCompactMode  = isDayFilter || isEntityFilter;
 
-  // Filtered rows for entity table — tipo and entity filters are client-side
+  // Filtered rows for entity table — tipo, group and entity filters are client-side
   const allRows = entidadesQ.data?.rows ?? [];
   const tableRows: EntidadRow[] = selectedTipo
     ? allRows.filter((r) => {
@@ -276,10 +279,17 @@ export default function Reportes(): React.ReactElement {
       })
     : selectedEntidadId
     ? allRows.filter((r) => r.id === selectedEntidadId)
+    : selectedGroup
+    ? allRows.filter((r) =>
+        selectedGroup === 'caja'
+          ? r.es_grupo || r.tipo === 'PARTICULAR'
+          : !r.es_grupo && r.tipo !== 'PARTICULAR'
+      )
     : allRows;
 
   function clearDayFilter(): void { setSelectedDia(null); }
   function clearTipoFilter(): void { setSelectedTipo(null); }
+  function clearGroupFilter(): void { setSelectedGroup(null); }
   function clearEntityFilter(): void { setSelectedEntidadId(null); setSelectedEntidadName(null); }
 
   function handleDayClick(diaNum: number): void {
@@ -292,12 +302,21 @@ export default function Reportes(): React.ReactElement {
     setRangeEnd(semana.fecha_fin);
     setSelectedDia(null);
     setSelectedTipo(null);
+    setSelectedGroup(null);
     setSelectedEntidadId(null);
     setSelectedEntidadName(null);
   }
 
   function handleTipoClick(tipo: string): void {
     setSelectedTipo((prev) => (prev === tipo ? null : tipo));
+    setSelectedGroup(null);
+    setSelectedEntidadId(null);
+    setSelectedEntidadName(null);
+  }
+
+  function handleGroupClick(group: 'caja' | 'cobro'): void {
+    setSelectedGroup((prev) => (prev === group ? null : group));
+    setSelectedTipo(null);
     setSelectedEntidadId(null);
     setSelectedEntidadName(null);
   }
@@ -311,6 +330,7 @@ export default function Reportes(): React.ReactElement {
       setSelectedEntidadId(row.id);
       setSelectedEntidadName(row.entidad);
       setSelectedTipo(null);
+      setSelectedGroup(null);
     }
   }
 
@@ -341,7 +361,8 @@ export default function Reportes(): React.ReactElement {
     setSelectedDia(null);
   }
 
-  const diaLabel = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
+  const diaLabel      = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
+  const groupLabel    = selectedGroup === 'caja' ? 'Flujo de caja' : selectedGroup === 'cobro' ? 'Cobro a entidades' : null;
 
   return (
     <div className="page">
@@ -397,12 +418,20 @@ export default function Reportes(): React.ReactElement {
       </div>
 
       {/* Active filter badges */}
-      {(diaLabel || selectedTipo || selectedEntidadName) && (
+      {(diaLabel || selectedTipo || selectedEntidadName || groupLabel) && (
         <div className="filter-badges-row">
           {diaLabel && (
             <div className="dia-filter-badge">
               <span>Día: <strong>{diaLabel}</strong></span>
               <button type="button" onClick={clearDayFilter} className="dia-filter-clear" title="Quitar filtro">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {groupLabel && (
+            <div className={`dia-filter-badge dia-filter-badge--${selectedGroup === 'caja' ? 'green' : 'blue'}`}>
+              <span>Grupo: <strong>{groupLabel}</strong></span>
+              <button type="button" onClick={clearGroupFilter} className="dia-filter-clear" title="Quitar filtro">
                 <X size={13} />
               </button>
             </div>
@@ -465,6 +494,8 @@ export default function Reportes(): React.ReactElement {
                    rows={entidadesQ.data.rows}
                    selectedTipo={selectedTipo}
                    onTipoClick={handleTipoClick}
+                   selectedGroup={selectedGroup}
+                   onGroupClick={handleGroupClick}
                  />
                ) : null}
             </div>
@@ -532,6 +563,8 @@ export default function Reportes(): React.ReactElement {
                    rows={entidadesQ.data.rows}
                    selectedTipo={selectedTipo}
                    onTipoClick={handleTipoClick}
+                   selectedGroup={selectedGroup}
+                   onGroupClick={handleGroupClick}
                  />
                ) : null}
             </div>
@@ -544,6 +577,7 @@ export default function Reportes(): React.ReactElement {
         <h2 className="chart-title">
           Facturación por Entidad
           {diaLabel && <span className="chart-title-badge">{diaLabel}</span>}
+          {groupLabel && <span className={`chart-title-badge chart-title-badge--${selectedGroup === 'caja' ? 'green' : 'blue'}`}>{groupLabel}</span>}
           {selectedTipo && <span className="chart-title-badge chart-title-badge--purple">{tipoLabel(selectedTipo)}</span>}
           {selectedEntidadName && <span className="chart-title-badge chart-title-badge--green">{selectedEntidadName}</span>}
         </h2>
