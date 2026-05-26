@@ -54,9 +54,14 @@ const tendenciaQuerySchema = z.object({
     .pipe(z.number().min(1).max(36)),
 });
 
-const patchEntidadBodySchema = z.object({
-  es_grupo_caja: z.boolean(),
-});
+const patchEntidadBodySchema = z
+  .object({
+    es_grupo_caja: z.boolean().optional(),
+    tipo: z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
+  })
+  .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined, {
+    message: 'Se requiere al menos un campo: es_grupo_caja o tipo',
+  });
 
 const presupuestoBodySchema = z.object({
   anio: z.number().int().min(2020).max(2100),
@@ -224,7 +229,10 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
           statusCode: 400,
         });
       }
-      await repo.updateEntidadGrupoCaja(id, parsed.data.es_grupo_caja);
+      await repo.patchEntidad(id, {
+        es_grupo_caja: parsed.data.es_grupo_caja,
+        tipo: parsed.data.tipo,
+      });
       return reply.status(200).send({ ok: true });
     }
   );

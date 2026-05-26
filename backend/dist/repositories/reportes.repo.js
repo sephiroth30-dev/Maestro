@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.TIPOS_VALIDOS = void 0;
 exports.getAgregadoMes = getAgregadoMes;
 exports.getFacturacionDia = getFacturacionDia;
 exports.getDiasTranscurridos = getDiasTranscurridos;
@@ -12,6 +13,7 @@ exports.getPresupuesto = getPresupuesto;
 exports.listPresupuestos = listPresupuestos;
 exports.listEntidades = listEntidades;
 exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
+exports.patchEntidad = patchEntidad;
 exports.getDiagnosticoConectores = getDiagnosticoConectores;
 exports.upsertPresupuesto = upsertPresupuesto;
 const prisma_js_1 = require("../config/prisma.js");
@@ -173,6 +175,23 @@ async function listEntidades() {
 }
 async function updateEntidadGrupoCaja(id, esGrupoCaja) {
     await prisma_js_1.pool.execute('UPDATE entidades SET es_grupo_caja = ? WHERE id = ?', [esGrupoCaja ? 1 : 0, id]);
+}
+exports.TIPOS_VALIDOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'];
+async function patchEntidad(id, fields) {
+    const sets = [];
+    const params = [];
+    if (fields.es_grupo_caja !== undefined) {
+        sets.push('es_grupo_caja = ?');
+        params.push(fields.es_grupo_caja ? 1 : 0);
+    }
+    if (fields.tipo !== undefined) {
+        sets.push('tipo = ?');
+        params.push(fields.tipo);
+    }
+    if (sets.length === 0)
+        return;
+    params.push(id);
+    await prisma_js_1.pool.execute(`UPDATE entidades SET ${sets.join(', ')} WHERE id = ?`, params);
 }
 async function getDiagnosticoConectores() {
     const [rows] = await prisma_js_1.pool.query(`SELECT

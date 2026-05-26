@@ -1,20 +1,58 @@
 import React, { useState, useMemo } from 'react';
 import { Loader2, AlertCircle, Info, Lock } from 'lucide-react';
-import { useEntidadesCatalog, useUpdateEntidadGrupoCaja } from '../../api/entidades.js';
+import {
+  useEntidadesCatalog,
+  useUpdateEntidadGrupoCaja,
+  useUpdateEntidadTipo,
+  TIPOS_ENTIDAD,
+  type TipoEntidad,
+} from '../../api/entidades.js';
 import type { EntidadCatalogRow } from '../../api/entidades.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TIPO_BADGE_CLASS: Record<string, string> = {
-  EPS:        'badge badge--blue',
-  PARTICULAR: 'badge badge--green',
-  CONVENIO:   'badge badge--purple',
-  ARL:        'badge badge--amber',
-  OTRO:       'badge badge--gray',
-};
-
 // PARTICULAREs siempre son flujo de caja — el toggle no tiene sentido para ellos
-const TIPO_SIEMPRE_CAJA = new Set(['PARTICULAR']);
+const TIPO_SIEMPRE_CAJA = new Set<string>(['PARTICULAR']);
+
+// ─── Tipo select ──────────────────────────────────────────────────────────────
+
+function EntidadTipoSelect({
+  entidad,
+}: {
+  entidad: EntidadCatalogRow;
+}): React.ReactElement {
+  const updateTipo = useUpdateEntidadTipo();
+  const [optimistic, setOptimistic] = useState<string | null>(null);
+  const current = (optimistic ?? entidad.tipo) as TipoEntidad;
+
+  async function handleChange(next: TipoEntidad): Promise<void> {
+    if (next === current) return;
+    setOptimistic(next);
+    try {
+      // Changing to PARTICULAR auto-enables flujo de caja
+      const extraFields = next === 'PARTICULAR' ? { es_grupo_caja: true } : {};
+      await updateTipo.mutateAsync({ id: entidad.id, tipo: next, ...extraFields });
+    } catch {
+      setOptimistic(null);
+      return;
+    }
+    setOptimistic(null);
+  }
+
+  return (
+    <select
+      value={current}
+      onChange={(e) => void handleChange(e.target.value as TipoEntidad)}
+      disabled={updateTipo.isPending}
+      className={`entidad-tipo-select entidad-tipo-select--${current.toLowerCase()}`}
+      title="Cambiar tipo de entidad"
+    >
+      {TIPOS_ENTIDAD.map((t) => (
+        <option key={t} value={t}>{t}</option>
+      ))}
+    </select>
+  );
+}
 
 // ─── Row ─────────────────────────────────────────────────────────────────────
 
@@ -44,9 +82,7 @@ function EntidadRow({ entidad }: { entidad: EntidadCatalogRow }): React.ReactEle
         {entidad.nombre}
       </td>
       <td className="tabla-entidades-td">
-        <span className={TIPO_BADGE_CLASS[entidad.tipo] ?? 'badge badge--gray'}>
-          {entidad.tipo}
-        </span>
+        <EntidadTipoSelect entidad={entidad} />
       </td>
       <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
         {esSiempreCaja ? (
@@ -125,10 +161,10 @@ export default function TabEntidades(): React.ReactElement {
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
         <span>
-          Marca cada entidad según cómo cobra:{' '}
-          <strong>Flujo de caja</strong> = paga al momento de la atención (particulares, convenios contado).{' '}
-          <strong>Cobro a entidades</strong> = facturación y cartera (EPS, ARL, convenios con plazo).
-          Esta clasificación afecta el <em>Mix de Pagadores</em> en el Dashboard y Reportes.
+          Cambia el <strong>Tipo</strong> de una entidad haciendo clic en su selector (EPS · ARL · CONVENIO · PARTICULAR · OTRO).{' '}
+          Marca la <strong>Clasificación</strong> según cómo cobra:{' '}
+          <strong>Flujo de caja</strong> = paga al momento · <strong>Cobro</strong> = facturación y cartera.
+          Ambos ajustes afectan el <em>Mix de Pagadores</em>.
         </span>
       </div>
 
@@ -185,7 +221,7 @@ export default function TabEntidades(): React.ReactElement {
       </div>
 
       <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-        {data.length} entidades en total · El catálogo se sincroniza al reiniciar el servidor.
+        {data.length} entidades en total · Los tipos se re-aplican automáticamente al reiniciar el servidor según la semilla; cambios manuales aquí son respetados hasta el próximo reinicio si la entidad está en la semilla.
       </p>
     </div>
   );

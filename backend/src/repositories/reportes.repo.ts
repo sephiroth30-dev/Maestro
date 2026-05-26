@@ -306,6 +306,30 @@ export async function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): 
   );
 }
 
+export const TIPOS_VALIDOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'] as const;
+export type TipoEntidad = typeof TIPOS_VALIDOS[number];
+
+export interface PatchEntidadFields {
+  es_grupo_caja?: boolean;
+  tipo?: TipoEntidad;
+}
+
+export async function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void> {
+  const sets: string[] = [];
+  const params: (string | number)[] = [];
+  if (fields.es_grupo_caja !== undefined) {
+    sets.push('es_grupo_caja = ?');
+    params.push(fields.es_grupo_caja ? 1 : 0);
+  }
+  if (fields.tipo !== undefined) {
+    sets.push('tipo = ?');
+    params.push(fields.tipo);
+  }
+  if (sets.length === 0) return;
+  params.push(id);
+  await pool.execute<ResultSetHeader>(`UPDATE entidades SET ${sets.join(', ')} WHERE id = ?`, params);
+}
+
 // ─── Diagnostic: totals per connector per month ──────────────────────────────
 
 export interface DiagnosticoRow {

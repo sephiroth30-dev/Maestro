@@ -79,8 +79,13 @@ const tendenciaQuerySchema = zod_1.z.object({
         .transform((v) => (v ? parseInt(v, 10) : 6))
         .pipe(zod_1.z.number().min(1).max(36)),
 });
-const patchEntidadBodySchema = zod_1.z.object({
-    es_grupo_caja: zod_1.z.boolean(),
+const patchEntidadBodySchema = zod_1.z
+    .object({
+    es_grupo_caja: zod_1.z.boolean().optional(),
+    tipo: zod_1.z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
+})
+    .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined, {
+    message: 'Se requiere al menos un campo: es_grupo_caja o tipo',
 });
 const presupuestoBodySchema = zod_1.z.object({
     anio: zod_1.z.number().int().min(2020).max(2100),
@@ -203,7 +208,10 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        await repo.updateEntidadGrupoCaja(id, parsed.data.es_grupo_caja);
+        await repo.patchEntidad(id, {
+            es_grupo_caja: parsed.data.es_grupo_caja,
+            tipo: parsed.data.tipo,
+        });
         return reply.status(200).send({ ok: true });
     });
     // GET /api/reportes/presupuestos

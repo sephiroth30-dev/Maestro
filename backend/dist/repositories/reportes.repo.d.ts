@@ -72,6 +72,13 @@ export interface EntidadCatalogRow {
 }
 export declare function listEntidades(): Promise<EntidadCatalogRow[]>;
 export declare function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void>;
+export declare const TIPOS_VALIDOS: readonly ["EPS", "ARL", "CONVENIO", "PARTICULAR", "OTRO"];
+export type TipoEntidad = typeof TIPOS_VALIDOS[number];
+export interface PatchEntidadFields {
+    es_grupo_caja?: boolean;
+    tipo?: TipoEntidad;
+}
+export declare function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void>;
 export interface DiagnosticoRow {
     conector_id: string;
     conector_nombre: string;

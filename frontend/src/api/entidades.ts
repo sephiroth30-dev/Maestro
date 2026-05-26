@@ -1,12 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
+export const TIPOS_ENTIDAD = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'] as const;
+export type TipoEntidad = typeof TIPOS_ENTIDAD[number];
+
 export interface EntidadCatalogRow {
   id: string;
   nombre: string;
   tipo: string;
   es_grupo_caja: boolean;
   activa: boolean;
+}
+
+function invalidateAll(qc: ReturnType<typeof useQueryClient>): void {
+  void qc.invalidateQueries({ queryKey: ['entidades-catalog'] });
+  void qc.invalidateQueries({ queryKey: ['kpis'] });
+  void qc.invalidateQueries({ queryKey: ['entidades'] });
 }
 
 export function useEntidadesCatalog() {
@@ -25,10 +34,15 @@ export function useUpdateEntidadGrupoCaja() {
   return useMutation({
     mutationFn: ({ id, es_grupo_caja }: { id: string; es_grupo_caja: boolean }) =>
       apiClient.patch(`/entidades/${id}`, { es_grupo_caja }).then((r) => r.data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['entidades-catalog'] });
-      void qc.invalidateQueries({ queryKey: ['kpis'] });
-      void qc.invalidateQueries({ queryKey: ['entidades'] });
-    },
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useUpdateEntidadTipo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, tipo, es_grupo_caja }: { id: string; tipo: TipoEntidad; es_grupo_caja?: boolean }) =>
+      apiClient.patch(`/entidades/${id}`, { tipo, ...(es_grupo_caja !== undefined ? { es_grupo_caja } : {}) }).then((r) => r.data),
+    onSuccess: () => invalidateAll(qc),
   });
 }
