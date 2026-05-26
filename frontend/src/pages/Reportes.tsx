@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
-import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana } from '../api/reportes.js';
-import type { DiaSemanaRow, EntidadRow, SemanaRow } from '../api/reportes.js';
+import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendencia } from '../api/reportes.js';
+import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
@@ -196,6 +196,100 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick }: DiasSemanaMiniProps):
   );
 }
 
+// ─── Facturado por mes (annual view) ─────────────────────────────────────────
+
+interface FacturadoPorMesProps {
+  rows: TendenciaRow[];
+}
+
+function FacturadoPorMes({ rows }: FacturadoPorMesProps): React.ReactElement {
+  const maxVal = Math.max(...rows.map((r) => r.total), 1);
+  const fmtShort = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
+
+  return (
+    <div className="kpi-card kpi-card--blue" style={{ cursor: 'default' }}>
+      <div className="kpi-card-header">
+        <span className="kpi-card-title">Facturado por mes</span>
+      </div>
+      <ResponsiveContainer width="100%" height={110}>
+        <BarChart data={rows} margin={{ top: 4, right: 4, left: 4, bottom: 0 }} barCategoryGap="20%">
+          <XAxis
+            dataKey="mes"
+            tickFormatter={(v: string) => v.split(' ')[0] ?? v}
+            tick={{ fontSize: 10, fill: '#64748b' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis hide domain={[0, maxVal * 1.15]} />
+          <RechartTooltip
+            formatter={(val: number) => [fmtShort(val), 'Total']}
+            contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
+            cursor={{ fill: '#f1f5f9' }}
+          />
+          <Bar dataKey="total" radius={[3, 3, 0, 0]}>
+            {rows.map((r) => (
+              <Cell
+                key={`${r.anio}-${r.mesIdx}`}
+                fill={r.presupuesto > 0 && r.total >= r.presupuesto ? '#16a34a' : '#3b82f6'}
+              />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>
+        Verde = meta cumplida · Azul = en progreso / sin meta
+      </p>
+    </div>
+  );
+}
+
+// ─── Cumplimiento mensual chart (annual view) ─────────────────────────────────
+
+function ChartCumplimientoMensual({ rows }: { rows: TendenciaRow[] }): React.ReactElement {
+  const fmtShort = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
+
+  const data = rows.map((r) => ({
+    mes: (r.mes.split(' ')[0] ?? r.mes),
+    venta: r.total,
+    estimado: r.presupuesto,
+    pct: r.presupuesto > 0 ? Math.round((r.total / r.presupuesto) * 1000) / 10 : 0,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }} barCategoryGap="25%" barGap={2}>
+        <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+        <YAxis
+          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tickFormatter={fmtShort}
+          axisLine={false}
+          tickLine={false}
+          width={48}
+        />
+        <RechartTooltip
+          formatter={(val: number, name: string) => [
+            fmtShort(val),
+            name === 'venta' ? 'Facturado' : 'Presupuesto',
+          ]}
+          contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
+        />
+        <ReferenceLine y={0} stroke="#e2e8f0" />
+        <Bar dataKey="estimado" fill="#e2e8f0" radius={[2, 2, 0, 0]} name="estimado" />
+        <Bar dataKey="venta" radius={[2, 2, 0, 0]} name="venta">
+          {data.map((d, i) => (
+            <Cell
+              key={i}
+              fill={d.pct >= 100 ? '#16a34a' : d.pct >= 80 ? '#f59e0b' : '#3b82f6'}
+            />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function KpiSkeleton(): React.ReactElement {
@@ -236,6 +330,9 @@ export default function Reportes(): React.ReactElement {
   const [filterMode, setFilterMode] = useState<FilterMode>('mes');
   const [rangeStart, setRangeStart] = useState<string>('');
   const [rangeEnd,   setRangeEnd]   = useState<string>('');
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const isAnioMode = activePreset === 'anio';
 
   // Day-of-week click filter (dia_num: 1=Mon…5=Fri, null=off)
   const [selectedDia, setSelectedDia] = useState<number | null>(null);
@@ -263,6 +360,15 @@ export default function Reportes(): React.ReactElement {
   const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, periodStart, periodEnd);
   // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
+  const tendenciaQ = useTendencia(12);
+
+  // Annual mode: filter tendencia to current year, ordered chronologically
+  const currentYear = new Date().getFullYear();
+  const tendenciaAnio = (tendenciaQ.data ?? [])
+    .filter((r) => r.anio === currentYear)
+    .slice()
+    .reverse(); // tendencia returns newest-first; we want Jan→Dec
+  const mesesEnMeta = tendenciaAnio.filter((r) => r.presupuesto > 0 && r.total >= r.presupuesto).length;
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
@@ -352,6 +458,7 @@ export default function Reportes(): React.ReactElement {
     setSelectedTipo(null);
     setSelectedEntidadId(null);
     setSelectedEntidadName(null);
+    setActivePreset(null);
     if (mode === 'rango' && !rangeStart && !rangeEnd) {
       const { start, end } = getCurrentMonthRange();
       setRangeStart(start);
@@ -364,6 +471,7 @@ export default function Reportes(): React.ReactElement {
     setRangeStart(start);
     setRangeEnd(end);
     setSelectedDia(null);
+    setActivePreset(preset);
   }
 
   const diaLabel      = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
@@ -401,16 +509,20 @@ export default function Reportes(): React.ReactElement {
                 <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
                 <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
-                <button type="button" className="preset-btn preset-btn--accent" onClick={() => applyPreset('anio')}>
-                  {new Date().getFullYear()}
+                <button
+                  type="button"
+                  className={`preset-btn preset-btn--accent${activePreset === 'anio' ? ' preset-btn--active' : ''}`}
+                  onClick={() => applyPreset('anio')}
+                >
+                  Año
                 </button>
               </div>
               <div className="date-range-group">
                 <input type="date" className="date-input" value={rangeStart}
-                  onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); }} aria-label="Fecha inicio" />
+                  onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha inicio" />
                 <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
                 <input type="date" className="date-input" value={rangeEnd}
-                  onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); }} aria-label="Fecha fin" />
+                  onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha fin" />
               </div>
             </div>
           )}
@@ -529,35 +641,65 @@ export default function Reportes(): React.ReactElement {
             ) : null}
           </div>
 
-          {/* KPI Row 2 — compact: días de semana + Semanas en Meta */}
+          {/* KPI Row 2 — annual: monthly bars + Meses en Meta | normal: day bars + Semanas en Meta */}
           <div className="kpi-grid kpi-grid--2 kpi-grid--sm">
-            {kpisQ.isLoading || diasQ.isLoading ? (
-              <><KpiSkeleton /><KpiSkeleton /></>
+            {isAnioMode ? (
+              tendenciaQ.isLoading ? (
+                <><KpiSkeleton /><KpiSkeleton /></>
+              ) : (
+                <>
+                  {tendenciaAnio.length > 0 ? (
+                    <FacturadoPorMes rows={tendenciaAnio} />
+                  ) : <div />}
+                  <KpiCard
+                    titulo="Meses en Meta"
+                    valor={mesesEnMeta}
+                    formato="number"
+                    meta={tendenciaAnio.length}
+                    metaLabel={`de ${tendenciaAnio.length} mes.`}
+                    icon={<Award size={14} />}
+                    color="purple"
+                  />
+                </>
+              )
             ) : (
-              <>
-                {diasQ.data && diasQ.data.length > 0 ? (
-                  <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
-                ) : <div />}
-                <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
-                  formato="number" meta={kpisQ.data?.semanas_total}
-                  metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
-                  icon={<Award size={14} />} color="purple" />
-              </>
+              kpisQ.isLoading || diasQ.isLoading ? (
+                <><KpiSkeleton /><KpiSkeleton /></>
+              ) : (
+                <>
+                  {diasQ.data && diasQ.data.length > 0 ? (
+                    <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
+                  ) : <div />}
+                  <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
+                    formato="number" meta={kpisQ.data?.semanas_total}
+                    metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
+                    icon={<Award size={14} />} color="purple" />
+                </>
+              )
             )}
           </div>
 
-          {/* Charts Row: Cumplimiento Semanal + Mix Pagador */}
+          {/* Charts Row: Cumplimiento (semanal/mensual) + Mix Pagador */}
           <div className="charts-row">
             <div className="chart-card chart-card--2-3">
-              <h2 className="chart-title">Cumplimiento Semanal</h2>
-              {cumplimientoQ.isLoading ? <ChartSkeleton /> :
-               cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
-               cumplimientoQ.data      ? (
-                 <ChartCumplimiento
-                   semanas={cumplimientoQ.data.semanas}
-                   onWeekClick={handleWeekClick}
-                 />
-               ) : null}
+              <h2 className="chart-title">
+                {isAnioMode ? 'Cumplimiento Mensual' : 'Cumplimiento Semanal'}
+              </h2>
+              {isAnioMode ? (
+                tendenciaQ.isLoading ? <ChartSkeleton /> :
+                tendenciaAnio.length > 0 ? (
+                  <ChartCumplimientoMensual rows={tendenciaAnio} />
+                ) : null
+              ) : (
+                cumplimientoQ.isLoading ? <ChartSkeleton /> :
+                cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
+                cumplimientoQ.data      ? (
+                  <ChartCumplimiento
+                    semanas={cumplimientoQ.data.semanas}
+                    onWeekClick={handleWeekClick}
+                  />
+                ) : null
+              )}
             </div>
             <div className="chart-card chart-card--1-3">
               <h2 className="chart-title">Mix Pagador</h2>
