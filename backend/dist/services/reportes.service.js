@@ -37,6 +37,11 @@ exports.reportesService = void 0;
 const redis_js_1 = require("../config/redis.js");
 const logger_js_1 = require("../config/logger.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
+// Colombia is UTC-5 with no DST. All "today" logic must use Colombia time,
+// not the UTC clock of the Hostinger server.
+function getColombiaDate() {
+    return new Date(Date.now() - 5 * 60 * 60 * 1000);
+}
 // ─── Cache helpers ────────────────────────────────────────────────────────────
 const DIA_NOMBRES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 async function cacheGet(key) {
@@ -74,7 +79,7 @@ function makeCacheKey(base, mesIdx, anio, startDate, endDate, extra) {
  * Returns the number of remaining Mon-Fri days in the month from today (exclusive).
  */
 function diasHabilesRestantes(mesIdx, anio) {
-    const today = new Date();
+    const today = getColombiaDate(); // use clinic's local calendar, not server UTC
     const todayDate = today.getUTCDate();
     const todayMonth = today.getUTCMonth() + 1;
     const todayYear = today.getUTCFullYear();
@@ -161,7 +166,7 @@ class ReportesService {
         const [agregado, diasTranscurridos, facturacionHoy] = await Promise.all([
             repo.getAgregadoMes(mesIdx, anio, entidadId, startDate, endDate, diaSemana),
             repo.getDiasTranscurridos(mesIdx, anio, startDate, endDate),
-            repo.getFacturacionDia(new Date()),
+            repo.getFacturacionDia(getColombiaDate()),
         ]);
         // For range mode sum all monthly budgets that overlap the range
         const presupuesto = isRangeMode && startDate && endDate
@@ -197,7 +202,7 @@ class ReportesService {
                 ventaSemana += dailyMap.get(key) ?? 0;
                 cur.setUTCDate(cur.getUTCDate() + 1);
             }
-            const today = new Date();
+            const today = getColombiaDate();
             const semCerrada = sem.fin < today;
             if (semCerrada && ventaSemana >= presupuestoSemanal) {
                 semanasEnMeta++;
@@ -264,7 +269,7 @@ class ReportesService {
             dailyMap.set(key, Number(d.total));
         }
         const presupuestoSemanal = semanas.length > 0 ? presupuesto / semanas.length : 0;
-        const today = new Date();
+        const today = getColombiaDate();
         const rows = semanas.map((sem) => {
             let venta = 0;
             const cur = new Date(sem.ini);

@@ -58,8 +58,13 @@ function tipoLabel(tipo: string): string {
   return TIPO_DISPLAY_LABEL[tipo] ?? tipo.replace('__CAJA', ' (caja)');
 }
 
+// Use LOCAL calendar date — toISOString() converts to UTC and shifts the day
+// when the client is in a negative-offset timezone (Colombia = UTC-5).
 function fmt(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y  = d.getFullYear();
+  const m  = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 // dia_num (1=Mon…5=Fri) → MySQL DAYOFWEEK (2=Mon…6=Fri)
