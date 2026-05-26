@@ -18,6 +18,7 @@ import { formatCOP } from './KpiCard.js';
 
 interface ChartCumplimientoProps {
   semanas: SemanaRow[];
+  onWeekClick?: (semana: SemanaRow) => void;
 }
 
 // ─── Color logic ──────────────────────────────────────────────────────────────
@@ -78,13 +79,14 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.Re
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ChartCumplimiento({ semanas }: ChartCumplimientoProps): React.ReactElement {
+export default function ChartCumplimiento({ semanas, onWeekClick }: ChartCumplimientoProps): React.ReactElement {
   const data = semanas.map((s) => ({
     nombre: `Sem ${s.numero}`,
     Facturado: s.venta,
     Estimado: s.estimado,
     pct: s.cumplimiento_pct,
     estado: s.estado,
+    _raw: s,
   }));
 
   return (
@@ -107,7 +109,12 @@ export default function ChartCumplimiento({ semanas }: ChartCumplimientoProps): 
         <Legend
           wrapperStyle={{ fontSize: 12, color: '#64748b' }}
         />
-        <Bar dataKey="Facturado" maxBarSize={56}>
+        <Bar
+          dataKey="Facturado"
+          maxBarSize={56}
+          style={{ cursor: onWeekClick ? 'pointer' : 'default' }}
+          onClick={(entry: { _raw: SemanaRow }) => onWeekClick?.(entry._raw)}
+        >
           {data.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={barColor(entry.pct, entry.estado)} />
           ))}

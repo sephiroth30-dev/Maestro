@@ -21,6 +21,7 @@ export interface KpisResult {
 }
 
 export interface EntidadRow {
+  id: string | null;
   entidad: string;
   tipo: string;
   es_grupo: boolean;
@@ -290,6 +291,7 @@ class ReportesService {
     const totalGeneral = agg.reduce((sum, r) => sum + Number(r.valor_bruto), 0);
 
     const rows: EntidadRow[] = agg.map((r) => ({
+      id: r.entidad_id ?? null,
       entidad: r.nombre ?? 'SIN ENTIDAD',
       tipo: r.tipo ?? 'OTRO',
       es_grupo: r.es_grupo_caja ?? false,

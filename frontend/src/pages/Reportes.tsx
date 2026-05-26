@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { RefreshCw, DollarSign, BarChart2, Users, Target, Calendar, Award, X } from 'lucide-react';
+import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
 import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana } from '../api/reportes.js';
-import type { DiaSemanaRow } from '../api/reportes.js';
+import type { DiaSemanaRow, EntidadRow, SemanaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
@@ -221,6 +221,13 @@ export default function Reportes(): React.ReactElement {
   // Day-of-week click filter (dia_num: 1=Mon…5=Fri, null=off)
   const [selectedDia, setSelectedDia] = useState<number | null>(null);
 
+  // Tipo click filter (client-side, only affects entity table)
+  const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
+
+  // Entity row click filter (changes KPIs via backend entidad_id)
+  const [selectedEntidadId,   setSelectedEntidadId]   = useState<string | null>(null);
+  const [selectedEntidadName, setSelectedEntidadName] = useState<string | null>(null);
+
   // Full period dates (never overridden by day filter)
   const periodStart = filterMode === 'rango' && rangeStart ? rangeStart : undefined;
   const periodEnd   = filterMode === 'rango' && rangeEnd   ? rangeEnd   : undefined;
@@ -229,7 +236,7 @@ export default function Reportes(): React.ReactElement {
   const diaSemana = selectedDia !== null ? toMysqlDow(selectedDia) : undefined;
 
   // Period dates are never changed — dia_semana is an additive filter on the same period
-  const kpisQ         = useKpis(selected.mes, selected.anio, undefined, periodStart, periodEnd, diaSemana);
+  const kpisQ         = useKpis(selected.mes, selected.anio, selectedEntidadId ?? undefined, periodStart, periodEnd, diaSemana);
   const entidadesQ    = useEntidades(selected.mes, selected.anio, periodStart, periodEnd, diaSemana);
   const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, periodStart, periodEnd);
   // diasQ always uses full period so bars stay stable while filtering
@@ -238,25 +245,70 @@ export default function Reportes(): React.ReactElement {
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
 
-  // Context flag: adapts layout when a weekday filter is active
-  const isDayFilter = selectedDia !== null;
+  // Context flags — drive adaptive layout
+  const isDayFilter    = selectedDia !== null;
+  const isEntityFilter = selectedEntidadId !== null;
+  const isCompactMode  = isDayFilter || isEntityFilter;
+
+  // Filtered rows for entity table — tipo and entity filters are client-side
+  const allRows = entidadesQ.data?.rows ?? [];
+  const tableRows: EntidadRow[] = selectedTipo
+    ? allRows.filter((r) =>
+        selectedTipo === 'CAJA' ? r.es_grupo : (r.tipo === selectedTipo && !r.es_grupo)
+      )
+    : selectedEntidadId
+    ? allRows.filter((r) => r.id === selectedEntidadId)
+    : allRows;
 
   function clearDayFilter(): void { setSelectedDia(null); }
+  function clearTipoFilter(): void { setSelectedTipo(null); }
+  function clearEntityFilter(): void { setSelectedEntidadId(null); setSelectedEntidadName(null); }
 
   function handleDayClick(diaNum: number): void {
     setSelectedDia((prev) => (prev === diaNum ? null : diaNum));
   }
 
+  function handleWeekClick(semana: SemanaRow): void {
+    setFilterMode('rango');
+    setRangeStart(semana.fecha_ini);
+    setRangeEnd(semana.fecha_fin);
+    setSelectedDia(null);
+    setSelectedTipo(null);
+    setSelectedEntidadId(null);
+    setSelectedEntidadName(null);
+  }
+
+  function handleTipoClick(tipo: string): void {
+    setSelectedTipo((prev) => (prev === tipo ? null : tipo));
+    setSelectedEntidadId(null);
+    setSelectedEntidadName(null);
+  }
+
+  function handleEntityClick(row: EntidadRow): void {
+    if (!row.id) return;
+    if (selectedEntidadId === row.id) {
+      setSelectedEntidadId(null);
+      setSelectedEntidadName(null);
+    } else {
+      setSelectedEntidadId(row.id);
+      setSelectedEntidadName(row.entidad);
+      setSelectedTipo(null);
+    }
+  }
+
   function handleRefresh(): void {
     void kpisQ.refetch();
     void entidadesQ.refetch();
-    if (!isDayFilter) void cumplimientoQ.refetch();
+    if (!isCompactMode) void cumplimientoQ.refetch();
     void diasQ.refetch();
   }
 
   function handleModeSwitch(mode: FilterMode): void {
     setFilterMode(mode);
     setSelectedDia(null);
+    setSelectedTipo(null);
+    setSelectedEntidadId(null);
+    setSelectedEntidadName(null);
     if (mode === 'rango' && !rangeStart && !rangeEnd) {
       const { start, end } = getCurrentMonthRange();
       setRangeStart(start);
@@ -326,22 +378,42 @@ export default function Reportes(): React.ReactElement {
         </div>
       </div>
 
-      {/* Day filter badge */}
-      {diaLabel && (
-        <div className="dia-filter-badge">
-          <span>Filtrando por día: <strong>{diaLabel}</strong></span>
-          <button type="button" onClick={clearDayFilter} className="dia-filter-clear" title="Quitar filtro">
-            <X size={13} />
-          </button>
+      {/* Active filter badges */}
+      {(diaLabel || selectedTipo || selectedEntidadName) && (
+        <div className="filter-badges-row">
+          {diaLabel && (
+            <div className="dia-filter-badge">
+              <span>Día: <strong>{diaLabel}</strong></span>
+              <button type="button" onClick={clearDayFilter} className="dia-filter-clear" title="Quitar filtro">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {selectedTipo && (
+            <div className="dia-filter-badge dia-filter-badge--purple">
+              <span>Tipo: <strong>{selectedTipo}</strong></span>
+              <button type="button" onClick={clearTipoFilter} className="dia-filter-clear" title="Quitar filtro">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {selectedEntidadName && (
+            <div className="dia-filter-badge dia-filter-badge--green">
+              <span>Entidad: <strong>{selectedEntidadName}</strong></span>
+              <button type="button" onClick={clearEntityFilter} className="dia-filter-clear" title="Quitar filtro">
+                <X size={13} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {hasError && <ErrorState onRetry={handleRefresh} />}
 
-      {/* ── MODO DÍA: layout compacto con solo lo relevante ── */}
-      {isDayFilter ? (
+      {/* ── MODO COMPACTO: día o entidad activos → solo lo relevante ── */}
+      {isCompactMode ? (
         <>
-          {/* KPI Row: Bruta + Atenciones + Ticket (sin Cumplimiento — no aplica a un subconjunto de días) */}
+          {/* KPI Row: Bruta + Atenciones + Ticket (sin Cumplimiento — no aplica) */}
           <div className="kpi-grid kpi-grid--3">
             {kpisQ.isLoading ? (
               <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
@@ -357,19 +429,26 @@ export default function Reportes(): React.ReactElement {
             ) : null}
           </div>
 
-          {/* Bar chart (full width) + Mix Pagador lado a lado */}
+          {/* Bar chart + Mix Pagador lado a lado */}
           <div className="charts-row charts-row--dias-entidades" style={{ marginBottom: 'var(--space-6)' }}>
-            {/* Bar chart — para cambiar/quitar el filtro de día */}
             {diasQ.data && diasQ.data.length > 0 && (
               <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
             )}
-
-            {/* Mix Pagador */}
             <div className="chart-card" style={{ flex: 2 }}>
-              <h2 className="chart-title">Mix Pagador — {diaLabel}</h2>
+              <h2 className="chart-title">
+                Mix Pagador
+                {diaLabel && <span className="chart-title-badge">{diaLabel}</span>}
+                {selectedEntidadName && <span className="chart-title-badge chart-title-badge--green">{selectedEntidadName}</span>}
+              </h2>
               {entidadesQ.isLoading ? <ChartSkeleton height={200} /> :
                entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-               entidadesQ.data      ? <ChartMixPagador rows={entidadesQ.data.rows} /> : null}
+               entidadesQ.data      ? (
+                 <ChartMixPagador
+                   rows={entidadesQ.data.rows}
+                   selectedTipo={selectedTipo}
+                   onTipoClick={handleTipoClick}
+                 />
+               ) : null}
             </div>
           </div>
         </>
@@ -396,20 +475,15 @@ export default function Reportes(): React.ReactElement {
             ) : null}
           </div>
 
-          {/* KPI Row 2 — compact: días de semana + Facturación Hoy + Semanas en Meta */}
-          <div className="kpi-grid kpi-grid--3 kpi-grid--sm">
+          {/* KPI Row 2 — compact: días de semana + Semanas en Meta */}
+          <div className="kpi-grid kpi-grid--2 kpi-grid--sm">
             {kpisQ.isLoading || diasQ.isLoading ? (
-              <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
+              <><KpiSkeleton /><KpiSkeleton /></>
             ) : (
               <>
                 {diasQ.data && diasQ.data.length > 0 ? (
                   <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
-                ) : (
-                  <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
-                    formato="currency" icon={<Calendar size={14} />} color="green" />
-                )}
-                <KpiCard titulo="Facturación Hoy" valor={kpisQ.data?.facturacion_hoy ?? 0}
-                  formato="currency" icon={<Calendar size={14} />} color="green" />
+                ) : <div />}
                 <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
                   formato="number" meta={kpisQ.data?.semanas_total}
                   metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
@@ -424,13 +498,24 @@ export default function Reportes(): React.ReactElement {
               <h2 className="chart-title">Cumplimiento Semanal</h2>
               {cumplimientoQ.isLoading ? <ChartSkeleton /> :
                cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
-               cumplimientoQ.data      ? <ChartCumplimiento semanas={cumplimientoQ.data.semanas} /> : null}
+               cumplimientoQ.data      ? (
+                 <ChartCumplimiento
+                   semanas={cumplimientoQ.data.semanas}
+                   onWeekClick={handleWeekClick}
+                 />
+               ) : null}
             </div>
             <div className="chart-card chart-card--1-3">
               <h2 className="chart-title">Mix Pagador</h2>
               {entidadesQ.isLoading ? <ChartSkeleton /> :
                entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-               entidadesQ.data      ? <ChartMixPagador rows={entidadesQ.data.rows} /> : null}
+               entidadesQ.data      ? (
+                 <ChartMixPagador
+                   rows={entidadesQ.data.rows}
+                   selectedTipo={selectedTipo}
+                   onTipoClick={handleTipoClick}
+                 />
+               ) : null}
             </div>
           </div>
         </>
@@ -441,10 +526,18 @@ export default function Reportes(): React.ReactElement {
         <h2 className="chart-title">
           Facturación por Entidad
           {diaLabel && <span className="chart-title-badge">{diaLabel}</span>}
+          {selectedTipo && <span className="chart-title-badge chart-title-badge--purple">{selectedTipo}</span>}
+          {selectedEntidadName && <span className="chart-title-badge chart-title-badge--green">{selectedEntidadName}</span>}
         </h2>
         {entidadesQ.isLoading ? <ChartSkeleton /> :
          entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-         entidadesQ.data      ? <TablaEntidades rows={entidadesQ.data.rows} /> : null}
+         entidadesQ.data      ? (
+           <TablaEntidades
+             rows={tableRows}
+             onEntityClick={handleEntityClick}
+             selectedEntidadId={selectedEntidadId}
+           />
+         ) : null}
       </div>
     </div>
   );

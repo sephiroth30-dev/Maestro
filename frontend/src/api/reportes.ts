@@ -20,6 +20,7 @@ export interface KpisResult {
 }
 
 export interface EntidadRow {
+  id: string | null;
   entidad: string;
   tipo: string;
   es_grupo: boolean;

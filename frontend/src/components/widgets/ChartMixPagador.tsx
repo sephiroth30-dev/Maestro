@@ -13,6 +13,8 @@ import { formatCOP } from './KpiCard.js';
 
 interface ChartMixPagadorProps {
   rows: EntidadRow[];
+  selectedTipo?: string | null;
+  onTipoClick?: (tipo: string) => void;
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
@@ -147,11 +149,15 @@ function SummaryGroup({ label, sublabel, valor, pct, accent }: SummaryGroupProps
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.ReactElement {
+export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: ChartMixPagadorProps): React.ReactElement {
   const { slices, cobroTotal, cajaTotal, grandTotal } = aggregateMix(rows);
 
   const cobroPct = grandTotal > 0 ? Math.round((cobroTotal / grandTotal) * 1000) / 10 : 0;
   const cajaPct  = grandTotal > 0 ? Math.round((cajaTotal  / grandTotal) * 1000) / 10 : 0;
+
+  function sliceOpacity(tipo: string): number {
+    return selectedTipo && selectedTipo !== tipo ? 0.3 : 1;
+  }
 
   return (
     <div className="mix-pagador">
@@ -167,9 +173,11 @@ export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.R
             outerRadius="78%"
             paddingAngle={2}
             label={false}
+            style={{ cursor: onTipoClick ? 'pointer' : 'default' }}
+            onClick={(entry: Slice) => onTipoClick?.(entry.tipo)}
           >
             {slices.map((s, i) => (
-              <Cell key={`cell-${i}`} fill={getColor(s.tipo)} />
+              <Cell key={`cell-${i}`} fill={getColor(s.tipo)} opacity={sliceOpacity(s.tipo)} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
@@ -206,13 +214,23 @@ export default function ChartMixPagador({ rows }: ChartMixPagadorProps): React.R
       {/* Category legend */}
       <div className="mix-legend">
         {slices.map((s) => (
-          <div key={s.tipo} className="mix-legend-item">
+          <div
+            key={s.tipo}
+            className={`mix-legend-item${onTipoClick ? ' mix-legend-item--clickable' : ''}${selectedTipo === s.tipo ? ' mix-legend-item--active' : ''}`}
+            style={{ opacity: sliceOpacity(s.tipo) }}
+            onClick={() => onTipoClick?.(s.tipo)}
+          >
             <span className="mix-legend-dot" style={{ background: getColor(s.tipo) }} />
             <span className="mix-legend-name">{s.label}</span>
             <span className="mix-legend-pct">{s.pct}%</span>
           </div>
         ))}
       </div>
+      {onTipoClick && (
+        <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: 4 }}>
+          Haz clic en un tipo para filtrar
+        </p>
+      )}
     </div>
   );
 }

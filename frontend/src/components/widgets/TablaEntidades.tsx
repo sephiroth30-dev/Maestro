@@ -14,6 +14,8 @@ import { formatCOP, formatNumber } from './KpiCard.js';
 
 interface TablaEntidadesProps {
   rows: EntidadRow[];
+  onEntityClick?: (row: EntidadRow) => void;
+  selectedEntidadId?: string | null;
 }
 
 // ─── Tipo badge ───────────────────────────────────────────────────────────────
@@ -78,7 +80,7 @@ const columns = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TablaEntidades({ rows }: TablaEntidadesProps): React.ReactElement {
+export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId }: TablaEntidadesProps): React.ReactElement {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'valor_bruto', desc: true },
   ]);
@@ -123,10 +125,18 @@ export default function TablaEntidades({ rows }: TablaEntidadesProps): React.Rea
             {table.getRowModel().rows.map((row) => {
               const pct = row.original.participacion_pct;
               const isHighConcentration = pct > 40;
+              const isSelected = selectedEntidadId != null && row.original.id === selectedEntidadId;
+              const isClickable = onEntityClick && row.original.id != null;
               return (
                 <tr
                   key={row.id}
-                  className={`tabla-entidades-tr ${isHighConcentration ? 'tabla-entidades-tr--alert' : ''}`}
+                  className={[
+                    'tabla-entidades-tr',
+                    isHighConcentration ? 'tabla-entidades-tr--alert' : '',
+                    isClickable ? 'tabla-entidades-tr--clickable' : '',
+                    isSelected ? 'tabla-entidades-tr--selected' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={isClickable ? () => onEntityClick(row.original) : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="tabla-entidades-td">

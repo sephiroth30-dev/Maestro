@@ -1740,6 +1740,10 @@ body,
   grid-template-columns: repeat(3, 1fr);
 }
 
+.kpi-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 /* Días de semana mini widget (dentro de kpi-card) */
 .dias-mini {
   display: flex;
@@ -2079,6 +2083,25 @@ body,
   color: var(--color-gray-400);
 }
 
+.mix-legend-item--clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  transition: background 0.15s;
+}
+
+.mix-legend-item--clickable:hover {
+  background: var(--color-gray-100);
+}
+
+.mix-legend-item--active {
+  font-weight: 700;
+}
+
+.mix-legend-item--active .mix-legend-name {
+  color: var(--color-gray-900);
+}
+
 /* ─── Tabla Entidades ───────────────────────────────────────────────────────── */
 
 .tabla-entidades {
@@ -2129,6 +2152,18 @@ body,
 
 .tabla-entidades-tr--alert .tabla-entidades-td {
   background: #fff7ed;
+}
+
+.tabla-entidades-tr--clickable {
+  cursor: pointer;
+}
+
+.tabla-entidades-tr--selected .tabla-entidades-td {
+  background: #eff6ff !important;
+}
+
+.tabla-entidades-tr--clickable:hover .tabla-entidades-td {
+  background: #f0f9ff;
 }
 
 .tabla-entidades-nombre {
@@ -2225,7 +2260,14 @@ body,
   cursor: pointer;
 }
 
-/* ─── Day-filter badge ───────────────────────────────────────────────────────── */
+/* ─── Filter badges ──────────────────────────────────────────────────────────── */
+
+.filter-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
 
 .dia-filter-badge {
   display: inline-flex;
@@ -2237,7 +2279,34 @@ body,
   padding: 4px 12px 4px 14px;
   font-size: 0.78rem;
   color: #1d4ed8;
-  margin-bottom: var(--space-4);
+}
+
+.dia-filter-badge--purple {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+
+.dia-filter-badge--purple .dia-filter-clear {
+  color: #8b5cf6;
+}
+
+.dia-filter-badge--purple .dia-filter-clear:hover {
+  background: #ede9fe;
+}
+
+.dia-filter-badge--green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #065f46;
+}
+
+.dia-filter-badge--green .dia-filter-clear {
+  color: #10b981;
+}
+
+.dia-filter-badge--green .dia-filter-clear:hover {
+  background: #d1fae5;
 }
 
 .dia-filter-clear {
@@ -2267,6 +2336,18 @@ body,
   border-radius: var(--radius-full);
   padding: 1px 8px;
   vertical-align: middle;
+}
+
+.chart-title-badge--purple {
+  color: #6d28d9;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.chart-title-badge--green {
+  color: #065f46;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .reportes-error {

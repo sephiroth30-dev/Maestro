@@ -14,6 +14,7 @@ export interface KpisResult {
     semanas_total: number;
 }
 export interface EntidadRow {
+    id: string | null;
     entidad: string;
     tipo: string;
     es_grupo: boolean;

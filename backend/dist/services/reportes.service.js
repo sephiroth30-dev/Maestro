@@ -230,6 +230,7 @@ class ReportesService {
         const agg = await repo.getEntidadesAgg(mesIdx, anio, startDate, endDate, diaSemana);
         const totalGeneral = agg.reduce((sum, r) => sum + Number(r.valor_bruto), 0);
         const rows = agg.map((r) => ({
+            id: r.entidad_id ?? null,
             entidad: r.nombre ?? 'SIN ENTIDAD',
             tipo: r.tipo ?? 'OTRO',
             es_grupo: r.es_grupo_caja ?? false,
