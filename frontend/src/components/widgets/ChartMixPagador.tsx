@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   PieChart,
   Pie,
@@ -27,16 +27,15 @@ interface Slice {
   group: 'cobro' | 'caja';
 }
 
-// Entities with es_grupo_caja=true that are NOT particulares get a __CAJA suffix
-// so they appear as a distinct slice (e.g. "Convenio (directo)") while keeping their identity
 const TIPO_COLOR: Record<string, string> = {
-  EPS:              '#3b82f6', // blue
-  CONVENIO:         '#a855f7', // purple
-  CONVENIO__CAJA:   '#14b8a6', // teal  — convenio que paga al contado
-  ARL:              '#f59e0b', // amber
-  OTRO:             '#94a3b8', // slate
-  OTRO__CAJA:       '#67e8f9', // light cyan
-  PARTICULAR:       '#10b981', // emerald
+  EPS:              '#3b82f6',
+  CONVENIO:         '#a855f7',
+  CONVENIO__CAJA:   '#14b8a6',
+  ARL:              '#f59e0b',
+  ARL__CAJA:        '#f97316',
+  OTRO:             '#94a3b8',
+  OTRO__CAJA:       '#67e8f9',
+  PARTICULAR:       '#10b981',
 };
 
 const TIPO_LABELS: Record<string, string> = {
@@ -44,6 +43,7 @@ const TIPO_LABELS: Record<string, string> = {
   CONVENIO:         'Convenio',
   CONVENIO__CAJA:   'Convenio (directo)',
   ARL:              'ARL',
+  ARL__CAJA:        'ARL (caja)',
   PARTICULAR:       'Particular',
   OTRO:             'Otro',
   OTRO__CAJA:       'Otro (caja)',
@@ -54,6 +54,7 @@ const TIPO_GROUPS: Record<string, 'cobro' | 'caja'> = {
   CONVENIO:         'cobro',
   CONVENIO__CAJA:   'caja',
   ARL:              'cobro',
+  ARL__CAJA:        'caja',
   OTRO:             'cobro',
   OTRO__CAJA:       'caja',
   PARTICULAR:       'caja',
@@ -74,9 +75,7 @@ function aggregateMix(rows: EntidadRow[]): {
   let cajaTotal = 0;
 
   for (const r of rows) {
-    // isCaja: es_grupo_caja flag OR tipo PARTICULAR (always immediate payment)
     const isCaja = r.es_grupo || r.tipo === 'PARTICULAR';
-    // Preserve tipo identity: non-particular es_grupo entities get __CAJA suffix
     const key = (r.es_grupo && r.tipo !== 'PARTICULAR') ? `${r.tipo}__CAJA` : r.tipo;
     map.set(key, (map.get(key) ?? 0) + r.valor_bruto);
     if (isCaja) cajaTotal += r.valor_bruto;
@@ -109,24 +108,33 @@ interface TooltipPayloadItem {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayloadItem[];
+  groupTotal?: number;
+  selectedGroup?: 'caja' | 'cobro' | null;
 }
 
-function CustomTooltip({ active, payload }: CustomTooltipProps): React.ReactElement | null {
+function CustomTooltip({ active, payload, groupTotal, selectedGroup }: CustomTooltipProps): React.ReactElement | null {
   if (!active || !payload?.length) return null;
   const s = payload[0];
   if (!s) return null;
+
+  const base = groupTotal && groupTotal > 0 && selectedGroup
+    ? Math.round((s.payload.valor / groupTotal) * 1000) / 10
+    : s.payload.pct;
+
   return (
     <div className="chart-tooltip">
       <p className="chart-tooltip-label">{s.payload.label}</p>
       <p className="chart-tooltip-row" style={{ color: getColor(s.payload.tipo) }}>
         {formatCOP(s.payload.valor)}
       </p>
-      <p className="chart-tooltip-pct">{s.payload.pct}% del total</p>
+      <p className="chart-tooltip-pct">
+        {base}%{selectedGroup ? ' del grupo' : ' del total'}
+      </p>
     </div>
   );
 }
 
-// ─── Summary row ──────────────────────────────────────────────────────────────
+// ─── Summary card ─────────────────────────────────────────────────────────────
 
 interface SummaryGroupProps {
   label: string;
@@ -134,18 +142,27 @@ interface SummaryGroupProps {
   valor: number;
   pct: number;
   accent: string;
+  group: 'caja' | 'cobro';
+  isActive: boolean;
+  isInactive: boolean;
+  onClick: () => void;
 }
 
-function SummaryGroup({ label, sublabel, valor, pct, accent }: SummaryGroupProps): React.ReactElement {
+function SummaryGroup({ label, sublabel, valor, pct, accent, isActive, isInactive, onClick }: SummaryGroupProps): React.ReactElement {
   const fmt = (n: number): string =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
   return (
-    <div className="mix-summary-group" style={{ borderLeftColor: accent }}>
+    <div
+      className={`mix-summary-group mix-summary-group--clickable${isActive ? ' mix-summary-group--active' : ''}${isInactive ? ' mix-summary-group--inactive' : ''}`}
+      style={{ borderLeftColor: accent }}
+      onClick={onClick}
+      title={isActive ? 'Haz clic para ver todo' : 'Haz clic para ver distribución'}
+    >
       <div className="mix-summary-label">{label}</div>
       <div className="mix-summary-sublabel">{sublabel}</div>
       <div className="mix-summary-valor" style={{ color: accent }}>{fmt(valor)}</div>
-      <div className="mix-summary-pct">{pct.toFixed(1)}%</div>
+      <div className="mix-summary-pct">{pct.toFixed(1)}%{isActive && <span className="mix-summary-active-badge"> · filtrando</span>}</div>
     </div>
   );
 }
@@ -154,13 +171,33 @@ function SummaryGroup({ label, sublabel, valor, pct, accent }: SummaryGroupProps
 
 export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: ChartMixPagadorProps): React.ReactElement {
   const { slices, cobroTotal, cajaTotal, grandTotal } = aggregateMix(rows);
+  const [selectedGroup, setSelectedGroup] = useState<'caja' | 'cobro' | null>(null);
 
   const cobroPct = grandTotal > 0 ? Math.round((cobroTotal / grandTotal) * 1000) / 10 : 0;
   const cajaPct  = grandTotal > 0 ? Math.round((cajaTotal  / grandTotal) * 1000) / 10 : 0;
 
-  function sliceOpacity(tipo: string): number {
-    return selectedTipo && selectedTipo !== tipo ? 0.3 : 1;
+  function handleGroupClick(group: 'caja' | 'cobro'): void {
+    setSelectedGroup((prev) => (prev === group ? null : group));
+    // clear tipo filter when switching to group view
+    if (selectedTipo && onTipoClick) onTipoClick(selectedTipo);
   }
+
+  const groupTotal = selectedGroup === 'caja' ? cajaTotal : selectedGroup === 'cobro' ? cobroTotal : 0;
+
+  // When group is active: only show slices from that group in legend
+  const legendSlices = selectedGroup ? slices.filter((s) => s.group === selectedGroup) : slices;
+
+  // Pie slices: when group selected, near-hide the other group
+  function sliceOpacity(tipo: string): number {
+    const s = slices.find((sl) => sl.tipo === tipo);
+    if (selectedGroup && s?.group !== selectedGroup) return 0.07;
+    if (selectedTipo && selectedTipo !== tipo) return 0.3;
+    return 1;
+  }
+
+  // Pie center text: show group label + sub-total when group is selected
+  const centerLabel  = selectedGroup === 'caja' ? 'Flujo de caja' : selectedGroup === 'cobro' ? 'Cobro' : 'Total';
+  const centerValue  = selectedGroup ? groupTotal : grandTotal;
 
   return (
     <div className="mix-pagador">
@@ -183,15 +220,19 @@ export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: Cha
               <Cell key={`cell-${i}`} fill={getColor(s.tipo)} opacity={sliceOpacity(s.tipo)} />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          {/* Center text */}
-          <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central">
-            <tspan x="50%" dy="0" fontSize={9} fill="#64748b">Total</tspan>
-            <tspan x="50%" dy="1.4em" fontSize={13} fontWeight={700} fill="#1e293b">
-              {grandTotal >= 1_000_000
-                ? `$${(grandTotal / 1_000_000).toFixed(1)}M`
-                : `$${(grandTotal / 1_000).toFixed(0)}K`}
+          <Tooltip content={<CustomTooltip groupTotal={groupTotal} selectedGroup={selectedGroup} />} />
+          <text x="50%" y="44%" textAnchor="middle" dominantBaseline="central">
+            <tspan x="50%" dy="0" fontSize={8} fill="#64748b">{centerLabel}</tspan>
+            <tspan x="50%" dy="1.5em" fontSize={12} fontWeight={700} fill="#1e293b">
+              {centerValue >= 1_000_000
+                ? `$${(centerValue / 1_000_000).toFixed(1)}M`
+                : `$${(centerValue / 1_000).toFixed(0)}K`}
             </tspan>
+            {selectedGroup && (
+              <tspan x="50%" dy="1.4em" fontSize={8} fill="#64748b">
+                {selectedGroup === 'caja' ? cajaPct : cobroPct}% del total
+              </tspan>
+            )}
           </text>
         </PieChart>
       </ResponsiveContainer>
@@ -204,6 +245,10 @@ export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: Cha
           valor={cobroTotal}
           pct={cobroPct}
           accent="#3b82f6"
+          group="cobro"
+          isActive={selectedGroup === 'cobro'}
+          isInactive={selectedGroup === 'caja'}
+          onClick={() => handleGroupClick('cobro')}
         />
         <SummaryGroup
           label="Flujo de caja"
@@ -211,29 +256,39 @@ export default function ChartMixPagador({ rows, selectedTipo, onTipoClick }: Cha
           valor={cajaTotal}
           pct={cajaPct}
           accent="#10b981"
+          group="caja"
+          isActive={selectedGroup === 'caja'}
+          isInactive={selectedGroup === 'cobro'}
+          onClick={() => handleGroupClick('caja')}
         />
       </div>
 
-      {/* Category legend */}
+      {/* Category legend — shows only active group when filtered */}
       <div className="mix-legend">
-        {slices.map((s) => (
-          <div
-            key={s.tipo}
-            className={`mix-legend-item${onTipoClick ? ' mix-legend-item--clickable' : ''}${selectedTipo === s.tipo ? ' mix-legend-item--active' : ''}`}
-            style={{ opacity: sliceOpacity(s.tipo) }}
-            onClick={() => onTipoClick?.(s.tipo)}
-          >
-            <span className="mix-legend-dot" style={{ background: getColor(s.tipo) }} />
-            <span className="mix-legend-name">{s.label}</span>
-            <span className="mix-legend-pct">{s.pct}%</span>
-          </div>
-        ))}
+        {legendSlices.map((s) => {
+          // when group is selected, pct relative to that group
+          const displayPct = selectedGroup
+            ? (groupTotal > 0 ? Math.round((s.valor / groupTotal) * 1000) / 10 : 0)
+            : s.pct;
+          return (
+            <div
+              key={s.tipo}
+              className={`mix-legend-item${onTipoClick ? ' mix-legend-item--clickable' : ''}${selectedTipo === s.tipo ? ' mix-legend-item--active' : ''}`}
+              style={{ opacity: selectedTipo && selectedTipo !== s.tipo ? 0.4 : 1 }}
+              onClick={() => onTipoClick?.(s.tipo)}
+            >
+              <span className="mix-legend-dot" style={{ background: getColor(s.tipo) }} />
+              <span className="mix-legend-name">{s.label}</span>
+              <span className="mix-legend-pct">{displayPct}%</span>
+            </div>
+          );
+        })}
       </div>
-      {onTipoClick && (
-        <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: 4 }}>
-          Haz clic en un tipo para filtrar
-        </p>
-      )}
+      <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: 4 }}>
+        {selectedGroup
+          ? 'Haz clic en el grupo para volver · clic en tipo para filtrar'
+          : 'Haz clic en un grupo o tipo para filtrar'}
+      </p>
     </div>
   );
 }
