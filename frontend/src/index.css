@@ -3601,3 +3601,118 @@ body,
   margin: 0;
   padding-top: 0.25rem;
 }
+
+/* ─── Mix por Servicio ───────────────────────────────────────────────────────── */
+
+.mix-servicios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mix-servicios__alerta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: #fef9c3;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #92400e;
+}
+
+.mix-servicios__table-wrap {
+  overflow-x: auto;
+}
+
+.mix-servicios__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.mix-servicios__table th {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 2px solid var(--color-border);
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.mix-servicios__table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.mix-servicios__table tbody tr:hover td {
+  background: var(--color-bg-hover, #f8fafc);
+}
+
+.mix-servicios__table tfoot td {
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+  padding-top: 0.5rem;
+  font-weight: 600;
+}
+
+.mix-servicios__nombre {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mix-servicios__dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mix-servicios__badge {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-hover, #f1f5f9);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+
+.mix-servicios__bar-track {
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.mix-servicios__bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.mix-servicios__row--alerta td {
+  background: #fff7ed;
+}
+
+.mix-servicios__row--sin-clasificar td {
+  color: var(--color-text-muted);
+  border-bottom-style: dashed;
+}
+
+.mix-servicios__hint {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}

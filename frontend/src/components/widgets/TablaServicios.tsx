@@ -1,111 +1,158 @@
 import { AlertTriangle } from 'lucide-react';
-import type { ServiciosResult } from '../../api/reportes.js';
+import type { ServiciosResult, ServicioRow } from '../../api/reportes.js';
 
 interface Props {
   result: ServiciosResult;
 }
 
-function fmt(v: number): string {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
+function fmtCOP(v: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+  }).format(v);
 }
+
+function fmtNum(v: number): string {
+  return new Intl.NumberFormat('es-CO').format(v);
+}
+
+const BAR_COLORS = [
+  '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
+  '#ef4444', '#06b6d4', '#ec4899', '#84cc16',
+  '#f97316', '#6366f1', '#14b8a6', '#e11d48',
+];
 
 export default function TablaServicios({ result }: Props) {
   const { rows, sin_clasificar, valor_sin_clasificar, alerta_emg_neuro, emg_count, neuro_count } = result;
 
-  const total = rows.reduce((s, r) => s + r.valor_bruto, 0) + valor_sin_clasificar;
+  // Ordenar por cantidad descendente (quién se hace más)
+  const sorted = [...rows].sort((a, b) => b.cantidad - a.cantidad);
+
+  const totalValor = rows.reduce((s, r) => s + r.valor_bruto, 0) + valor_sin_clasificar;
+  const totalCantidad = rows.reduce((s, r) => s + r.cantidad, 0) + sin_clasificar;
+  const maxCantidad = sorted.length > 0 ? sorted[0]!.cantidad : 1;
+
+  if (rows.length === 0 && sin_clasificar === 0) {
+    return (
+      <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', margin: 0 }}>
+        Sin datos para el período seleccionado.
+      </p>
+    );
+  }
 
   return (
-    <div className="tabla-servicios">
+    <div className="mix-servicios">
       {alerta_emg_neuro && (
-        <div className="tabla-servicios__alerta">
-          <AlertTriangle size={15} />
+        <div className="mix-servicios__alerta">
+          <AlertTriangle size={14} />
           <span>
-            Verificar registros: EMG ({emg_count}) ≠ Neuroconducción ({neuro_count}) — normalmente deben coincidir.
+            EMG ({fmtNum(emg_count)}) ≠ Neuroconducción ({fmtNum(neuro_count)}) — verificar registros duplicados o faltantes.
           </span>
         </div>
       )}
 
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left' }}>Procedimiento</th>
-            <th style={{ textAlign: 'right' }}>Cantidad</th>
-            <th style={{ textAlign: 'right' }}>Sesiones</th>
-            <th style={{ textAlign: 'right' }}>Valor Total</th>
-            <th style={{ textAlign: 'right' }}>% Part.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const pct = total > 0 ? (r.valor_bruto / total) * 100 : 0;
-            const isEmgNeuroAlert =
-              alerta_emg_neuro &&
-              (r.nombre.toUpperCase().includes('ELECTROMIOGRAFIA') ||
-               r.nombre.toUpperCase().includes('NEUROCONDUCCION'));
+      {/* Tabla principal */}
+      <div className="mix-servicios__table-wrap">
+        <table className="mix-servicios__table">
+          <thead>
+            <tr>
+              <th>Procedimiento</th>
+              <th style={{ textAlign: 'right' }}>Cantidad</th>
+              <th style={{ width: '22%' }}>Volumen relativo</th>
+              <th style={{ textAlign: 'right' }}>Valor total</th>
+              <th style={{ textAlign: 'right' }}>Valor promedio</th>
+              <th style={{ textAlign: 'right' }}>% facturación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r: ServicioRow, i) => {
+              const pctValor = totalValor > 0 ? (r.valor_bruto / totalValor) * 100 : 0;
+              const pctBar   = maxCantidad > 0 ? (r.cantidad / maxCantidad) * 100 : 0;
+              const promedio = r.cantidad > 0 ? r.valor_bruto / r.cantidad : 0;
+              const color    = BAR_COLORS[i % BAR_COLORS.length]!;
+              const isSesion = r.tipo_conteo === 'sesion';
+              const isAlerta = alerta_emg_neuro && (
+                r.nombre.toUpperCase().includes('ELECTROMIOGRAFIA') ||
+                r.nombre.toUpperCase().includes('NEUROCONDUCCION')
+              );
 
-            return (
-              <tr key={r.id} className={isEmgNeuroAlert ? 'tabla-servicios__row--alerta' : undefined}>
+              return (
+                <tr key={r.id} className={isAlerta ? 'mix-servicios__row--alerta' : undefined}>
+                  <td className="mix-servicios__nombre">
+                    <span className="mix-servicios__dot" style={{ background: color }} />
+                    {r.nombre}
+                    {isSesion && (
+                      <span className="mix-servicios__badge" title={`${r.horas ?? 0} registros totales`}>
+                        {r.horas ?? 0} reg.
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {fmtNum(r.cantidad)}{isSesion ? ' ses.' : ''}
+                  </td>
+                  <td>
+                    <div className="mix-servicios__bar-track">
+                      <div
+                        className="mix-servicios__bar-fill"
+                        style={{ width: `${pctBar}%`, background: color }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{fmtCOP(r.valor_bruto)}</td>
+                  <td style={{ textAlign: 'right', color: promedio < 50000 ? '#ef4444' : 'var(--color-text-primary)' }}>
+                    {fmtCOP(promedio)}
+                  </td>
+                  <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                    {pctValor.toFixed(1)}%
+                  </td>
+                </tr>
+              );
+            })}
+
+            {sin_clasificar > 0 && (
+              <tr className="mix-servicios__row--sin-clasificar">
+                <td className="mix-servicios__nombre" style={{ fontStyle: 'italic' }}>
+                  <span className="mix-servicios__dot" style={{ background: '#9ca3af' }} />
+                  Sin clasificar
+                </td>
+                <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtNum(sin_clasificar)}</td>
                 <td>
-                  {isEmgNeuroAlert && (
-                    <AlertTriangle size={12} className="tabla-servicios__row-icon" />
-                  )}
-                  {r.nombre}
+                  <div className="mix-servicios__bar-track">
+                    <div
+                      className="mix-servicios__bar-fill"
+                      style={{ width: `${maxCantidad > 0 ? (sin_clasificar / maxCantidad) * 100 : 0}%`, background: '#9ca3af' }}
+                    />
+                  </div>
                 </td>
-                <td style={{ textAlign: 'right' }}>
-                  {r.tipo_conteo === 'sesion' ? (
-                    <span title={`${r.horas ?? 0} registros totales`}>
-                      {r.cantidad} ses.
-                    </span>
-                  ) : (
-                    r.cantidad
-                  )}
+                <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtCOP(valor_sin_clasificar)}</td>
+                <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                  {sin_clasificar > 0 ? fmtCOP(valor_sin_clasificar / sin_clasificar) : '—'}
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                  {r.tipo_conteo === 'sesion' ? `${r.horas ?? 0} reg.` : '—'}
-                </td>
-                <td style={{ textAlign: 'right' }}>{fmt(r.valor_bruto)}</td>
-                <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                  {pct.toFixed(1)}%
+                  {totalValor > 0 ? ((valor_sin_clasificar / totalValor) * 100).toFixed(1) : '0.0'}%
                 </td>
               </tr>
-            );
-          })}
-
-          {sin_clasificar > 0 && (
-            <tr className="tabla-servicios__row--sin-clasificar">
-              <td style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                Sin clasificar
-              </td>
-              <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                {sin_clasificar}
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style={{ fontWeight: 600 }}>Total</td>
+              <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtNum(totalCantidad)}</td>
+              <td />
+              <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtCOP(totalValor)}</td>
+              <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                {totalCantidad > 0 ? fmtCOP(totalValor / totalCantidad) : '—'}
               </td>
               <td />
-              <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                {fmt(valor_sin_clasificar)}
-              </td>
-              <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                {total > 0 ? ((valor_sin_clasificar / total) * 100).toFixed(1) : '0.0'}%
-              </td>
             </tr>
-          )}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan={3} style={{ fontWeight: 600, paddingTop: '0.5rem' }}>
-              Total
-            </td>
-            <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '0.5rem' }}>
-              {fmt(total)}
-            </td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+          </tfoot>
+        </table>
+      </div>
 
-      <p className="tabla-servicios__nota">
-        Los procedimientos de <strong>telemetría EEG</strong> y <strong>polisomnografía</strong>{' '}
-        se muestran en sesiones (registros agrupados por fecha + paciente).
-      </p>
+      {sin_clasificar > 0 && (
+        <p className="mix-servicios__hint">
+          {sin_clasificar} registro{sin_clasificar !== 1 ? 's' : ''} sin clasificar — la próxima sincronización los asignará automáticamente.
+        </p>
+      )}
     </div>
   );
 }
