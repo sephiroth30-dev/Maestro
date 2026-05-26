@@ -28,7 +28,7 @@ const ENTIDADES: EntidadSeed[] = [
   { nombre: 'SALUD TOTAL',         nombresRaw: ['SALUD TOTAL', 'SALUD TOTAL SA'],                      tipo: 'EPS' },
   { nombre: 'EPS SERVICIO',        nombresRaw: ['EPS SERVICIO', 'ENTIDAD PROMOTORA DE SALUD SERVICIO C', 'ENTIDAD PROMOTORA DE SALUD SERVICIO'], tipo: 'EPS' },
   { nombre: 'UNISALUD',            nombresRaw: ['UNISALUD'],                                            tipo: 'EPS' },
-  { nombre: 'ALIANZA EPS',         nombresRaw: ['ALIANZA EPS', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACIONALES', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACI', 'ALIANZA ESTRATEGICAS', 'ALIANZA ESTRATEGICA EN SERVICIOS NACIONALES', 'ALIANZA ESTRATÉGICA EN SERVICIOS NACIONALES', 'ALIANZAS ESTRATEGICAS EN SERVICIOS NACIONALES'], tipo: 'EPS' },
+  { nombre: 'ALIANZA EPS',         nombresRaw: ['ALIANZA EPS'],                                        tipo: 'EPS' },
   { nombre: 'MEDISANITAS',         nombresRaw: ['MEDISANITAS', 'MEDISANITAS SA'],                      tipo: 'EPS' },
   { nombre: 'COLSANITAS',          nombresRaw: ['COLSANITAS', 'COLSANITAS SA'],                        tipo: 'EPS' },
   // ── Seguros de vida / Medicina prepagada ─────────────────────────────────────
@@ -41,11 +41,14 @@ const ENTIDADES: EntidadSeed[] = [
   // ── Fondos / Convenios especiales ────────────────────────────────────────────
   { nombre: 'FOMAG',               nombresRaw: ['FOMAG', 'FIDUCIARIA LA PREVISORA SA FOMAG', 'FIDUCIARIA LA PREVISORA FOMAG', 'PREVISORA FOMAG'], tipo: 'CONVENIO' },
   { nombre: 'ECOPETROL',           nombresRaw: ['ECOPETROL', 'ECOPETROL SA'],                          tipo: 'CONVENIO' },
-  { nombre: 'ALIANZAS VIP',        nombresRaw: ['ALIANZAS VIP'],                                       tipo: 'CONVENIO' },
+  { nombre: 'ALIANZAS VIP',        nombresRaw: ['ALIANZAS VIP'],                                       tipo: 'CONVENIO', esGrupoCaja: true },
   { nombre: 'INSTITUTO RELIGIOSAS SAN JOSE', nombresRaw: ['INSTITUTO DE RELIGIOSAS DE SAN JOSE', 'RELIGIOSAS SAN JOSE', 'INSTITUTO DE RELIGIOSAS DE SAN JOSE DE CLUNY'], tipo: 'CONVENIO' },
   { nombre: 'GLADYS GOMEZ BERMEO', nombresRaw: ['GLADYS GOMEZ BERMEO', 'GLADYS GOMEZ'],                tipo: 'CONVENIO' },
-  { nombre: 'DALELA',              nombresRaw: ['DALELA'],                                              tipo: 'CONVENIO' },
-  { nombre: 'CONVENIO EMPRESARIAL', nombresRaw: ['CONVENIO EMPRESARIAL', 'CONVENIO CM PLUS', 'CONVENIO CM'], tipo: 'CONVENIO' },
+  { nombre: 'DALELA',              nombresRaw: ['DALELA'],                                              tipo: 'CONVENIO', esGrupoCaja: true },
+  { nombre: 'CONVENIO EMPRESARIAL', nombresRaw: ['CONVENIO EMPRESARIAL', 'CONVENIO CM PLUS', 'CONVENIO CM'], tipo: 'CONVENIO', esGrupoCaja: true },
+  { nombre: 'ALIANZA ESTRATEGICAS', nombresRaw: ['ALIANZA ESTRATEGICAS', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACIONALES', 'ALIANZA ESTRATEGICAS EN SERVICIOS NACI', 'ALIANZA ESTRATEGICA EN SERVICIOS NACIONALES', 'ALIANZA ESTRATÉGICA EN SERVICIOS NACIONALES', 'ALIANZAS ESTRATEGICAS EN SERVICIOS NACIONALES'], tipo: 'CONVENIO', esGrupoCaja: true },
+  { nombre: 'LA RIVERA CLUB DE DESCUENTOS', nombresRaw: ['LA RIVERA CLUB DE DESCUENTOS', 'RIVERA CLUB DE DESCUENTOS', 'LA RIVERA'], tipo: 'CONVENIO', esGrupoCaja: true },
+  { nombre: 'CLINICA VALLE SALUD SANFERNANDO', nombresRaw: ['CLINICA VALLE SALUD SANFERNANDO SAS', 'CLINICA VALLE SALUD SANFERNANDO', 'CLINICA VALLE SALUD SAN FERNANDO', 'VALLE SALUD SANFERNANDO'], tipo: 'CONVENIO', esGrupoCaja: true },
   // ── IPS / Clínicas ───────────────────────────────────────────────────────────
   { nombre: 'CLINICA DE OCCIDENTE', nombresRaw: ['CLINICA DE OCCIDENTE', 'CLINICA DE OCCIDENTE SA'],  tipo: 'OTRO' },
   { nombre: 'CLINICA VERSALLES',   nombresRaw: ['CLINICA VERSALLES', 'CLINICA VERSALLES SA'],          tipo: 'OTRO' },
@@ -53,13 +56,13 @@ const ENTIDADES: EntidadSeed[] = [
   { nombre: 'MEDISALUD',           nombresRaw: ['MEDISALUD', 'CENTRO MEDICO MEDISALUD IPS SAS', 'CENTRO MEDICO MEDISALUD'], tipo: 'OTRO' },
   { nombre: 'IPS SOLUCIONES MEDICAS', nombresRaw: ['IPS SOLUCIONES MEDICAS', 'IPS SOLUCIONES MEDICAS EN SALUD SAS', 'IPS SOLUCIONES MEDICAS EN SALUD'], tipo: 'OTRO' },
   { nombre: 'ORGANIZACION ODONTOLOGICA', nombresRaw: ['ORGANIZACION MEDICO ODONTOLOGICA NACIONAL', 'ORGANIZACION MEDICO ODONTOLOGICA NAL', 'ORGANIZACION MEDICO ODONTOLOGICA'], tipo: 'OTRO' },
-  { nombre: 'TARJETA LA MEDICA',   nombresRaw: ['TARJETA LA MEDICA', 'LA MEDICA'],                     tipo: 'OTRO' },
-  { nombre: 'COSERSSA',            nombresRaw: ['COSERSSA'],                                            tipo: 'OTRO' },
+  { nombre: 'TARJETA LA MEDICA',   nombresRaw: ['TARJETA LA MEDICA', 'LA MEDICA'],                     tipo: 'OTRO', esGrupoCaja: true },
+  { nombre: 'COSERSSA',            nombresRaw: ['COSERSSA'],                                            tipo: 'OTRO', esGrupoCaja: true },
   { nombre: 'TSERVIMOS',           nombresRaw: ['TSERVIMOS'],                                           tipo: 'OTRO' },
   // ── Salud ocupacional / ARL ──────────────────────────────────────────────────
   { nombre: 'UNIDAD SALUD OCUPACIONAL', nombresRaw: ['UNIDAD SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONAL SAS', 'UNIDAD DE SALUD OCUPACIONAL', 'UNIDAD DE SALUD OCUPACIONALSAS'], tipo: 'ARL' },
-  { nombre: 'UNIDAD MEDICA LER',   nombresRaw: ['UNIDAD MEDICA LER', 'UNIDAD MÉDICA LER'],             tipo: 'OTRO' },
-  { nombre: 'PROTEGEMOS',          nombresRaw: ['PROTEGEMOS'],                                         tipo: 'ARL' },
+  { nombre: 'UNIDAD MEDICA LER',   nombresRaw: ['UNIDAD MEDICA LER', 'UNIDAD MÉDICA LER'],             tipo: 'OTRO', esGrupoCaja: true },
+  { nombre: 'PROTEGEMOS',          nombresRaw: ['PROTEGEMOS'],                                         tipo: 'ARL', esGrupoCaja: true },
   // ── Particulares (unified — matches both PARTICULARES and PARTICULAR in sheets) ─
   { nombre: 'PARTICULARES', nombresRaw: ['PARTICULARES', 'PARTICULARES/CONVENIOS', 'PARTICULAR', 'PART'], tipo: 'PARTICULAR', esGrupoCaja: true },
 ];
