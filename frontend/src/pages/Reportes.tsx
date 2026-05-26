@@ -367,7 +367,7 @@ export default function Reportes(): React.ReactElement {
   const tendenciaAnio = (tendenciaQ.data ?? [])
     .filter((r) => r.anio === currentYear)
     .slice()
-    .reverse(); // tendencia returns newest-first; we want Jan→Dec
+    .sort((a, b) => a.mesIdx - b.mesIdx); // Ene=1 → Dic=12
   const mesesEnMeta = tendenciaAnio.filter((r) => r.presupuesto > 0 && r.total >= r.presupuesto).length;
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
