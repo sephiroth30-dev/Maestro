@@ -15,6 +15,7 @@ exports.listEntidades = listEntidades;
 exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
 exports.patchEntidad = patchEntidad;
 exports.getDiagnosticoConectores = getDiagnosticoConectores;
+exports.getSinEntidadDiagnostico = getSinEntidadDiagnostico;
 exports.upsertPresupuesto = upsertPresupuesto;
 const prisma_js_1 = require("../config/prisma.js");
 const node_crypto_1 = require("node:crypto");
@@ -216,6 +217,22 @@ async function getDiagnosticoConectores() {
         valor_bruto: Number(r.valor_bruto),
         sin_entidad: Number(r.sin_entidad),
         sin_valor: Number(r.sin_valor),
+    }));
+}
+async function getSinEntidadDiagnostico(mesIdx, anio, startDate, endDate) {
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+    const [rows] = await prisma_js_1.pool.query(`SELECT
+      COALESCE(entidad_nombre_raw, '(vacío)') AS nombre_raw,
+      COUNT(*) AS cnt,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    WHERE entidad_id IS NULL AND ${whereClause}
+    GROUP BY entidad_nombre_raw
+    ORDER BY total DESC`, params);
+    return rows.map((r) => ({
+        nombre_raw: r.nombre_raw,
+        cnt: Number(r.cnt),
+        total: Number(r.total),
     }));
 }
 async function upsertPresupuesto(anio, mes, monto, notas) {

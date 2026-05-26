@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck } from 'lucide-react';
-import { usePresupuestos, useUpsertPresupuesto } from '../../api/reportes.js';
+import { usePresupuestos, useUpsertPresupuesto, useSinEntidadDiagnostico } from '../../api/reportes.js';
 import type { Presupuesto } from '../../api/reportes.js';
 import TabEntidades from './TabEntidades.js';
 import TabDiagnostico from './TabDiagnostico.js';
+import TabSinEntidad from './TabSinEntidad.js';
 import Conectores from './Conectores.js';
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type ConfigTab = 'fuentes' | 'entidades' | 'presupuestos' | 'diagnostico';
+type ConfigTab = 'fuentes' | 'entidades' | 'presupuestos' | 'diagnostico' | 'sin-entidad';
 
 // ─── Presupuestos helpers ─────────────────────────────────────────────────────
 
@@ -203,15 +204,25 @@ function TabPresupuestos(): React.ReactElement {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const TABS: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'fuentes',      label: 'Fuentes de datos', icon: <Database size={15} /> },
-  { id: 'entidades',    label: 'Entidades',         icon: <Building2 size={15} /> },
-  { id: 'presupuestos', label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
-  { id: 'diagnostico',  label: 'Diagnóstico',       icon: <ShieldCheck size={15} /> },
-];
-
 export default function Configuracion(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<ConfigTab>('fuentes');
+
+  // Used to show a red icon on the Sin Entidad tab when there are unmatched records
+  const now = new Date();
+  const { data: sinEntidadData } = useSinEntidadDiagnostico(now.getMonth() + 1, now.getFullYear());
+  const hasSinEntidad = (sinEntidadData?.length ?? 0) > 0;
+
+  const TABS: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'fuentes',      label: 'Fuentes de datos', icon: <Database size={15} /> },
+    { id: 'entidades',    label: 'Entidades',         icon: <Building2 size={15} /> },
+    { id: 'presupuestos', label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
+    { id: 'diagnostico',  label: 'Diagnóstico',       icon: <ShieldCheck size={15} /> },
+    {
+      id: 'sin-entidad',
+      label: 'Sin Entidad',
+      icon: <AlertCircle size={15} style={{ color: hasSinEntidad ? '#dc2626' : '#94a3b8' }} />,
+    },
+  ];
 
   return (
     <div className="page">
@@ -246,6 +257,7 @@ export default function Configuracion(): React.ReactElement {
         {activeTab === 'entidades'    && <TabEntidades />}
         {activeTab === 'presupuestos' && <TabPresupuestos />}
         {activeTab === 'diagnostico'  && <TabDiagnostico />}
+        {activeTab === 'sin-entidad'  && <TabSinEntidad />}
       </div>
     </div>
   );

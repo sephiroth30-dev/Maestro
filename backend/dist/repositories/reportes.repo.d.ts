@@ -90,6 +90,12 @@ export interface DiagnosticoRow {
     sin_valor: number;
 }
 export declare function getDiagnosticoConectores(): Promise<DiagnosticoRow[]>;
+export interface SinEntidadRow {
+    nombre_raw: string | null;
+    cnt: number;
+    total: number;
+}
+export declare function getSinEntidadDiagnostico(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<SinEntidadRow[]>;
 export declare function upsertPresupuesto(anio: number, mes: number, monto: number, notas?: string): Promise<{
     id: string;
     anio: number;

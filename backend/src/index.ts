@@ -5,6 +5,7 @@ import { buildApp } from './app.js';
 import { initCron, stopCron } from './services/cron.service.js';
 import { disconnectRedis } from './config/redis.js';
 import { autoSeedEntidades } from './services/entity-seed.service.js';
+import { runSchemaMigrations } from './services/schema-migrations.service.js';
 
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
@@ -120,6 +121,14 @@ async function connectInBackground(): Promise<void> {
       console.log(`[DB] Connect attempt ${attempt}...`);
       await connectDatabase();
       console.log('[DB] Connected successfully');
+      // Run schema migrations (idempotent) before seeding entities
+      try {
+        await runSchemaMigrations();
+      } catch (migrationErr) {
+        logger.warn('Schema migrations failed (non-fatal)', {
+          error: migrationErr instanceof Error ? migrationErr.message : String(migrationErr),
+        });
+      }
       // Sync entity catalog on every startup so deploys automatically pick up new entities
       try {
         await autoSeedEntidades();

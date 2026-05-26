@@ -7,6 +7,7 @@ const app_js_1 = require("./app.js");
 const cron_service_js_1 = require("./services/cron.service.js");
 const redis_js_1 = require("./config/redis.js");
 const entity_seed_service_js_1 = require("./services/entity-seed.service.js");
+const schema_migrations_service_js_1 = require("./services/schema-migrations.service.js");
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
 // ─── Crash handlers ───────────────────────────────────────────────────────────
@@ -112,6 +113,15 @@ async function connectInBackground() {
             console.log(`[DB] Connect attempt ${attempt}...`);
             await (0, prisma_js_1.connectDatabase)();
             console.log('[DB] Connected successfully');
+            // Run schema migrations (idempotent) before seeding entities
+            try {
+                await (0, schema_migrations_service_js_1.runSchemaMigrations)();
+            }
+            catch (migrationErr) {
+                logger_js_1.logger.warn('Schema migrations failed (non-fatal)', {
+                    error: migrationErr instanceof Error ? migrationErr.message : String(migrationErr),
+                });
+            }
             // Sync entity catalog on every startup so deploys automatically pick up new entities
             try {
                 await (0, entity_seed_service_js_1.autoSeedEntidades)();

@@ -192,6 +192,20 @@ async function registerReportesController(fastify) {
         const rows = await repo.getDiagnosticoConectores();
         return reply.send(rows);
     });
+    // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
+    fastify.get('/api/diagnostico/sin-entidad', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const parsed = mesAnioSchema.safeParse(request.query);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: parsed.error.issues.map((i) => i.message).join(', '),
+                statusCode: 400,
+            });
+        }
+        const { mes_idx, anio } = parsed.data;
+        const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio);
+        return reply.send(rows);
+    });
     // GET /api/entidades (catalog for config UI — ADMIN only)
     fastify.get('/api/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.listEntidades();

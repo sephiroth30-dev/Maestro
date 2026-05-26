@@ -273,6 +273,7 @@ export async function mapRowsToAtenciones(
     esTelemetria: boolean;
     hashFila: string;
     entidadId: string | null;
+    entidadNombreRaw: string;
     profesionalId: string | null;
     conectorId: string;
   }
@@ -333,6 +334,7 @@ export async function mapRowsToAtenciones(
         esTelemetria:       rawDescripcion.toUpperCase().includes('TELEMETRIA'),
         hashFila:           hash,
         entidadId,
+        entidadNombreRaw:   rawEntidad,
         profesionalId,
         conectorId,
       });
@@ -373,6 +375,7 @@ export async function mapRowsToAtenciones(
       item.profesionalId,
       null, // servicio_id
       item.conectorId,
+      item.entidadNombreRaw || null,
     ]);
 
     // Full-refresh inside a transaction to avoid deadlocks when two syncs race.
@@ -386,7 +389,7 @@ export async function mapRowsToAtenciones(
         await conn.beginTransaction();
         await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
         const [res] = await conn.query<ResultSetHeader>(
-          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?',
+          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw) VALUES ?',
           [values]
         );
         await conn.commit();
@@ -407,6 +410,21 @@ export async function mapRowsToAtenciones(
       }
     }
     created = insertResult.affectedRows;
+  }
+
+  // Log unmatched entity names so admins can fix the catalog
+  const unmatched = toInsert
+    .filter((r) => !r.entidadId && r.entidadNombreRaw)
+    .reduce((acc, r) => {
+      acc.set(r.entidadNombreRaw, (acc.get(r.entidadNombreRaw) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+  if (unmatched.size > 0) {
+    logger.warn('entity-mapper: unmatched entity names (check catalog)', {
+      conectorId,
+      count: unmatched.size,
+      nombres: Object.fromEntries(unmatched),
+    });
   }
 
   return { created, skipped, errors };

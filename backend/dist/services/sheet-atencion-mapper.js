@@ -281,6 +281,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
                 esTelemetria: rawDescripcion.toUpperCase().includes('TELEMETRIA'),
                 hashFila: hash,
                 entidadId,
+                entidadNombreRaw: rawEntidad,
                 profesionalId,
                 conectorId,
             });
@@ -320,6 +321,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             item.profesionalId,
             null, // servicio_id
             item.conectorId,
+            item.entidadNombreRaw || null,
         ]);
         // Full-refresh inside a transaction to avoid deadlocks when two syncs race.
         // MySQL deadlocks on concurrent DELETE→INSERT on the same conector_id rows;
@@ -331,7 +333,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             try {
                 await conn.beginTransaction();
                 await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
-                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
+                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw) VALUES ?', [values]);
                 await conn.commit();
                 insertResult = res;
                 break;
@@ -353,6 +355,20 @@ async function mapRowsToAtenciones(rows, conectorId) {
             }
         }
         created = insertResult.affectedRows;
+    }
+    // Log unmatched entity names so admins can fix the catalog
+    const unmatched = toInsert
+        .filter((r) => !r.entidadId && r.entidadNombreRaw)
+        .reduce((acc, r) => {
+        acc.set(r.entidadNombreRaw, (acc.get(r.entidadNombreRaw) ?? 0) + 1);
+        return acc;
+    }, new Map());
+    if (unmatched.size > 0) {
+        logger_js_1.logger.warn('entity-mapper: unmatched entity names (check catalog)', {
+            conectorId,
+            count: unmatched.size,
+            nombres: Object.fromEntries(unmatched),
+        });
     }
     return { created, skipped, errors };
 }

@@ -202,6 +202,25 @@ export function useDiagnostico() {
   });
 }
 
+export interface SinEntidadRow {
+  nombre_raw: string | null;
+  cnt: number;
+  total: number;
+}
+
+export function useSinEntidadDiagnostico(mesIdx: number, anio: number) {
+  return useQuery<SinEntidadRow[]>({
+    queryKey: ['sin-entidad-diagnostico', mesIdx, anio],
+    queryFn: async () => {
+      const res = await apiClient.get<SinEntidadRow[]>('/diagnostico/sin-entidad', {
+        params: { mes_idx: mesIdx, anio },
+      });
+      return res.data;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 // Alias used by Configuracion page (matches spec name)
 export type Presupuesto = PresupuestoRow;
 

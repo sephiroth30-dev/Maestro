@@ -375,6 +375,39 @@ export async function getDiagnosticoConectores(): Promise<DiagnosticoRow[]> {
   }));
 }
 
+// ─── Diagnostic: unmatched entity names (SIN ENTIDAD) ────────────────────────
+
+export interface SinEntidadRow {
+  nombre_raw: string | null;
+  cnt: number;
+  total: number;
+}
+
+export async function getSinEntidadDiagnostico(
+  mesIdx: number,
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
+): Promise<SinEntidadRow[]> {
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & { nombre_raw: string | null; cnt: string; total: string })[]>(
+    `SELECT
+      COALESCE(entidad_nombre_raw, '(vacío)') AS nombre_raw,
+      COUNT(*) AS cnt,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    WHERE entidad_id IS NULL AND ${whereClause}
+    GROUP BY entidad_nombre_raw
+    ORDER BY total DESC`,
+    params
+  );
+  return rows.map((r) => ({
+    nombre_raw: r.nombre_raw,
+    cnt: Number(r.cnt),
+    total: Number(r.total),
+  }));
+}
+
 export async function upsertPresupuesto(
   anio: number,
   mes: number,
