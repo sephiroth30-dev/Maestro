@@ -4,6 +4,7 @@ import { logger } from './logger.js';
 export const pool = mysql.createPool({
   uri: process.env['DATABASE_URL'] ?? '',
   dateStrings: true,
+  timezone: '+00:00', // Store/read DATE/DATETIME as UTC; dates are built with Date.UTC()
 });
 
 // No-op: mysql2 pool auto-reconnects — no Rust engine to renew

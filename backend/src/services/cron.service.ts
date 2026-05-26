@@ -63,29 +63,33 @@ export function scheduleConnector(
     return;
   }
 
-  const task = cron.schedule(cronExpression, async () => {
-    logger.info('Cron sync triggered', { conectorId, nombre });
-    try {
-      const result = await syncService.runSync(conectorId);
-      if (result.success) {
-        logger.info('Cron sync succeeded', {
+  const task = cron.schedule(
+    cronExpression,
+    async () => {
+      logger.info('Cron sync triggered', { conectorId, nombre });
+      try {
+        const result = await syncService.runSync(conectorId);
+        if (result.success) {
+          logger.info('Cron sync succeeded', {
+            conectorId,
+            rowsRead: result.rowsRead,
+            durationMs: result.durationMs,
+          });
+        } else {
+          logger.warn('Cron sync failed', {
+            conectorId,
+            error: result.error,
+          });
+        }
+      } catch (err) {
+        logger.error('Cron sync threw unexpectedly', {
           conectorId,
-          rowsRead: result.rowsRead,
-          durationMs: result.durationMs,
-        });
-      } else {
-        logger.warn('Cron sync failed', {
-          conectorId,
-          error: result.error,
+          error: err instanceof Error ? err.message : 'unknown',
         });
       }
-    } catch (err) {
-      logger.error('Cron sync threw unexpectedly', {
-        conectorId,
-        error: err instanceof Error ? err.message : 'unknown',
-      });
-    }
-  });
+    },
+    { timezone: 'America/Bogota' }
+  );
 
   scheduledTasks.set(conectorId, task);
 

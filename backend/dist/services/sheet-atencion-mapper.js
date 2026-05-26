@@ -305,8 +305,6 @@ async function mapRowsToAtenciones(rows, conectorId) {
             rowsWithValorCero: zeroValor,
             columnSets: colMapCache.size,
         });
-        // Full-refresh: wipe previous records for this connector then re-insert all rows
-        await prisma_js_1.pool.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
         const values = toInsert.map((item) => [
             (0, node_crypto_1.randomUUID)(),
             item.descripcionRaw,
@@ -323,7 +321,37 @@ async function mapRowsToAtenciones(rows, conectorId) {
             null, // servicio_id
             item.conectorId,
         ]);
-        const [insertResult] = await prisma_js_1.pool.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
+        // Full-refresh inside a transaction to avoid deadlocks when two syncs race.
+        // MySQL deadlocks on concurrent DELETE→INSERT on the same conector_id rows;
+        // serializing both operations in one transaction eliminates the race.
+        let insertResult;
+        const MAX_DEADLOCK_RETRIES = 3;
+        for (let attempt = 1; attempt <= MAX_DEADLOCK_RETRIES; attempt++) {
+            const conn = await prisma_js_1.pool.getConnection();
+            try {
+                await conn.beginTransaction();
+                await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
+                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id) VALUES ?', [values]);
+                await conn.commit();
+                insertResult = res;
+                break;
+            }
+            catch (err) {
+                await conn.rollback();
+                const isDeadlock = err instanceof Error &&
+                    (err.message.includes('Deadlock') || err.errno === 1213);
+                if (isDeadlock && attempt < MAX_DEADLOCK_RETRIES) {
+                    logger_js_1.logger.warn('Deadlock on atenciones upsert — retrying', { conectorId, attempt });
+                    await new Promise((r) => setTimeout(r, 150 * attempt));
+                }
+                else {
+                    throw err;
+                }
+            }
+            finally {
+                conn.release();
+            }
+        }
         created = insertResult.affectedRows;
     }
     return { created, skipped, errors };

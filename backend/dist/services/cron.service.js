@@ -81,7 +81,7 @@ function scheduleConnector(conectorId, nombre, cronExpression) {
                 error: err instanceof Error ? err.message : 'unknown',
             });
         }
-    });
+    }, { timezone: 'America/Bogota' });
     scheduledTasks.set(conectorId, task);
     logger_js_1.logger.info('Connector scheduled', {
         conectorId,

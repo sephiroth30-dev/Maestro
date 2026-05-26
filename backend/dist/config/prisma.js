@@ -12,6 +12,7 @@ const logger_js_1 = require("./logger.js");
 exports.pool = promise_1.default.createPool({
     uri: process.env['DATABASE_URL'] ?? '',
     dateStrings: true,
+    timezone: '+00:00', // Store/read DATE/DATETIME as UTC; dates are built with Date.UTC()
 });
 // No-op: mysql2 pool auto-reconnects — no Rust engine to renew
 function renewPrismaClient() {
