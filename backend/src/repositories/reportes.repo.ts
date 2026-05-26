@@ -417,21 +417,34 @@ export async function getServiciosDiagnostico(): Promise<{
   atenciones_sin_clasificar: number;
   cobertura_pct: number;
 }> {
-  const [[catRows], [covRows]] = await Promise.all([
-    pool.query<RowDataPacket[]>(
+  let servicios_en_catalogo = 0;
+  let servicios_con_keywords = 0;
+
+  try {
+    const [catRows] = await pool.query<RowDataPacket[]>(
       'SELECT COUNT(*) AS total, SUM(CASE WHEN palabras_clave IS NOT NULL THEN 1 ELSE 0 END) AS con_kw FROM servicios'
-    ),
-    pool.query<RowDataPacket[]>(
-      'SELECT SUM(CASE WHEN servicio_id IS NOT NULL THEN 1 ELSE 0 END) AS clasificadas, SUM(CASE WHEN servicio_id IS NULL THEN 1 ELSE 0 END) AS sin_clasificar FROM atenciones'
-    ),
-  ]);
-  const cat = catRows[0] ?? {};
+    );
+    const cat = catRows[0] ?? {};
+    servicios_en_catalogo = Number(cat['total'] ?? 0);
+    servicios_con_keywords = Number(cat['con_kw'] ?? 0);
+  } catch {
+    try {
+      const [catRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS total FROM servicios');
+      servicios_en_catalogo = Number((catRows[0] ?? {})['total'] ?? 0);
+    } catch {
+      // servicios table or palabras_clave column not yet migrated
+    }
+  }
+
+  const [covRows] = await pool.query<RowDataPacket[]>(
+    'SELECT SUM(CASE WHEN servicio_id IS NOT NULL THEN 1 ELSE 0 END) AS clasificadas, SUM(CASE WHEN servicio_id IS NULL THEN 1 ELSE 0 END) AS sin_clasificar FROM atenciones'
+  );
   const cov = covRows[0] ?? {};
   const total = Number(cov['clasificadas'] ?? 0) + Number(cov['sin_clasificar'] ?? 0);
   const clasificadas = Number(cov['clasificadas'] ?? 0);
   return {
-    servicios_en_catalogo: Number(cat['total'] ?? 0),
-    servicios_con_keywords: Number(cat['con_kw'] ?? 0),
+    servicios_en_catalogo,
+    servicios_con_keywords,
     atenciones_clasificadas: clasificadas,
     atenciones_sin_clasificar: Number(cov['sin_clasificar'] ?? 0),
     cobertura_pct: total > 0 ? Math.round((clasificadas / total) * 100) : 0,
@@ -457,43 +470,86 @@ export async function getServiciosAgg(
   endDate?: Date,
 ): Promise<ServicioAggRow[]> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
-  const [rows] = await pool.query<(RowDataPacket & {
+
+  // Step 1: Core aggregation — only columns that always exist
+  const [coreRows] = await pool.query<(RowDataPacket & {
     servicio_id: string | null;
-    nombre: string | null;
-    tipo_conteo: string | null;
-    orden: string | null;
     total_filas: string;
-    sesiones: string;
     valor_bruto: string;
   })[]>(
-    `SELECT
-      a.servicio_id,
-      s.nombre,
-      COALESCE(s.tipo_conteo, 'unidad') AS tipo_conteo,
-      COALESCE(s.orden, 99)             AS orden,
-      COUNT(a.id)                       AS total_filas,
-      COUNT(DISTINCT CONCAT(
-        DATE(a.fecha_dia), '|',
-        COALESCE(a.paciente_nombre, ''), '|',
-        COALESCE(a.paciente_documento, '')
-      ))                                AS sesiones,
-      SUM(a.valor_bruto)                AS valor_bruto
-    FROM atenciones a
-    LEFT JOIN servicios s ON s.id = a.servicio_id
-    WHERE ${whereClause}
-    GROUP BY a.servicio_id, s.nombre, s.tipo_conteo, s.orden
-    ORDER BY COALESCE(s.orden, 99) ASC, s.nombre ASC`,
+    `SELECT a.servicio_id, COUNT(a.id) AS total_filas, SUM(a.valor_bruto) AS valor_bruto
+     FROM atenciones a
+     WHERE ${whereClause}
+     GROUP BY a.servicio_id`,
     params
   );
-  return rows.map((r) => ({
-    servicio_id: r.servicio_id,
-    nombre: r.nombre,
-    tipo_conteo: (r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad') as 'unidad' | 'sesion',
-    orden: Number(r.orden ?? 99),
-    total_filas: Number(r.total_filas),
-    sesiones: Number(r.sesiones),
-    valor_bruto: Number(r.valor_bruto),
-  }));
+
+  if (coreRows.length === 0) return [];
+
+  // Step 2: Session counting — requires paciente_nombre & paciente_documento (new columns)
+  const sesionesMap = new Map<string | null, number>();
+  try {
+    const [sesRows] = await pool.query<(RowDataPacket & { servicio_id: string | null; sesiones: string })[]>(
+      `SELECT a.servicio_id,
+         COUNT(DISTINCT CONCAT(DATE(a.fecha_dia), '|',
+           COALESCE(a.paciente_nombre, ''), '|',
+           COALESCE(a.paciente_documento, ''))) AS sesiones
+       FROM atenciones a
+       WHERE ${whereClause}
+       GROUP BY a.servicio_id`,
+      params
+    );
+    for (const r of sesRows) sesionesMap.set(r.servicio_id, Number(r.sesiones));
+  } catch {
+    // paciente columns not yet migrated — sesiones will fall back to total_filas per row
+  }
+
+  // Step 3: Catalog metadata — requires tipo_conteo & orden (new servicios columns)
+  interface ServicioMeta { id: string; nombre: string | null; tipo_conteo: 'unidad' | 'sesion'; orden: number }
+  const svcMap = new Map<string, ServicioMeta>();
+  try {
+    const [svcRows] = await pool.query<(RowDataPacket & {
+      id: string; nombre: string | null; tipo_conteo: string | null; orden: string | null;
+    })[]>('SELECT id, nombre, tipo_conteo, orden FROM servicios');
+    for (const r of svcRows) {
+      svcMap.set(r.id, {
+        id: r.id,
+        nombre: r.nombre,
+        tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
+        orden: Number(r.orden ?? 99),
+      });
+    }
+  } catch {
+    // tipo_conteo / orden columns missing — try simpler fallback
+    try {
+      const [svcRows] = await pool.query<(RowDataPacket & { id: string; nombre: string | null })[]>(
+        'SELECT id, nombre FROM servicios'
+      );
+      for (const r of svcRows) {
+        svcMap.set(r.id, { id: r.id, nombre: r.nombre, tipo_conteo: 'unidad', orden: 99 });
+      }
+    } catch {
+      // servicios table missing entirely — proceed with nulls
+    }
+  }
+
+  // Step 4: Join in JavaScript
+  const result: ServicioAggRow[] = coreRows.map((r) => {
+    const svc = r.servicio_id ? svcMap.get(r.servicio_id) : undefined;
+    const totalFilas = Number(r.total_filas);
+    const sesiones = sesionesMap.size > 0 ? (sesionesMap.get(r.servicio_id) ?? totalFilas) : totalFilas;
+    return {
+      servicio_id: r.servicio_id,
+      nombre: svc?.nombre ?? null,
+      tipo_conteo: svc?.tipo_conteo ?? 'unidad',
+      orden: svc?.orden ?? 99,
+      total_filas: totalFilas,
+      sesiones,
+      valor_bruto: Number(r.valor_bruto),
+    };
+  });
+
+  return result.sort((a, b) => a.orden - b.orden || (a.nombre ?? '').localeCompare(b.nombre ?? ''));
 }
 
 export async function upsertPresupuesto(
