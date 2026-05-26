@@ -81,9 +81,11 @@ export async function autoSeedEntidades(): Promise<void> {
       const esGrupo = entidad.esGrupoCaja ? 1 : 0;
 
       if (rows[0]) {
+        // Do NOT update tipo — manual UI changes to tipo must survive restarts.
+        // Only sync nombres_raw, es_grupo_caja (default) and activa flag.
         await pool.execute(
-          'UPDATE entidades SET nombres_raw = ?, tipo = ?, es_grupo_caja = ?, activa = 1 WHERE id = ?',
-          [nombresJson, entidad.tipo, esGrupo, rows[0].id]
+          'UPDATE entidades SET nombres_raw = ?, es_grupo_caja = ?, activa = 1 WHERE id = ?',
+          [nombresJson, esGrupo, rows[0].id]
         );
         updated++;
       } else {

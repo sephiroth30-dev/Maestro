@@ -66,7 +66,9 @@ async function autoSeedEntidades() {
             const nombresJson = JSON.stringify(entidad.nombresRaw);
             const esGrupo = entidad.esGrupoCaja ? 1 : 0;
             if (rows[0]) {
-                await prisma_js_1.pool.execute('UPDATE entidades SET nombres_raw = ?, tipo = ?, es_grupo_caja = ?, activa = 1 WHERE id = ?', [nombresJson, entidad.tipo, esGrupo, rows[0].id]);
+                // Do NOT update tipo — manual UI changes to tipo must survive restarts.
+                // Only sync nombres_raw, es_grupo_caja (default) and activa flag.
+                await prisma_js_1.pool.execute('UPDATE entidades SET nombres_raw = ?, es_grupo_caja = ?, activa = 1 WHERE id = ?', [nombresJson, esGrupo, rows[0].id]);
                 updated++;
             }
             else {

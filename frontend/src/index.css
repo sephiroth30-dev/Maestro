@@ -2979,31 +2979,158 @@ body,
 
 /* ─── Entity tipo select ────────────────────────────────────────────────────── */
 
+.entidad-tipo-wrapper {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.entidad-tipo-chevron {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 .entidad-tipo-select {
   appearance: none;
   -webkit-appearance: none;
   border: none;
   border-radius: 9999px;
-  padding: 2px 10px;
+  padding: 3px 22px 3px 9px;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   cursor: pointer;
   outline: none;
-  transition: opacity 0.15s, box-shadow 0.15s;
+  transition: box-shadow 0.15s;
 }
 .entidad-tipo-select:hover {
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.12);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+}
+.entidad-tipo-select:focus {
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.5);
 }
 .entidad-tipo-select:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
-.entidad-tipo-select--eps       { background: #dbeafe; color: #1d4ed8; }
-.entidad-tipo-select--arl       { background: #fef3c7; color: #b45309; }
-.entidad-tipo-select--convenio  { background: #f3e8ff; color: #7e22ce; }
-.entidad-tipo-select--particular{ background: #d1fae5; color: #065f46; }
-.entidad-tipo-select--otro      { background: var(--color-gray-100); color: var(--color-gray-600); }
+.entidad-tipo-select--eps        { background: #dbeafe; color: #1d4ed8; }
+.entidad-tipo-select--arl        { background: #fef3c7; color: #b45309; }
+.entidad-tipo-select--convenio   { background: #f3e8ff; color: #7e22ce; }
+.entidad-tipo-select--particular { background: #d1fae5; color: #065f46; }
+.entidad-tipo-select--otro       { background: #f1f5f9; color: #475569; }
+
+/* ─── Entity checkbox ────────────────────────────────────────────────────────── */
+
+.tabla-entidades-td--check,
+.tabla-entidades-th--check {
+  width: 36px;
+  padding-right: 4px !important;
+}
+
+.tabla-entidades-th--impacto,
+.tabla-entidades-td--impacto {
+  width: 180px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.entidad-checkbox {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #6d28d9;
+}
+
+.entidad-row--selected {
+  background: #f5f3ff !important;
+}
+
+/* ─── Bulk action bar ────────────────────────────────────────────────────────── */
+
+.bulk-action-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  background: #1e293b;
+  color: #f8fafc;
+  border-radius: 12px;
+  padding: 10px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  z-index: 50;
+  font-size: 0.78rem;
+  min-width: 480px;
+  max-width: 90vw;
+}
+
+.bulk-action-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: var(--space-3);
+  border-right: 1px solid rgba(255,255,255,0.15);
+}
+
+.bulk-action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bulk-action-label {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.bulk-tipo-select {
+  background: #334155;
+  color: #f1f5f9;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  outline: none;
+}
+.bulk-tipo-select:focus {
+  border-color: #818cf8;
+}
+
+.bulk-action-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.15s;
+}
+.bulk-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.bulk-action-btn--primary { background: #6d28d9; color: #fff; }
+.bulk-action-btn--primary:hover:not(:disabled) { background: #5b21b6; }
+
+.bulk-action-btn--caja { background: #059669; color: #fff; }
+.bulk-action-btn--caja:hover:not(:disabled) { background: #047857; }
+
+.bulk-action-btn--cobro { background: #2563eb; color: #fff; }
+.bulk-action-btn--cobro:hover:not(:disabled) { background: #1d4ed8; }
+
+.bulk-action-btn--clear { background: transparent; color: #94a3b8; margin-left: auto; }
+.bulk-action-btn--clear:hover:not(:disabled) { color: #f1f5f9; }
 
 /* ─── Entity toggle button ───────────────────────────────────────────────────── */
 

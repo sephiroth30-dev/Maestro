@@ -46,3 +46,23 @@ export function useUpdateEntidadTipo() {
     onSuccess: () => invalidateAll(qc),
   });
 }
+
+export interface BulkPatchItem {
+  id: string;
+  tipo?: TipoEntidad;
+  es_grupo_caja?: boolean;
+}
+
+export function useBulkUpdateEntidades() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: BulkPatchItem[]) =>
+      Promise.all(
+        items.map((item) => {
+          const { id, ...fields } = item;
+          return apiClient.patch(`/entidades/${id}`, fields).then((r) => r.data);
+        })
+      ),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
