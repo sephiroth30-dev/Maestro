@@ -180,6 +180,45 @@ export function useTendencia(meses = 6) {
   });
 }
 
+export interface ServicioRow {
+  id: string;
+  nombre: string;
+  tipo_conteo: 'unidad' | 'sesion';
+  orden: number;
+  cantidad: number;
+  horas: number | null;
+  valor_bruto: number;
+}
+
+export interface ServiciosResult {
+  rows: ServicioRow[];
+  sin_clasificar: number;
+  valor_sin_clasificar: number;
+  alerta_emg_neuro: boolean;
+  emg_count: number;
+  neuro_count: number;
+}
+
+export function useServicios(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
+  return useQuery<ServiciosResult>({
+    queryKey: ['servicios', mesIdx, anio, startDate, endDate],
+    queryFn: async () => {
+      const response = await apiClient.get<ServiciosResult>(`/reportes/servicios?${params}`);
+      return response.data;
+    },
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
 export interface DiagnosticoRow {
   conector_id: string;
   conector_nombre: string;

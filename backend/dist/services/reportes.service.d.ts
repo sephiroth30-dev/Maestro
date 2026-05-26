@@ -38,6 +38,23 @@ export interface DiaSemanaRow {
     total: number;
     atenciones: number;
 }
+export interface ServicioRow {
+    id: string;
+    nombre: string;
+    tipo_conteo: 'unidad' | 'sesion';
+    orden: number;
+    cantidad: number;
+    horas: number | null;
+    valor_bruto: number;
+}
+export interface ServiciosResult {
+    rows: ServicioRow[];
+    sin_clasificar: number;
+    valor_sin_clasificar: number;
+    alerta_emg_neuro: boolean;
+    emg_count: number;
+    neuro_count: number;
+}
 declare class ReportesService {
     getKpis(params: {
         mesIdx: number;
@@ -80,6 +97,12 @@ declare class ReportesService {
         total: number;
         presupuesto: number;
     }>>;
+    getServicios(params: {
+        mesIdx: number;
+        anio: number;
+        startDate?: Date;
+        endDate?: Date;
+    }): Promise<ServiciosResult>;
 }
 export declare const reportesService: ReportesService;
 export {};

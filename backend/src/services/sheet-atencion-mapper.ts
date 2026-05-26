@@ -14,6 +14,8 @@ const PATTERNS = {
   entidad:      /^(entidad|pagador|eps\b|aseguradora|empresa|convenio|paga)/i,
   profesional:  /^(profesional|m[eé]dico|doctor|terapeuta|especialista|prestador)/i,
   valor:        /^valor\s*bruto\b|^(valor\b|monto|tarifa|precio|importe|vr\b|vlr\b)/i,
+  paciente:     /^(paciente|nombre.*(del\s*)?paciente|nombre\s*beneficiario|nombres?\s*paciente|nombres?\s*completo)/i,
+  documento:    /^(documento|cc\b|c\.c\.|cedula|ced\b|n[uú]m(ero)?\s*(de\s*)?doc|nro\s*(de\s*)?doc|identificacion|historia\s*cl|hc\b)/i,
 };
 
 // Terms that disqualify a column from being the gross billing amount
@@ -167,12 +169,14 @@ export function hashFila(fields: {
 interface ResolverCache {
   entidades: Array<{ id: string; nombres: string[] }>;
   profesionales: Array<{ id: string; nombres: string[] }>;
+  servicios: Array<{ id: string; palabrasClave: string[] }>;
 }
 
 async function buildCache(): Promise<ResolverCache> {
-  const [[entidadRows], [profesionalRows]] = await Promise.all([
+  const [[entidadRows], [profesionalRows], [servicioRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
+    pool.query<RowDataPacket[]>('SELECT id, palabras_clave FROM servicios ORDER BY orden ASC'),
   ]);
 
   return {
@@ -188,7 +192,31 @@ async function buildCache(): Promise<ResolverCache> {
         ? JSON.parse(row['nombres_raw'])
         : row['nombres_raw']) as string[]).map((n) => n.toUpperCase()),
     })),
+    servicios: (servicioRows as RowDataPacket[])
+      .filter((row) => row['palabras_clave'] != null)
+      .map((row) => ({
+        id: row['id'] as string,
+        palabrasClave: ((typeof row['palabras_clave'] === 'string'
+          ? JSON.parse(row['palabras_clave'])
+          : row['palabras_clave']) as string[]).map((kw) =>
+          // Normalize keyword same way as descripcionNorm: uppercase + no diacritics
+          kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        ),
+      })),
   };
+}
+
+function resolveServicioId(
+  descripcionNorm: string,
+  catalog: Array<{ id: string; palabrasClave: string[] }>
+): string | null {
+  const upper = descripcionNorm.toUpperCase();
+  for (const servicio of catalog) {
+    for (const kw of servicio.palabrasClave) {
+      if (upper.includes(kw)) return servicio.id;
+    }
+  }
+  return null;
 }
 
 function resolveId(
@@ -275,6 +303,9 @@ export async function mapRowsToAtenciones(
     entidadId: string | null;
     entidadNombreRaw: string;
     profesionalId: string | null;
+    servicioId: string | null;
+    pacienteNombre: string | null;
+    pacienteDocumento: string | null;
     conectorId: string;
   }
   const toInsert: AtencionInsert[] = [];
@@ -292,6 +323,8 @@ export async function mapRowsToAtenciones(
       const rawAutorizacion = colMap.autorizacion  ? String(row[colMap.autorizacion] ?? '') : '';
       const rawEntidad      = colMap.entidad       ? String(row[colMap.entidad]      ?? '') : '';
       const rawProfesional  = colMap.profesional   ? String(row[colMap.profesional]  ?? '') : '';
+      const rawPaciente     = colMap.paciente      ? String(row[colMap.paciente]     ?? '').trim() : '';
+      const rawDocumento    = colMap.documento     ? String(row[colMap.documento]    ?? '').trim() : '';
 
       // Skip rows without meaningful data
       const valor = parseSheetValue(rawValor);
@@ -311,6 +344,8 @@ export async function mapRowsToAtenciones(
 
       const entidadId     = resolveId(rawEntidad,     entityCache.entidades);
       const profesionalId = resolveId(rawProfesional, entityCache.profesionales);
+      const descripcionNorm = normalizeDescripcion(rawDescripcion);
+      const servicioId    = resolveServicioId(descripcionNorm, entityCache.servicios);
 
       const fechaStr = fechaDia.toISOString().slice(0, 10);
       const hash = hashFila({
@@ -325,7 +360,7 @@ export async function mapRowsToAtenciones(
 
       toInsert.push({
         descripcionRaw:     rawDescripcion,
-        descripcionNorm:    normalizeDescripcion(rawDescripcion),
+        descripcionNorm,
         fechaDia,
         mesIdx,
         anio,
@@ -336,6 +371,9 @@ export async function mapRowsToAtenciones(
         entidadId,
         entidadNombreRaw:   rawEntidad,
         profesionalId,
+        servicioId,
+        pacienteNombre:     rawPaciente  || null,
+        pacienteDocumento:  rawDocumento || null,
         conectorId,
       });
     } catch (err) {
@@ -373,9 +411,11 @@ export async function mapRowsToAtenciones(
       item.hashFila,
       item.entidadId,
       item.profesionalId,
-      null, // servicio_id
+      item.servicioId,
       item.conectorId,
       item.entidadNombreRaw || null,
+      item.pacienteNombre,
+      item.pacienteDocumento,
     ]);
 
     // Full-refresh inside a transaction to avoid deadlocks when two syncs race.
@@ -389,7 +429,7 @@ export async function mapRowsToAtenciones(
         await conn.beginTransaction();
         await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
         const [res] = await conn.query<ResultSetHeader>(
-          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw) VALUES ?',
+          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?',
           [values]
         );
         await conn.commit();

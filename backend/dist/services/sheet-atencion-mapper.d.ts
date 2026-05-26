@@ -6,6 +6,8 @@ declare const PATTERNS: {
     entidad: RegExp;
     profesional: RegExp;
     valor: RegExp;
+    paciente: RegExp;
+    documento: RegExp;
 };
 export declare function detectColumnMapping(columns: string[]): Record<keyof typeof PATTERNS, string | null>;
 export declare function parseSheetDate(raw: unknown): Date | null;

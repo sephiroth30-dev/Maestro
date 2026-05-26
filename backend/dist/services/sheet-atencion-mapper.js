@@ -17,6 +17,8 @@ const PATTERNS = {
     entidad: /^(entidad|pagador|eps\b|aseguradora|empresa|convenio|paga)/i,
     profesional: /^(profesional|m[eé]dico|doctor|terapeuta|especialista|prestador)/i,
     valor: /^valor\s*bruto\b|^(valor\b|monto|tarifa|precio|importe|vr\b|vlr\b)/i,
+    paciente: /^(paciente|nombre.*(del\s*)?paciente|nombre\s*beneficiario|nombres?\s*paciente|nombres?\s*completo)/i,
+    documento: /^(documento|cc\b|c\.c\.|cedula|ced\b|n[uú]m(ero)?\s*(de\s*)?doc|nro\s*(de\s*)?doc|identificacion|historia\s*cl|hc\b)/i,
 };
 // Terms that disqualify a column from being the gross billing amount
 const VALOR_EXCLUSION = /neto|copago|cuota|moderadora|paciente|descuento|bonif/i;
@@ -159,9 +161,10 @@ function hashFila(fields) {
     return (0, node_crypto_1.createHash)('sha256').update(str).digest('hex').slice(0, 64);
 }
 async function buildCache() {
-    const [[entidadRows], [profesionalRows]] = await Promise.all([
+    const [[entidadRows], [profesionalRows], [servicioRows]] = await Promise.all([
         prisma_js_1.pool.query('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
         prisma_js_1.pool.query('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
+        prisma_js_1.pool.query('SELECT id, palabras_clave FROM servicios ORDER BY orden ASC'),
     ]);
     return {
         entidades: entidadRows.map((row) => ({
@@ -176,7 +179,27 @@ async function buildCache() {
                 ? JSON.parse(row['nombres_raw'])
                 : row['nombres_raw']).map((n) => n.toUpperCase()),
         })),
+        servicios: servicioRows
+            .filter((row) => row['palabras_clave'] != null)
+            .map((row) => ({
+            id: row['id'],
+            palabrasClave: (typeof row['palabras_clave'] === 'string'
+                ? JSON.parse(row['palabras_clave'])
+                : row['palabras_clave']).map((kw) => 
+            // Normalize keyword same way as descripcionNorm: uppercase + no diacritics
+            kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
+        })),
     };
+}
+function resolveServicioId(descripcionNorm, catalog) {
+    const upper = descripcionNorm.toUpperCase();
+    for (const servicio of catalog) {
+        for (const kw of servicio.palabrasClave) {
+            if (upper.includes(kw))
+                return servicio.id;
+        }
+    }
+    return null;
 }
 function resolveId(rawName, catalog) {
     if (!rawName)
@@ -245,6 +268,8 @@ async function mapRowsToAtenciones(rows, conectorId) {
             const rawAutorizacion = colMap.autorizacion ? String(row[colMap.autorizacion] ?? '') : '';
             const rawEntidad = colMap.entidad ? String(row[colMap.entidad] ?? '') : '';
             const rawProfesional = colMap.profesional ? String(row[colMap.profesional] ?? '') : '';
+            const rawPaciente = colMap.paciente ? String(row[colMap.paciente] ?? '').trim() : '';
+            const rawDocumento = colMap.documento ? String(row[colMap.documento] ?? '').trim() : '';
             // Skip rows without meaningful data
             const valor = parseSheetValue(rawValor);
             if (!rawDescripcion.trim() && valor === 0) {
@@ -260,6 +285,8 @@ async function mapRowsToAtenciones(rows, conectorId) {
             const anio = fechaDia.getUTCFullYear();
             const entidadId = resolveId(rawEntidad, entityCache.entidades);
             const profesionalId = resolveId(rawProfesional, entityCache.profesionales);
+            const descripcionNorm = (0, normalizacion_service_js_1.normalizeDescripcion)(rawDescripcion);
+            const servicioId = resolveServicioId(descripcionNorm, entityCache.servicios);
             const fechaStr = fechaDia.toISOString().slice(0, 10);
             const hash = hashFila({
                 descripcionRaw: rawDescripcion,
@@ -272,7 +299,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             });
             toInsert.push({
                 descripcionRaw: rawDescripcion,
-                descripcionNorm: (0, normalizacion_service_js_1.normalizeDescripcion)(rawDescripcion),
+                descripcionNorm,
                 fechaDia,
                 mesIdx,
                 anio,
@@ -283,6 +310,9 @@ async function mapRowsToAtenciones(rows, conectorId) {
                 entidadId,
                 entidadNombreRaw: rawEntidad,
                 profesionalId,
+                servicioId,
+                pacienteNombre: rawPaciente || null,
+                pacienteDocumento: rawDocumento || null,
                 conectorId,
             });
         }
@@ -319,9 +349,11 @@ async function mapRowsToAtenciones(rows, conectorId) {
             item.hashFila,
             item.entidadId,
             item.profesionalId,
-            null, // servicio_id
+            item.servicioId,
             item.conectorId,
             item.entidadNombreRaw || null,
+            item.pacienteNombre,
+            item.pacienteDocumento,
         ]);
         // Full-refresh inside a transaction to avoid deadlocks when two syncs race.
         // MySQL deadlocks on concurrent DELETE→INSERT on the same conector_id rows;
@@ -333,7 +365,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             try {
                 await conn.beginTransaction();
                 await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
-                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw) VALUES ?', [values]);
+                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?', [values]);
                 await conn.commit();
                 insertResult = res;
                 break;

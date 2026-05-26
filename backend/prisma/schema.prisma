@@ -189,11 +189,14 @@ model Profesional {
 }
 
 model Servicio {
-  id          String     @id @default(uuid())
-  nombre      String     @unique @db.VarChar(191)
-  categoria   String?
-  createdAt   DateTime   @default(now()) @map("created_at")
-  atenciones  Atencion[]
+  id           String     @id @default(uuid())
+  nombre       String     @unique @db.VarChar(191)
+  categoria    String?
+  palabrasClave Json?     @map("palabras_clave")
+  tipoConteo   String     @default("unidad") @map("tipo_conteo")
+  orden        Int        @default(99)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  atenciones   Atencion[]
 
   @@map("servicios")
 }
@@ -208,6 +211,8 @@ model Atencion {
   valorBruto          Decimal      @map("valor_bruto") @db.Decimal(12, 2)
   numeroAutorizacion  String?      @map("numero_autorizacion")
   esTelemetria        Boolean      @default(false) @map("es_telemetria")
+  pacienteNombre      String?      @map("paciente_nombre") @db.VarChar(255)
+  pacienteDocumento   String?      @map("paciente_documento") @db.VarChar(50)
   hashFila            String       @unique @map("hash_fila") @db.VarChar(64)
   entidadId           String?      @map("entidad_id")
   entidad             Entidad?     @relation(fields: [entidadId], references: [id])

@@ -16,6 +16,7 @@ exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
 exports.patchEntidad = patchEntidad;
 exports.getDiagnosticoConectores = getDiagnosticoConectores;
 exports.getSinEntidadDiagnostico = getSinEntidadDiagnostico;
+exports.getServiciosAgg = getServiciosAgg;
 exports.upsertPresupuesto = upsertPresupuesto;
 const prisma_js_1 = require("../config/prisma.js");
 const node_crypto_1 = require("node:crypto");
@@ -233,6 +234,35 @@ async function getSinEntidadDiagnostico(mesIdx, anio, startDate, endDate) {
         nombre_raw: r.nombre_raw,
         cnt: Number(r.cnt),
         total: Number(r.total),
+    }));
+}
+async function getServiciosAgg(mesIdx, anio, startDate, endDate) {
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+    const [rows] = await prisma_js_1.pool.query(`SELECT
+      a.servicio_id,
+      s.nombre,
+      COALESCE(s.tipo_conteo, 'unidad') AS tipo_conteo,
+      COALESCE(s.orden, 99)             AS orden,
+      COUNT(a.id)                       AS total_filas,
+      COUNT(DISTINCT CONCAT(
+        DATE(a.fecha_dia), '|',
+        COALESCE(a.paciente_nombre, ''), '|',
+        COALESCE(a.paciente_documento, '')
+      ))                                AS sesiones,
+      SUM(a.valor_bruto)                AS valor_bruto
+    FROM atenciones a
+    LEFT JOIN servicios s ON s.id = a.servicio_id
+    WHERE ${whereClause}
+    GROUP BY a.servicio_id, s.nombre, s.tipo_conteo, s.orden
+    ORDER BY COALESCE(s.orden, 99) ASC, s.nombre ASC`, params);
+    return rows.map((r) => ({
+        servicio_id: r.servicio_id,
+        nombre: r.nombre,
+        tipo_conteo: (r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad'),
+        orden: Number(r.orden ?? 99),
+        total_filas: Number(r.total_filas),
+        sesiones: Number(r.sesiones),
+        valor_bruto: Number(r.valor_bruto),
     }));
 }
 async function upsertPresupuesto(anio, mes, monto, notas) {

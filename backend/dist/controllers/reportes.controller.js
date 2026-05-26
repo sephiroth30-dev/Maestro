@@ -187,6 +187,25 @@ async function registerReportesController(fastify) {
         const result = await reportes_service_js_1.reportesService.getTendencia({ meses: parsed.data.meses });
         return reply.send(result);
     });
+    // GET /api/reportes/servicios
+    fastify.get('/api/reportes/servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (request, reply) => {
+        const parsed = mesAnioDateSchema.safeParse(request.query);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: parsed.error.issues.map((i) => i.message).join(', '),
+                statusCode: 400,
+            });
+        }
+        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const result = await reportes_service_js_1.reportesService.getServicios({
+            mesIdx: mes_idx,
+            anio,
+            startDate: start_date ? new Date(start_date) : undefined,
+            endDate: end_date ? new Date(end_date) : undefined,
+        });
+        return reply.send(result);
+    });
     // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
     fastify.get('/api/reportes/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.getDiagnosticoConectores();

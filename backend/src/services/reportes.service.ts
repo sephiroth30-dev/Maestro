@@ -54,6 +54,25 @@ export interface DiaSemanaRow {
   atenciones: number;
 }
 
+export interface ServicioRow {
+  id: string;
+  nombre: string;
+  tipo_conteo: 'unidad' | 'sesion';
+  orden: number;
+  cantidad: number;
+  horas: number | null;
+  valor_bruto: number;
+}
+
+export interface ServiciosResult {
+  rows: ServicioRow[];
+  sin_clasificar: number;
+  valor_sin_clasificar: number;
+  alerta_emg_neuro: boolean;
+  emg_count: number;
+  neuro_count: number;
+}
+
 // ─── Cache helpers ────────────────────────────────────────────────────────────
 
 const DIA_NOMBRES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -442,6 +461,64 @@ class ReportesService {
 
     await cacheSet(cacheKey, rows, 60 * 60);
     return rows;
+  }
+
+  async getServicios(params: {
+    mesIdx: number;
+    anio: number;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ServiciosResult> {
+    const { mesIdx, anio, startDate, endDate } = params;
+    const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate);
+
+    const cached = await cacheGet<ServiciosResult>(cacheKey);
+    if (cached) return cached;
+
+    const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate);
+
+    let sinClasificar = 0;
+    let valorSinClasificar = 0;
+    let emgCount = 0;
+    let neuroCount = 0;
+
+    const rows: ServicioRow[] = [];
+
+    for (const r of agg) {
+      if (!r.servicio_id) {
+        sinClasificar += r.total_filas;
+        valorSinClasificar += r.valor_bruto;
+        continue;
+      }
+
+      const esSesion = r.tipo_conteo === 'sesion';
+      const row: ServicioRow = {
+        id: r.servicio_id,
+        nombre: r.nombre ?? '(sin nombre)',
+        tipo_conteo: r.tipo_conteo,
+        orden: r.orden,
+        cantidad: esSesion ? r.sesiones : r.total_filas,
+        horas: esSesion ? r.total_filas : null,
+        valor_bruto: r.valor_bruto,
+      };
+      rows.push(row);
+
+      const nombreUp = (r.nombre ?? '').toUpperCase();
+      if (nombreUp.includes('ELECTROMIOGRAFIA')) emgCount = r.total_filas;
+      if (nombreUp.includes('NEUROCONDUCCION'))  neuroCount = r.total_filas;
+    }
+
+    const result: ServiciosResult = {
+      rows,
+      sin_clasificar: sinClasificar,
+      valor_sin_clasificar: valorSinClasificar,
+      alerta_emg_neuro: emgCount > 0 && neuroCount > 0 && emgCount !== neuroCount,
+      emg_count: emgCount,
+      neuro_count: neuroCount,
+    };
+
+    await cacheSet(cacheKey, result, 30 * 60);
+    return result;
   }
 }
 

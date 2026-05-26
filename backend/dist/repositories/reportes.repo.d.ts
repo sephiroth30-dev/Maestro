@@ -96,6 +96,16 @@ export interface SinEntidadRow {
     total: number;
 }
 export declare function getSinEntidadDiagnostico(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<SinEntidadRow[]>;
+export interface ServicioAggRow {
+    servicio_id: string | null;
+    nombre: string | null;
+    tipo_conteo: 'unidad' | 'sesion';
+    orden: number;
+    total_filas: number;
+    sesiones: number;
+    valor_bruto: number;
+}
+export declare function getServiciosAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<ServicioAggRow[]>;
 export declare function upsertPresupuesto(anio: number, mes: number, monto: number, notas?: string): Promise<{
     id: string;
     anio: number;

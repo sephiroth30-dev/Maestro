@@ -3529,3 +3529,75 @@ body,
   color: #2563eb;
   font-weight: 600;
 }
+
+/* ─── TablaServicios ─────────────────────────────────────────────────────────── */
+
+.tabla-servicios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tabla-servicios__alerta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fef9c3;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #92400e;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.825rem;
+}
+
+.data-table th {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 2px solid var(--color-border);
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.data-table tbody tr:hover td {
+  background: var(--color-bg-hover, #f8fafc);
+}
+
+.data-table tfoot td {
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+}
+
+.tabla-servicios__row--alerta td {
+  background: #fff7ed;
+}
+
+.tabla-servicios__row--sin-clasificar td {
+  border-bottom-style: dashed;
+}
+
+.tabla-servicios__row-icon {
+  color: #f59e0b;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+
+.tabla-servicios__nota {
+  font-size: 0.73rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  padding-top: 0.25rem;
+}

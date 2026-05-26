@@ -7,6 +7,7 @@ const app_js_1 = require("./app.js");
 const cron_service_js_1 = require("./services/cron.service.js");
 const redis_js_1 = require("./config/redis.js");
 const entity_seed_service_js_1 = require("./services/entity-seed.service.js");
+const servicios_seed_service_js_1 = require("./services/servicios-seed.service.js");
 const schema_migrations_service_js_1 = require("./services/schema-migrations.service.js");
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
@@ -128,6 +129,15 @@ async function connectInBackground() {
             }
             catch (seedErr) {
                 logger_js_1.logger.warn('Entity seed failed (non-fatal)', {
+                    error: seedErr instanceof Error ? seedErr.message : String(seedErr),
+                });
+            }
+            // Sync procedures catalog (servicios) on every startup
+            try {
+                await (0, servicios_seed_service_js_1.autoSeedServicios)();
+            }
+            catch (seedErr) {
+                logger_js_1.logger.warn('Servicios seed failed (non-fatal)', {
                     error: seedErr instanceof Error ? seedErr.message : String(seedErr),
                 });
             }

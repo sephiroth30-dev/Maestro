@@ -408,6 +408,64 @@ export async function getSinEntidadDiagnostico(
   }));
 }
 
+// ─── Servicios aggregation ────────────────────────────────────────────────────
+
+export interface ServicioAggRow {
+  servicio_id: string | null;
+  nombre: string | null;
+  tipo_conteo: 'unidad' | 'sesion';
+  orden: number;
+  total_filas: number;
+  sesiones: number;
+  valor_bruto: number;
+}
+
+export async function getServiciosAgg(
+  mesIdx: number,
+  anio: number,
+  startDate?: Date,
+  endDate?: Date,
+): Promise<ServicioAggRow[]> {
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [rows] = await pool.query<(RowDataPacket & {
+    servicio_id: string | null;
+    nombre: string | null;
+    tipo_conteo: string | null;
+    orden: string | null;
+    total_filas: string;
+    sesiones: string;
+    valor_bruto: string;
+  })[]>(
+    `SELECT
+      a.servicio_id,
+      s.nombre,
+      COALESCE(s.tipo_conteo, 'unidad') AS tipo_conteo,
+      COALESCE(s.orden, 99)             AS orden,
+      COUNT(a.id)                       AS total_filas,
+      COUNT(DISTINCT CONCAT(
+        DATE(a.fecha_dia), '|',
+        COALESCE(a.paciente_nombre, ''), '|',
+        COALESCE(a.paciente_documento, '')
+      ))                                AS sesiones,
+      SUM(a.valor_bruto)                AS valor_bruto
+    FROM atenciones a
+    LEFT JOIN servicios s ON s.id = a.servicio_id
+    WHERE ${whereClause}
+    GROUP BY a.servicio_id, s.nombre, s.tipo_conteo, s.orden
+    ORDER BY COALESCE(s.orden, 99) ASC, s.nombre ASC`,
+    params
+  );
+  return rows.map((r) => ({
+    servicio_id: r.servicio_id,
+    nombre: r.nombre,
+    tipo_conteo: (r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad') as 'unidad' | 'sesion',
+    orden: Number(r.orden ?? 99),
+    total_filas: Number(r.total_filas),
+    sesiones: Number(r.sesiones),
+    valor_bruto: Number(r.valor_bruto),
+  }));
+}
+
 export async function upsertPresupuesto(
   anio: number,
   mes: number,
