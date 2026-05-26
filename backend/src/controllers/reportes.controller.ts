@@ -220,6 +220,16 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/reportes/servicios/diagnostico (ADMIN — seed status + classification coverage)
+  fastify.get(
+    '/api/reportes/servicios/diagnostico',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const diag = await repo.getServiciosDiagnostico();
+      return reply.send(diag);
+    }
+  );
+
   // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
   fastify.get(
     '/api/reportes/diagnostico',

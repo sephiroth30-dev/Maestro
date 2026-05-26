@@ -173,11 +173,24 @@ interface ResolverCache {
 }
 
 async function buildCache(): Promise<ResolverCache> {
-  const [[entidadRows], [profesionalRows], [servicioRows]] = await Promise.all([
+  const [[entidadRows], [profesionalRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
-    pool.query<RowDataPacket[]>('SELECT id, palabras_clave FROM servicios ORDER BY orden ASC'),
   ]);
+
+  // Servicios queried separately — if the column migration hasn't run yet this
+  // must not crash the whole sync. Return empty catalog instead.
+  let rawServicios: RowDataPacket[] = [];
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
+    );
+    rawServicios = rows;
+  } catch (err) {
+    logger.warn('servicios cache build failed — service classification disabled for this sync', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return {
     entidades: (entidadRows as RowDataPacket[]).map((row) => ({
@@ -192,17 +205,14 @@ async function buildCache(): Promise<ResolverCache> {
         ? JSON.parse(row['nombres_raw'])
         : row['nombres_raw']) as string[]).map((n) => n.toUpperCase()),
     })),
-    servicios: (servicioRows as RowDataPacket[])
-      .filter((row) => row['palabras_clave'] != null)
-      .map((row) => ({
-        id: row['id'] as string,
-        palabrasClave: ((typeof row['palabras_clave'] === 'string'
-          ? JSON.parse(row['palabras_clave'])
-          : row['palabras_clave']) as string[]).map((kw) =>
-          // Normalize keyword same way as descripcionNorm: uppercase + no diacritics
-          kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-        ),
-      })),
+    servicios: rawServicios.map((row) => ({
+      id: row['id'] as string,
+      palabrasClave: ((typeof row['palabras_clave'] === 'string'
+        ? JSON.parse(row['palabras_clave'])
+        : row['palabras_clave']) as string[]).map((kw) =>
+        kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      ),
+    })),
   };
 }
 

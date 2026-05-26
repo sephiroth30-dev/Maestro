@@ -161,11 +161,22 @@ function hashFila(fields) {
     return (0, node_crypto_1.createHash)('sha256').update(str).digest('hex').slice(0, 64);
 }
 async function buildCache() {
-    const [[entidadRows], [profesionalRows], [servicioRows]] = await Promise.all([
+    const [[entidadRows], [profesionalRows]] = await Promise.all([
         prisma_js_1.pool.query('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
         prisma_js_1.pool.query('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
-        prisma_js_1.pool.query('SELECT id, palabras_clave FROM servicios ORDER BY orden ASC'),
     ]);
+    // Servicios queried separately — if the column migration hasn't run yet this
+    // must not crash the whole sync. Return empty catalog instead.
+    let rawServicios = [];
+    try {
+        const [rows] = await prisma_js_1.pool.query('SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC');
+        rawServicios = rows;
+    }
+    catch (err) {
+        logger_js_1.logger.warn('servicios cache build failed — service classification disabled for this sync', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
     return {
         entidades: entidadRows.map((row) => ({
             id: row['id'],
@@ -179,15 +190,11 @@ async function buildCache() {
                 ? JSON.parse(row['nombres_raw'])
                 : row['nombres_raw']).map((n) => n.toUpperCase()),
         })),
-        servicios: servicioRows
-            .filter((row) => row['palabras_clave'] != null)
-            .map((row) => ({
+        servicios: rawServicios.map((row) => ({
             id: row['id'],
             palabrasClave: (typeof row['palabras_clave'] === 'string'
                 ? JSON.parse(row['palabras_clave'])
-                : row['palabras_clave']).map((kw) => 
-            // Normalize keyword same way as descripcionNorm: uppercase + no diacritics
-            kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
+                : row['palabras_clave']).map((kw) => kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
         })),
     };
 }

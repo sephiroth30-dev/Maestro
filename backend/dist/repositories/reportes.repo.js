@@ -16,6 +16,7 @@ exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
 exports.patchEntidad = patchEntidad;
 exports.getDiagnosticoConectores = getDiagnosticoConectores;
 exports.getSinEntidadDiagnostico = getSinEntidadDiagnostico;
+exports.getServiciosDiagnostico = getServiciosDiagnostico;
 exports.getServiciosAgg = getServiciosAgg;
 exports.upsertPresupuesto = upsertPresupuesto;
 const prisma_js_1 = require("../config/prisma.js");
@@ -235,6 +236,24 @@ async function getSinEntidadDiagnostico(mesIdx, anio, startDate, endDate) {
         cnt: Number(r.cnt),
         total: Number(r.total),
     }));
+}
+// ─── Servicios seed diagnostic ────────────────────────────────────────────────
+async function getServiciosDiagnostico() {
+    const [[catRows], [covRows]] = await Promise.all([
+        prisma_js_1.pool.query('SELECT COUNT(*) AS total, SUM(CASE WHEN palabras_clave IS NOT NULL THEN 1 ELSE 0 END) AS con_kw FROM servicios'),
+        prisma_js_1.pool.query('SELECT SUM(CASE WHEN servicio_id IS NOT NULL THEN 1 ELSE 0 END) AS clasificadas, SUM(CASE WHEN servicio_id IS NULL THEN 1 ELSE 0 END) AS sin_clasificar FROM atenciones'),
+    ]);
+    const cat = catRows[0] ?? {};
+    const cov = covRows[0] ?? {};
+    const total = Number(cov['clasificadas'] ?? 0) + Number(cov['sin_clasificar'] ?? 0);
+    const clasificadas = Number(cov['clasificadas'] ?? 0);
+    return {
+        servicios_en_catalogo: Number(cat['total'] ?? 0),
+        servicios_con_keywords: Number(cat['con_kw'] ?? 0),
+        atenciones_clasificadas: clasificadas,
+        atenciones_sin_clasificar: Number(cov['sin_clasificar'] ?? 0),
+        cobertura_pct: total > 0 ? Math.round((clasificadas / total) * 100) : 0,
+    };
 }
 async function getServiciosAgg(mesIdx, anio, startDate, endDate) {
     const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);

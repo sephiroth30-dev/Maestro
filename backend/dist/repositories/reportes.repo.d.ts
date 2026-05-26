@@ -96,6 +96,13 @@ export interface SinEntidadRow {
     total: number;
 }
 export declare function getSinEntidadDiagnostico(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<SinEntidadRow[]>;
+export declare function getServiciosDiagnostico(): Promise<{
+    servicios_en_catalogo: number;
+    servicios_con_keywords: number;
+    atenciones_clasificadas: number;
+    atenciones_sin_clasificar: number;
+    cobertura_pct: number;
+}>;
 export interface ServicioAggRow {
     servicio_id: string | null;
     nombre: string | null;

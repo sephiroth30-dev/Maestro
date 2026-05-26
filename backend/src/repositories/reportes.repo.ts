@@ -408,6 +408,36 @@ export async function getSinEntidadDiagnostico(
   }));
 }
 
+// ─── Servicios seed diagnostic ────────────────────────────────────────────────
+
+export async function getServiciosDiagnostico(): Promise<{
+  servicios_en_catalogo: number;
+  servicios_con_keywords: number;
+  atenciones_clasificadas: number;
+  atenciones_sin_clasificar: number;
+  cobertura_pct: number;
+}> {
+  const [[catRows], [covRows]] = await Promise.all([
+    pool.query<RowDataPacket[]>(
+      'SELECT COUNT(*) AS total, SUM(CASE WHEN palabras_clave IS NOT NULL THEN 1 ELSE 0 END) AS con_kw FROM servicios'
+    ),
+    pool.query<RowDataPacket[]>(
+      'SELECT SUM(CASE WHEN servicio_id IS NOT NULL THEN 1 ELSE 0 END) AS clasificadas, SUM(CASE WHEN servicio_id IS NULL THEN 1 ELSE 0 END) AS sin_clasificar FROM atenciones'
+    ),
+  ]);
+  const cat = catRows[0] ?? {};
+  const cov = covRows[0] ?? {};
+  const total = Number(cov['clasificadas'] ?? 0) + Number(cov['sin_clasificar'] ?? 0);
+  const clasificadas = Number(cov['clasificadas'] ?? 0);
+  return {
+    servicios_en_catalogo: Number(cat['total'] ?? 0),
+    servicios_con_keywords: Number(cat['con_kw'] ?? 0),
+    atenciones_clasificadas: clasificadas,
+    atenciones_sin_clasificar: Number(cov['sin_clasificar'] ?? 0),
+    cobertura_pct: total > 0 ? Math.round((clasificadas / total) * 100) : 0,
+  };
+}
+
 // ─── Servicios aggregation ────────────────────────────────────────────────────
 
 export interface ServicioAggRow {

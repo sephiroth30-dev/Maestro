@@ -206,6 +206,11 @@ async function registerReportesController(fastify) {
         });
         return reply.send(result);
     });
+    // GET /api/reportes/servicios/diagnostico (ADMIN — seed status + classification coverage)
+    fastify.get('/api/reportes/servicios/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const diag = await repo.getServiciosDiagnostico();
+        return reply.send(diag);
+    });
     // GET /api/reportes/diagnostico (ADMIN — totals per connector per month for validation)
     fastify.get('/api/reportes/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.getDiagnosticoConectores();

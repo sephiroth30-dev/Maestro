@@ -45,8 +45,15 @@ import {
 
 function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return 'Nunca';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
+  // The server (Hostinger) may store timestamps in its local timezone without
+  // an offset suffix. We parse them and compare against Colombia time (UTC-5).
+  const serverDate = new Date(dateStr);
+  // If the string has no timezone info (no Z, no +00:00) mysql2 returns it as
+  // a local Date in the server's timezone — we treat it as UTC for diffing.
+  const diff = Date.now() - serverDate.getTime();
+  const mins = Math.floor(Math.abs(diff) / 60000);
+  // If diff is very negative it means server clock is ahead — cap at 0
+  if (diff < -30_000) return 'Ahora';
   if (mins < 1) return 'Hace un momento';
   if (mins < 60) return `Hace ${mins} min`;
   const hours = Math.floor(mins / 60);
@@ -511,6 +518,7 @@ function SyncHistoryDrawer({
                         {new Date(s.iniciadaAt).toLocaleString('es-CO', {
                           dateStyle: 'short',
                           timeStyle: 'short',
+                          timeZone: 'America/Bogota',
                         })}
                       </td>
                       <td>
