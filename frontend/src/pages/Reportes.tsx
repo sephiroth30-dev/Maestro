@@ -44,6 +44,20 @@ function getLast6Months(): MesAnio[] {
 
 type FilterMode = 'mes' | 'rango';
 
+const TIPO_DISPLAY_LABEL: Record<string, string> = {
+  EPS:             'EPS',
+  CONVENIO:        'Convenio (cobro)',
+  CONVENIO__CAJA:  'Convenio (directo)',
+  ARL:             'ARL',
+  PARTICULAR:      'Particular',
+  OTRO:            'Otro',
+  OTRO__CAJA:      'Otro (caja)',
+};
+
+function tipoLabel(tipo: string): string {
+  return TIPO_DISPLAY_LABEL[tipo] ?? tipo.replace('__CAJA', ' (caja)');
+}
+
 function fmt(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -253,9 +267,13 @@ export default function Reportes(): React.ReactElement {
   // Filtered rows for entity table — tipo and entity filters are client-side
   const allRows = entidadesQ.data?.rows ?? [];
   const tableRows: EntidadRow[] = selectedTipo
-    ? allRows.filter((r) =>
-        selectedTipo === 'CAJA' ? r.es_grupo : (r.tipo === selectedTipo && !r.es_grupo)
-      )
+    ? allRows.filter((r) => {
+        if (selectedTipo.endsWith('__CAJA')) {
+          const base = selectedTipo.replace('__CAJA', '');
+          return r.tipo === base && r.es_grupo;
+        }
+        return r.tipo === selectedTipo && !r.es_grupo;
+      })
     : selectedEntidadId
     ? allRows.filter((r) => r.id === selectedEntidadId)
     : allRows;
@@ -391,7 +409,7 @@ export default function Reportes(): React.ReactElement {
           )}
           {selectedTipo && (
             <div className="dia-filter-badge dia-filter-badge--purple">
-              <span>Tipo: <strong>{selectedTipo}</strong></span>
+              <span>Tipo: <strong>{tipoLabel(selectedTipo)}</strong></span>
               <button type="button" onClick={clearTipoFilter} className="dia-filter-clear" title="Quitar filtro">
                 <X size={13} />
               </button>
@@ -526,7 +544,7 @@ export default function Reportes(): React.ReactElement {
         <h2 className="chart-title">
           Facturación por Entidad
           {diaLabel && <span className="chart-title-badge">{diaLabel}</span>}
-          {selectedTipo && <span className="chart-title-badge chart-title-badge--purple">{selectedTipo}</span>}
+          {selectedTipo && <span className="chart-title-badge chart-title-badge--purple">{tipoLabel(selectedTipo)}</span>}
           {selectedEntidadName && <span className="chart-title-badge chart-title-badge--green">{selectedEntidadName}</span>}
         </h2>
         {entidadesQ.isLoading ? <ChartSkeleton /> :

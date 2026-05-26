@@ -2985,6 +2985,83 @@ body,
   cursor: not-allowed;
 }
 
+/* Flujo de caja row highlight */
+.entidad-row--caja .tabla-entidades-td {
+  background: #f0fdf4;
+}
+
+/* Fixed (non-toggleable) indicator for always-caja tipos */
+.entidad-toggle-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-gray-400);
+  padding: 3px 10px;
+}
+
+/* ─── Entidades filter bar ────────────────────────────────────────────────────── */
+
+.entidades-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.entidades-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-gray-600);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.entidades-filter-btn:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-300);
+}
+
+.entidades-filter-btn--active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.entidades-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--color-gray-100);
+  color: var(--color-gray-500);
+  border-radius: 99px;
+  padding: 1px 6px;
+  min-width: 20px;
+}
+
+.entidades-filter-btn--active .entidades-filter-count {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Stats line */
+.entidades-stats {
+  font-size: 0.78rem;
+  color: var(--color-gray-500);
+  margin-bottom: 12px;
+}
+
 /* ─── Entidades config info banner ──────────────────────────────────────────── */
 
 .entidades-config-banner {

@@ -27,14 +27,36 @@ interface Slice {
   group: 'cobro' | 'caja';
 }
 
-// Colors per category
+// Entities with es_grupo_caja=true that are NOT particulares get a __CAJA suffix
+// so they appear as a distinct slice (e.g. "Convenio (directo)") while keeping their identity
 const TIPO_COLOR: Record<string, string> = {
-  EPS:        '#3b82f6', // blue
-  CONVENIO:   '#a855f7', // purple
-  ARL:        '#f59e0b', // amber
-  OTRO:       '#94a3b8', // slate
-  PARTICULAR: '#10b981', // emerald
-  CAJA:       '#22c55e', // green
+  EPS:              '#3b82f6', // blue
+  CONVENIO:         '#a855f7', // purple
+  CONVENIO__CAJA:   '#14b8a6', // teal  — convenio que paga al contado
+  ARL:              '#f59e0b', // amber
+  OTRO:             '#94a3b8', // slate
+  OTRO__CAJA:       '#67e8f9', // light cyan
+  PARTICULAR:       '#10b981', // emerald
+};
+
+const TIPO_LABELS: Record<string, string> = {
+  EPS:              'EPS',
+  CONVENIO:         'Convenio',
+  CONVENIO__CAJA:   'Convenio (directo)',
+  ARL:              'ARL',
+  PARTICULAR:       'Particular',
+  OTRO:             'Otro',
+  OTRO__CAJA:       'Otro (caja)',
+};
+
+const TIPO_GROUPS: Record<string, 'cobro' | 'caja'> = {
+  EPS:              'cobro',
+  CONVENIO:         'cobro',
+  CONVENIO__CAJA:   'caja',
+  ARL:              'cobro',
+  OTRO:             'cobro',
+  OTRO__CAJA:       'caja',
+  PARTICULAR:       'caja',
 };
 
 function getColor(tipo: string): string {
@@ -52,43 +74,24 @@ function aggregateMix(rows: EntidadRow[]): {
   let cajaTotal = 0;
 
   for (const r of rows) {
-    // es_grupo (es_grupo_caja) entities + PARTICULAR → cash flow
+    // isCaja: es_grupo_caja flag OR tipo PARTICULAR (always immediate payment)
     const isCaja = r.es_grupo || r.tipo === 'PARTICULAR';
-    const key = r.es_grupo ? 'CAJA' : r.tipo;
+    // Preserve tipo identity: non-particular es_grupo entities get __CAJA suffix
+    const key = (r.es_grupo && r.tipo !== 'PARTICULAR') ? `${r.tipo}__CAJA` : r.tipo;
     map.set(key, (map.get(key) ?? 0) + r.valor_bruto);
-    if (isCaja) {
-      cajaTotal += r.valor_bruto;
-    } else {
-      cobroTotal += r.valor_bruto;
-    }
+    if (isCaja) cajaTotal += r.valor_bruto;
+    else         cobroTotal += r.valor_bruto;
   }
 
   const grandTotal = cobroTotal + cajaTotal;
 
-  const LABELS: Record<string, string> = {
-    EPS:        'EPS',
-    CONVENIO:   'Convenio',
-    ARL:        'ARL',
-    PARTICULAR: 'Particular',
-    CAJA:       'Caja',
-    OTRO:       'Otro',
-  };
-  const GROUPS: Record<string, 'cobro' | 'caja'> = {
-    EPS:        'cobro',
-    CONVENIO:   'cobro',
-    ARL:        'cobro',
-    OTRO:       'cobro',
-    PARTICULAR: 'caja',
-    CAJA:       'caja',
-  };
-
   const slices: Slice[] = Array.from(map.entries())
     .map(([tipo, valor]) => ({
       tipo,
-      label: LABELS[tipo] ?? tipo,
+      label: TIPO_LABELS[tipo] ?? tipo,
       valor,
       pct: grandTotal > 0 ? Math.round((valor / grandTotal) * 1000) / 10 : 0,
-      group: (GROUPS[tipo] ?? 'cobro') as 'cobro' | 'caja',
+      group: (TIPO_GROUPS[tipo] ?? 'cobro') as 'cobro' | 'caja',
     }))
     .sort((a, b) => b.valor - a.valor);
 
