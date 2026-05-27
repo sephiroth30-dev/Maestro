@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check } from 'lucide-react';
 import {
   useEntidadesCatalog,
   useUpdateEntidadGrupoCaja,
   useUpdateEntidadTipo,
   useBulkUpdateEntidades,
+  useUpdateEntidadNombresRaw,
   TIPOS_ENTIDAD,
   type TipoEntidad,
 } from '../../api/entidades.js';
@@ -13,6 +14,107 @@ import type { EntidadCatalogRow } from '../../api/entidades.js';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TIPO_SIEMPRE_CAJA = new Set<string>(['PARTICULAR']);
+
+// ─── Nombres Raw Editor Modal ─────────────────────────────────────────────────
+
+interface NombresEditorProps {
+  entidad: EntidadCatalogRow;
+  onClose: () => void;
+}
+
+function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactElement {
+  const updateNombres = useUpdateEntidadNombresRaw();
+  const [nombres, setNombres] = useState<string[]>(entidad.nombres_raw ?? []);
+  const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  function addNombre(): void {
+    const trimmed = input.trim().toUpperCase();
+    if (!trimmed || nombres.includes(trimmed)) { setInput(''); return; }
+    setNombres((prev) => [...prev, trimmed]);
+    setInput('');
+  }
+
+  function removeNombre(nombre: string): void {
+    setNombres((prev) => prev.filter((n) => n !== nombre));
+  }
+
+  async function handleSave(): Promise<void> {
+    if (nombres.length === 0) return;
+    await updateNombres.mutateAsync({ id: entidad.id, nombres_raw: nombres });
+    onClose();
+  }
+
+  const isDirty = JSON.stringify(nombres) !== JSON.stringify(entidad.nombres_raw ?? []);
+
+  return (
+    <div className="nombres-modal-overlay" onClick={onClose}>
+      <div className="nombres-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="nombres-modal-header">
+          <span className="nombres-modal-title">
+            <Tags size={14} />
+            Nombres alternativos — <strong>{entidad.nombre}</strong>
+          </span>
+          <button type="button" className="nombres-modal-close" onClick={onClose}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <p className="nombres-modal-hint">
+          Estos son los nombres que se buscan en el Google Sheet al sincronizar. Al menos uno debe estar presente para que las atenciones se adjudiquen a esta entidad.
+        </p>
+
+        <div className="nombres-tags">
+          {nombres.map((n) => (
+            <span key={n} className="nombre-tag">
+              {n}
+              <button type="button" className="nombre-tag-remove" onClick={() => removeNombre(n)} title="Eliminar">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+          {nombres.length === 0 && (
+            <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>Sin nombres — la entidad no podrá ser identificada.</span>
+          )}
+        </div>
+
+        <div className="nombres-add-row">
+          <input
+            ref={inputRef}
+            type="text"
+            className="nombres-add-input"
+            placeholder="Nuevo nombre (ej: NUEVA EPS SA)"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNombre(); } }}
+          />
+          <button type="button" className="nombres-add-btn" onClick={addNombre} disabled={!input.trim()}>
+            <Plus size={13} /> Agregar
+          </button>
+        </div>
+
+        <div className="nombres-modal-footer">
+          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={() => void handleSave()}
+            disabled={!isDirty || nombres.length === 0 || updateNombres.isPending}
+          >
+            {updateNombres.isPending ? <Loader2 size={12} className="spin" /> : <Check size={12} />}
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Tipo select ──────────────────────────────────────────────────────────────
 
@@ -66,6 +168,7 @@ interface EntidadRowProps {
 function EntidadRow({ entidad, isSelected, onToggle }: EntidadRowProps): React.ReactElement {
   const update = useUpdateEntidadGrupoCaja();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const [showNombres, setShowNombres] = useState(false);
 
   const esSiempreCaja = TIPO_SIEMPRE_CAJA.has(entidad.tipo);
   const value = esSiempreCaja ? true : (optimistic ?? entidad.es_grupo_caja);
@@ -83,45 +186,63 @@ function EntidadRow({ entidad, isSelected, onToggle }: EntidadRowProps): React.R
     setOptimistic(null);
   }
 
+  const nombresCount = entidad.nombres_raw?.length ?? 0;
+
   return (
-    <tr className={`tabla-entidades-tr${value ? ' entidad-row--caja' : ''}${isSelected ? ' entidad-row--selected' : ''}`}>
-      <td className="tabla-entidades-td tabla-entidades-td--check">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onToggle}
-          className="entidad-checkbox"
-          onClick={(e) => e.stopPropagation()}
-        />
-      </td>
-      <td className="tabla-entidades-td" style={{ fontWeight: 500 }}>
-        {entidad.nombre}
-      </td>
-      <td className="tabla-entidades-td">
-        <EntidadTipoSelect entidad={entidad} />
-      </td>
-      <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
-        {esSiempreCaja ? (
-          <span className="entidad-toggle-fixed" title="Los Particulares siempre son flujo de caja">
-            <Lock size={11} style={{ opacity: 0.5 }} />
-            Siempre
-          </span>
-        ) : (
+    <>
+      <tr className={`tabla-entidades-tr${value ? ' entidad-row--caja' : ''}${isSelected ? ' entidad-row--selected' : ''}`}>
+        <td className="tabla-entidades-td tabla-entidades-td--check">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggle}
+            className="entidad-checkbox"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </td>
+        <td className="tabla-entidades-td" style={{ fontWeight: 500 }}>
+          {entidad.nombre}
+        </td>
+        <td className="tabla-entidades-td">
+          <EntidadTipoSelect entidad={entidad} />
+        </td>
+        <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
+          {esSiempreCaja ? (
+            <span className="entidad-toggle-fixed" title="Los Particulares siempre son flujo de caja">
+              <Lock size={11} style={{ opacity: 0.5 }} />
+              Siempre
+            </span>
+          ) : (
+            <button
+              type="button"
+              className={`entidad-toggle ${value ? 'entidad-toggle--on' : 'entidad-toggle--off'}`}
+              onClick={() => void toggle()}
+              disabled={update.isPending}
+              title={value ? 'Flujo de caja' : 'Cobro a entidades'}
+            >
+              {update.isPending ? '…' : value ? 'Flujo de caja' : 'Cobro'}
+            </button>
+          )}
+        </td>
+        <td className="tabla-entidades-td tabla-entidades-td--impacto">
+          {value ? 'Suma al flujo de caja' : 'Suma al cobro a entidades'}
+        </td>
+        <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
           <button
             type="button"
-            className={`entidad-toggle ${value ? 'entidad-toggle--on' : 'entidad-toggle--off'}`}
-            onClick={() => void toggle()}
-            disabled={update.isPending}
-            title={value ? 'Flujo de caja' : 'Cobro a entidades'}
+            className="nombres-btn"
+            onClick={() => setShowNombres(true)}
+            title="Ver y editar nombres alternativos"
           >
-            {update.isPending ? '…' : value ? 'Flujo de caja' : 'Cobro'}
+            <Tags size={12} />
+            <span className="nombres-btn-count">{nombresCount}</span>
           </button>
-        )}
-      </td>
-      <td className="tabla-entidades-td tabla-entidades-td--impacto">
-        {value ? 'Suma al flujo de caja' : 'Suma al cobro a entidades'}
-      </td>
-    </tr>
+        </td>
+      </tr>
+      {showNombres && (
+        <NombresEditor entidad={entidad} onClose={() => setShowNombres(false)} />
+      )}
+    </>
   );
 }
 
@@ -373,6 +494,9 @@ export default function TabEntidades(): React.ReactElement {
               </th>
               <th className="tabla-entidades-th tabla-entidades-th--impacto">
                 Impacto en el Mix
+              </th>
+              <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '72px' }}>
+                Nombres
               </th>
             </tr>
           </thead>

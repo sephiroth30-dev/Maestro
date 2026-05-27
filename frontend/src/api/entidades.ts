@@ -10,6 +10,7 @@ export interface EntidadCatalogRow {
   tipo: string;
   es_grupo_caja: boolean;
   activa: boolean;
+  nombres_raw: string[];
 }
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>): void {
@@ -51,6 +52,15 @@ export interface BulkPatchItem {
   id: string;
   tipo?: TipoEntidad;
   es_grupo_caja?: boolean;
+}
+
+export function useUpdateEntidadNombresRaw() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, nombres_raw }: { id: string; nombres_raw: string[] }) =>
+      apiClient.patch(`/entidades/${id}`, { nombres_raw }).then((r) => r.data),
+    onSuccess: () => invalidateAll(qc),
+  });
 }
 
 export function useBulkUpdateEntidades() {

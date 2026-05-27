@@ -284,11 +284,12 @@ export interface EntidadCatalogRow {
   tipo: string;
   es_grupo_caja: boolean;
   activa: boolean;
+  nombres_raw: string[];
 }
 
 export async function listEntidades(): Promise<EntidadCatalogRow[]> {
-  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number })[]>(
-    'SELECT id, nombre, tipo, es_grupo_caja, activa FROM entidades ORDER BY tipo ASC, nombre ASC'
+  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number; nombres_raw: string })[]>(
+    'SELECT id, nombre, tipo, es_grupo_caja, activa, nombres_raw FROM entidades ORDER BY tipo ASC, nombre ASC'
   );
   return rows.map((r) => ({
     id: r.id,
@@ -296,6 +297,9 @@ export async function listEntidades(): Promise<EntidadCatalogRow[]> {
     tipo: r.tipo,
     es_grupo_caja: Boolean(r.es_grupo_caja),
     activa: Boolean(r.activa),
+    nombres_raw: (() => {
+      try { return JSON.parse(r.nombres_raw) as string[]; } catch { return []; }
+    })(),
   }));
 }
 
@@ -312,6 +316,7 @@ export type TipoEntidad = typeof TIPOS_VALIDOS[number];
 export interface PatchEntidadFields {
   es_grupo_caja?: boolean;
   tipo?: TipoEntidad;
+  nombres_raw?: string[];
 }
 
 export async function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void> {
@@ -324,6 +329,10 @@ export async function patchEntidad(id: string, fields: PatchEntidadFields): Prom
   if (fields.tipo !== undefined) {
     sets.push('tipo = ?');
     params.push(fields.tipo);
+  }
+  if (fields.nombres_raw !== undefined) {
+    sets.push('nombres_raw = ?');
+    params.push(JSON.stringify(fields.nombres_raw));
   }
   if (sets.length === 0) return;
   params.push(id);

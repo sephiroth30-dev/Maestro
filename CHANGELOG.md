@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.1] - 2026-05-27
+
+### Added
+- **7 entidades nuevas** en el catálogo (identificadas desde la pestaña "Sin Entidad"):
+  REGIONAL DE ASEGURAMIENTO EN SALUD NO4, GRUPO MEDICO LABORAL GML IPS SAS,
+  NEUROLOGOS DEL VALLE SAS, ALLIANZ SEGUROS DE VIDA, ALLIANZ CARE,
+  PROYECTOSINVERSIONES EN SOLUCIONES MEDICAS SAS, TARIFA EMPLEADOS NEUROFIC.
+- **Editor de nombres alternativos** en la pestaña Entidades de Configuración: botón "Nombres" por fila abre un modal para agregar/eliminar los textos que el sistema busca en el Google Sheet al sincronizar. Los cambios persisten en base de datos y sobreviven reinicios.
+- Campo `nombres_raw` expuesto en `GET /api/entidades` y aceptado en `PATCH /api/entidades/:id`.
+
+---
+
+## [1.4.0] - 2026-05-26
+
+### Added
+- **Gestión de usuarios** (ADMIN): crear, editar, activar/desactivar usuarios desde `/admin/usuarios`.
+- Controles de contraseña: cambio de contraseña por admin y auto-cambio en primer login.
+
+---
+
+## [1.3.0] - 2026-05-23
+
+### Added
+- **Vista anual**: selector "Año" en Reportes muestra gráficas mensuales Ene–Dic con comparativa de presupuesto.
+- **Mix por Servicio**: sección de análisis de volumen (atenciones) y rentabilidad (valor bruto) por tipo de servicio.
+- **Diagnóstico "Sin Entidad"**: nueva pestaña en Configuración que lista los nombres del Sheet que no pudieron ser identificados, con conteo de atenciones y valor bruto afectado.
+- **Checkboxes de selección masiva** en tabla de Entidades + persistencia del campo `tipo` en edición.
+- **Filtro de grupo desde Mix Pagador**: hacer clic en EPS/Convenio/ARL/Particular filtra la tabla de entidades del mismo reporte.
+
+### Fixed
+- Zona horaria Colombia (UTC-5) aplicada en frontend y backend para fechas y cron.
+- Fix deadlock en sync simultáneos y timezone del pool MySQL.
+- Orden de meses en vista anual corregido (Ene → Dic).
+- `getServiciosAgg` resiliente ante columnas faltantes en la base de datos.
+
+---
+
 ## [1.2.4] - 2026-05-25
 
 ### Added

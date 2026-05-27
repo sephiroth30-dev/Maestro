@@ -58,9 +58,10 @@ const patchEntidadBodySchema = z
   .object({
     es_grupo_caja: z.boolean().optional(),
     tipo: z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
+    nombres_raw: z.array(z.string().min(1)).min(1).optional(),
   })
-  .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined, {
-    message: 'Se requiere al menos un campo: es_grupo_caja o tipo',
+  .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined, {
+    message: 'Se requiere al menos un campo: es_grupo_caja, tipo o nombres_raw',
   });
 
 const presupuestoBodySchema = z.object({
@@ -286,6 +287,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       await repo.patchEntidad(id, {
         es_grupo_caja: parsed.data.es_grupo_caja,
         tipo: parsed.data.tipo,
+        nombres_raw: parsed.data.nombres_raw,
       });
       return reply.status(200).send({ ok: true });
     }
