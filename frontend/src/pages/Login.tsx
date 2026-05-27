@@ -166,6 +166,8 @@ export default function Login(): React.ReactElement {
 
         <p className="login-footer">
           Acceso restringido al personal autorizado de Neurofic.
+          <br />
+          <span style={{ fontSize: '0.7rem', color: '#cbd5e1', letterSpacing: '0.04em' }}>v{__APP_VERSION__}</span>
         </p>
       </div>
     </div>
