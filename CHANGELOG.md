@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.3] - 2026-05-27
+
+### Added
+- **Pestaña "Profesionales"** en Configuración: lista todos los profesionales importados del Sheet con un selector de especialidad (Neurología / Fisiatría / Otra). Se ordena por volumen de registros.
+- Campo `especialidad` en la tabla `profesionales` (migración 0003).
+- Endpoints `GET /api/profesionales` y `PATCH /api/profesionales/:id` (ADMIN).
+- **Clasificación inteligente por especialidad**: cuando la descripción del Sheet es genérica ("CONSULTA PRIMERA VEZ" o "CONSULTA DE CONTROL"), el sistema revisa la especialidad del profesional y asigna automáticamente `CONSULTA PRIMERA VEZ NEUROLOGIA`, `CONSULTA PRIMERA VEZ FISIATRA`, etc. Aplica tanto en nuevas sincronizaciones del Sheet como en el botón "Reclasificar registros".
+
+### Changed
+- `reclasificarServicios` usa la especialidad del profesional para hacer upgrade de consultas genéricas.
+- `mapRowsToAtenciones` aplica la misma lógica en cada sincronización futura.
+
+---
+
 ## [1.5.2] - 2026-05-27
 
 ### Added

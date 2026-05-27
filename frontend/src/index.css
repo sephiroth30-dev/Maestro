@@ -4115,6 +4115,21 @@ body,
   border-top: 1px solid #f1f5f9;
 }
 
+/* ── Professional specialty select (TabProfesionales) ─────────────────────── */
+.prof-esp-select {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: #f8fafc;
+  cursor: pointer;
+  outline: none;
+  min-width: 150px;
+}
+
+.prof-esp-select:focus { border-color: #3b82f6; }
+
 /* ── Reclasificar button (TabServicios) ────────────────────────────────────── */
 .reclasificar-wrap {
   display: flex;

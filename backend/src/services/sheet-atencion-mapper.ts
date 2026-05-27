@@ -168,14 +168,16 @@ export function hashFila(fields: {
 
 interface ResolverCache {
   entidades: Array<{ id: string; nombres: string[] }>;
-  profesionales: Array<{ id: string; nombres: string[] }>;
-  servicios: Array<{ id: string; palabrasClave: string[] }>;
+  profesionales: Array<{ id: string; nombres: string[]; especialidad: string | null }>;
+  servicios: Array<{ id: string; nombre: string; palabrasClave: string[] }>;
+  // generic consulta id → { NEUROLOGIA: id, FISIATRIA: id }
+  specialtyUpgrade: Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null }>;
 }
 
 async function buildCache(): Promise<ResolverCache> {
   const [[entidadRows], [profesionalRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
-    pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
+    pool.query<RowDataPacket[]>('SELECT id, nombres_raw, especialidad FROM profesionales WHERE activo = 1'),
   ]);
 
   // Servicios queried separately — if the column migration hasn't run yet this
@@ -183,13 +185,36 @@ async function buildCache(): Promise<ResolverCache> {
   let rawServicios: RowDataPacket[] = [];
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
+      'SELECT id, nombre, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
     );
     rawServicios = rows;
   } catch (err) {
     logger.warn('servicios cache build failed — service classification disabled for this sync', {
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  const servicios = rawServicios.map((row) => ({
+    id: row['id'] as string,
+    nombre: row['nombre'] as string,
+    palabrasClave: ((typeof row['palabras_clave'] === 'string'
+      ? JSON.parse(row['palabras_clave'])
+      : row['palabras_clave']) as string[]).map((kw) =>
+      kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    ),
+  }));
+
+  // Build specialty upgrade map
+  const specialtyUpgrade = new Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null }>();
+  const UPGRADES: Array<[string, string, string]> = [
+    ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
+    ['CONSULTA DE CONTROL',  'CONSULTA DE CONTROL NEUROLOGIA',  'CONSULTA DE CONTROL FISIATRIA'],
+  ];
+  for (const [generic, neuro, fisio] of UPGRADES) {
+    const genericId = servicios.find((s) => s.nombre === generic)?.id ?? null;
+    const neuroId   = servicios.find((s) => s.nombre === neuro)?.id   ?? null;
+    const fisioId   = servicios.find((s) => s.nombre === fisio)?.id   ?? null;
+    if (genericId) specialtyUpgrade.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
   }
 
   return {
@@ -204,26 +229,30 @@ async function buildCache(): Promise<ResolverCache> {
       nombres: ((typeof row['nombres_raw'] === 'string'
         ? JSON.parse(row['nombres_raw'])
         : row['nombres_raw']) as string[]).map((n) => n.toUpperCase()),
+      especialidad: (row['especialidad'] as string | null) ?? null,
     })),
-    servicios: rawServicios.map((row) => ({
-      id: row['id'] as string,
-      palabrasClave: ((typeof row['palabras_clave'] === 'string'
-        ? JSON.parse(row['palabras_clave'])
-        : row['palabras_clave']) as string[]).map((kw) =>
-        kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-      ),
-    })),
+    servicios,
+    specialtyUpgrade,
   };
 }
 
 function resolveServicioId(
   descripcionNorm: string,
-  catalog: Array<{ id: string; palabrasClave: string[] }>
+  catalog: Array<{ id: string; nombre: string; palabrasClave: string[] }>,
+  profesionalEspecialidad: string | null,
+  specialtyUpgrade: Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null }>
 ): string | null {
   const upper = descripcionNorm.toUpperCase();
   for (const servicio of catalog) {
     for (const kw of servicio.palabrasClave) {
-      if (upper.includes(kw)) return servicio.id;
+      if (upper.includes(kw)) {
+        let id = servicio.id;
+        // Upgrade generic consultations to specialty-specific when profesional is tagged
+        if (specialtyUpgrade.has(id) && (profesionalEspecialidad === 'NEUROLOGIA' || profesionalEspecialidad === 'FISIATRIA')) {
+          id = specialtyUpgrade.get(id)![profesionalEspecialidad as 'NEUROLOGIA' | 'FISIATRIA'] ?? id;
+        }
+        return id;
+      }
     }
   }
   return null;
@@ -354,8 +383,11 @@ export async function mapRowsToAtenciones(
 
       const entidadId     = resolveId(rawEntidad,     entityCache.entidades);
       const profesionalId = resolveId(rawProfesional, entityCache.profesionales);
+      const profEspecialidad = profesionalId
+        ? (entityCache.profesionales.find((p) => p.id === profesionalId)?.especialidad ?? null)
+        : null;
       const descripcionNorm = normalizeDescripcion(rawDescripcion);
-      const servicioId    = resolveServicioId(descripcionNorm, entityCache.servicios);
+      const servicioId    = resolveServicioId(descripcionNorm, entityCache.servicios, profEspecialidad, entityCache.specialtyUpgrade);
 
       const fechaStr = fechaDia.toISOString().slice(0, 10);
       const hash = hashFila({

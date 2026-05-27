@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope } from 'lucide-react';
+import { Save, Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope, UserCog } from 'lucide-react';
 import { usePresupuestos, useUpsertPresupuesto, useSinEntidadDiagnostico } from '../../api/reportes.js';
 import type { Presupuesto } from '../../api/reportes.js';
 import TabEntidades from './TabEntidades.js';
 import TabDiagnostico from './TabDiagnostico.js';
 import TabSinEntidad from './TabSinEntidad.js';
 import TabServicios from './TabServicios.js';
+import TabProfesionales from './TabProfesionales.js';
 import Conectores from './Conectores.js';
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type ConfigTab = 'fuentes' | 'entidades' | 'presupuestos' | 'diagnostico' | 'sin-entidad' | 'servicios';
+type ConfigTab = 'fuentes' | 'entidades' | 'profesionales' | 'servicios' | 'presupuestos' | 'diagnostico' | 'sin-entidad';
 
 // ─── Presupuestos helpers ─────────────────────────────────────────────────────
 
@@ -214,11 +215,12 @@ export default function Configuracion(): React.ReactElement {
   const hasSinEntidad = (sinEntidadData?.length ?? 0) > 0;
 
   const TABS: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'fuentes',      label: 'Fuentes de datos', icon: <Database size={15} /> },
-    { id: 'entidades',    label: 'Entidades',         icon: <Building2 size={15} /> },
-    { id: 'servicios',    label: 'Procedimientos',    icon: <Stethoscope size={15} /> },
-    { id: 'presupuestos', label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
-    { id: 'diagnostico',  label: 'Diagnóstico',       icon: <ShieldCheck size={15} /> },
+    { id: 'fuentes',        label: 'Fuentes de datos', icon: <Database size={15} /> },
+    { id: 'entidades',      label: 'Entidades',         icon: <Building2 size={15} /> },
+    { id: 'profesionales',  label: 'Profesionales',     icon: <UserCog size={15} /> },
+    { id: 'servicios',      label: 'Procedimientos',    icon: <Stethoscope size={15} /> },
+    { id: 'presupuestos',   label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
+    { id: 'diagnostico',    label: 'Diagnóstico',       icon: <ShieldCheck size={15} /> },
     {
       id: 'sin-entidad',
       label: 'Sin Entidad',
@@ -255,12 +257,13 @@ export default function Configuracion(): React.ReactElement {
 
       {/* Tab content */}
       <div className="config-tab-content">
-        {activeTab === 'fuentes'      && <Conectores />}
-        {activeTab === 'entidades'    && <TabEntidades />}
-        {activeTab === 'servicios'    && <TabServicios />}
-        {activeTab === 'presupuestos' && <TabPresupuestos />}
-        {activeTab === 'diagnostico'  && <TabDiagnostico />}
-        {activeTab === 'sin-entidad'  && <TabSinEntidad />}
+        {activeTab === 'fuentes'       && <Conectores />}
+        {activeTab === 'entidades'     && <TabEntidades />}
+        {activeTab === 'profesionales' && <TabProfesionales />}
+        {activeTab === 'servicios'     && <TabServicios />}
+        {activeTab === 'presupuestos'  && <TabPresupuestos />}
+        {activeTab === 'diagnostico'   && <TabDiagnostico />}
+        {activeTab === 'sin-entidad'   && <TabSinEntidad />}
       </div>
     </div>
   );

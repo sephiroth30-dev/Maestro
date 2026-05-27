@@ -177,13 +177,14 @@ model Entidad {
 }
 
 model Profesional {
-  id          String     @id @default(uuid())
-  nombre      String
-  nombresRaw  Json       @map("nombres_raw")
-  esNomina    Boolean    @default(false) @map("es_nomina")
-  activo      Boolean    @default(true)
-  createdAt   DateTime   @default(now()) @map("created_at")
-  atenciones  Atencion[]
+  id           String     @id @default(uuid())
+  nombre       String
+  nombresRaw   Json       @map("nombres_raw")
+  esNomina     Boolean    @default(false) @map("es_nomina")
+  activo       Boolean    @default(true)
+  especialidad String?    @db.VarChar(20)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  atenciones   Atencion[]
 
   @@map("profesionales")
 }

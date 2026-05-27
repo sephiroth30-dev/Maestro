@@ -384,6 +384,49 @@ export async function getDiagnosticoConectores(): Promise<DiagnosticoRow[]> {
   }));
 }
 
+// ─── Profesionales catalog ────────────────────────────────────────────────────
+
+export interface ProfesionalRow {
+  id: string;
+  nombre: string;
+  nombres_raw: string[];
+  es_nomina: boolean;
+  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+  total_atenciones: number;
+}
+
+export async function listProfesionales(): Promise<ProfesionalRow[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT p.id, p.nombre, p.nombres_raw, p.es_nomina, p.especialidad,
+            COUNT(a.id) AS total_atenciones
+     FROM profesionales p
+     LEFT JOIN atenciones a ON a.profesional_id = p.id
+     WHERE p.activo = 1
+     GROUP BY p.id
+     ORDER BY total_atenciones DESC, p.nombre ASC`
+  );
+  return rows.map((r) => ({
+    id: r['id'] as string,
+    nombre: r['nombre'] as string,
+    nombres_raw: (typeof r['nombres_raw'] === 'string'
+      ? JSON.parse(r['nombres_raw'])
+      : r['nombres_raw']) as string[],
+    es_nomina: Boolean(r['es_nomina']),
+    especialidad: (r['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null) ?? null,
+    total_atenciones: Number(r['total_atenciones']),
+  }));
+}
+
+export async function patchProfesionalEspecialidad(
+  id: string,
+  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null
+): Promise<void> {
+  await pool.execute<ResultSetHeader>(
+    'UPDATE profesionales SET especialidad = ? WHERE id = ?',
+    [especialidad, id]
+  );
+}
+
 // ─── Diagnostic: unmatched entity names (SIN ENTIDAD) ────────────────────────
 
 export interface SinEntidadRow {
@@ -676,10 +719,11 @@ export async function upsertPresupuesto(
 export async function reclasificarServicios(): Promise<{ total: number; updated: number; sin_clasificar: number }> {
   // Load current service catalog ordered by precedence
   const [catRows] = await pool.query<RowDataPacket[]>(
-    'SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
+    'SELECT id, nombre, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
   );
-  const catalog: Array<{ id: string; keywords: string[] }> = catRows.map((r) => ({
+  const catalog: Array<{ id: string; nombre: string; keywords: string[] }> = catRows.map((r) => ({
     id: r['id'] as string,
+    nombre: r['nombre'] as string,
     keywords: ((typeof r['palabras_clave'] === 'string'
       ? JSON.parse(r['palabras_clave'])
       : r['palabras_clave']) as string[]).map((kw: string) =>
@@ -687,9 +731,33 @@ export async function reclasificarServicios(): Promise<{ total: number; updated:
     ),
   }));
 
-  // Load all atenciones (id, descripcion_norm, current servicio_id)
+  // Build specialty upgrade map: generic service id → { NEUROLOGIA: id, FISIATRIA: id }
+  const upgradeMap = new Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null }>();
+  const UPGRADES: Array<[string, string, string]> = [
+    ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
+    ['CONSULTA DE CONTROL',  'CONSULTA DE CONTROL NEUROLOGIA',  'CONSULTA DE CONTROL FISIATRIA'],
+  ];
+  for (const [generic, neuro, fisio] of UPGRADES) {
+    const genericId = catalog.find((s) => s.nombre === generic)?.id ?? null;
+    const neuroId   = catalog.find((s) => s.nombre === neuro)?.id   ?? null;
+    const fisioId   = catalog.find((s) => s.nombre === fisio)?.id   ?? null;
+    if (genericId) upgradeMap.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
+  }
+
+  // Load profesionales specialty
+  const [profRows] = await pool.query<RowDataPacket[]>(
+    'SELECT id, especialidad FROM profesionales WHERE activo = 1'
+  );
+  const profEspecialidad = new Map<string, 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO'>();
+  for (const p of profRows) {
+    if (p['especialidad']) {
+      profEspecialidad.set(p['id'] as string, p['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO');
+    }
+  }
+
+  // Load all atenciones
   const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT id, descripcion_norm, servicio_id FROM atenciones'
+    'SELECT id, descripcion_norm, servicio_id, profesional_id FROM atenciones'
   );
 
   let updated = 0;
@@ -708,6 +776,16 @@ export async function reclasificarServicios(): Promise<{ total: number; updated:
           break;
         }
       }
+
+      // Specialty upgrade: if matched a generic consultation, use professional's specialty
+      if (matched && upgradeMap.has(matched)) {
+        const profId = row['profesional_id'] as string | null;
+        const esp = profId ? (profEspecialidad.get(profId) ?? null) : null;
+        if (esp === 'NEUROLOGIA' || esp === 'FISIATRIA') {
+          matched = upgradeMap.get(matched)![esp] ?? matched;
+        }
+      }
+
       const current = (row['servicio_id'] as string | null) ?? null;
       if (matched !== current) {
         updates.push([matched, row['id'] as string]);

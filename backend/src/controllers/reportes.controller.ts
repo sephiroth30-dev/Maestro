@@ -266,6 +266,33 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/profesionales (ADMIN — list all with specialty)
+  fastify.get(
+    '/api/profesionales',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.listProfesionales();
+      return reply.send(rows);
+    }
+  );
+
+  // PATCH /api/profesionales/:id (ADMIN — set especialidad)
+  fastify.patch(
+    '/api/profesionales/:id',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const body = request.body as { especialidad?: string | null };
+      const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
+      const esp = body?.especialidad ?? null;
+      if (!allowed.includes(esp)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+      }
+      await repo.patchProfesionalEspecialidad(id, esp as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null);
+      return reply.send({ ok: true });
+    }
+  );
+
   // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
   fastify.get(
     '/api/diagnostico/sin-entidad',
