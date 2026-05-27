@@ -4114,3 +4114,28 @@ body,
   padding-top: 4px;
   border-top: 1px solid #f1f5f9;
 }
+
+/* ── Sin clasificar section (TabServicios) ─────────────────────────────────── */
+.sin-clasificar-section {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 16px;
+}
+
+.sin-clasificar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.83rem;
+  color: #374151;
+  padding: 4px 0;
+}
+
+.sin-clasificar-toggle:hover { color: #0f172a; }
+
+.sin-clasificar-hint {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}

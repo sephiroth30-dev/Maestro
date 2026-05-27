@@ -246,6 +246,16 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/diagnostico/sin-servicio (ADMIN — unclassified service descriptions)
+  fastify.get(
+    '/api/diagnostico/sin-servicio',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.getSinServicioDiagnostico();
+      return reply.send(rows);
+    }
+  );
+
   // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
   fastify.get(
     '/api/diagnostico/sin-entidad',

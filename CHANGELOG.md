@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.6] - 2026-05-27
+
+### Added
+- **CONSULTA DE CONTROL NEUROLOGIA** (orden 3) y **CONSULTA DE CONTROL FISIATRIA** (orden 4) en el catálogo. El registro genérico `CONSULTA DE CONTROL` queda en orden 5 como comodín para otros controles médicos.
+- **Panel "Sin clasificar"** en la pestaña Procedimientos de Configuración: sección colapsable que muestra las descripciones del Sheet que no encontraron coincidencia en el catálogo — con recuento de registros y valor total. Facilita identificar qué palabras clave hay que agregar sin necesidad de consultar la base de datos directamente.
+- Endpoint `GET /api/diagnostico/sin-servicio` (ADMIN) que devuelve las descripciones sin clasificar ordenadas por frecuencia.
+
+---
+
 ## [1.4.5] - 2026-05-27
 
 ### Added

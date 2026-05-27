@@ -417,6 +417,34 @@ export async function getSinEntidadDiagnostico(
   }));
 }
 
+// ─── Diagnostic: unclassified service descriptions ───────────────────────────
+
+export interface SinServicioRow {
+  descripcion_raw: string | null;
+  cnt: number;
+  total: number;
+}
+
+export async function getSinServicioDiagnostico(limit = 60): Promise<SinServicioRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & { descripcion_raw: string | null; cnt: string; total: string })[]>(
+    `SELECT
+      descripcion_raw,
+      COUNT(*) AS cnt,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    WHERE servicio_id IS NULL
+    GROUP BY descripcion_raw
+    ORDER BY cnt DESC
+    LIMIT ?`,
+    [limit]
+  );
+  return rows.map((r) => ({
+    descripcion_raw: r.descripcion_raw,
+    cnt: Number(r.cnt),
+    total: Number(r.total),
+  }));
+}
+
 // ─── Servicios seed diagnostic ────────────────────────────────────────────────
 
 export async function getServiciosDiagnostico(): Promise<{

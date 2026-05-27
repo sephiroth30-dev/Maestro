@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Loader2, AlertCircle, Info, Repeat2, Hash } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight } from 'lucide-react';
 import { useServiciosCatalog, useUpdateServicioTipoConteo } from '../../api/servicios.js';
+import { useSinServicioDiagnostico } from '../../api/reportes.js';
 import type { ServicioCatalogRow } from '../../api/servicios.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
+const fmtCOP = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
 
-// ─── Row ─────────────────────────────────────────────────────────────────────
+// ─── Catalog row ──────────────────────────────────────────────────────────────
 
 function ServicioRow({ s }: { s: ServicioCatalogRow }): React.ReactElement {
   const update = useUpdateServicioTipoConteo();
@@ -65,6 +68,67 @@ function ServicioRow({ s }: { s: ServicioCatalogRow }): React.ReactElement {
         {fmtNum(s.total_atenciones)}
       </td>
     </tr>
+  );
+}
+
+// ─── Sin clasificar section ───────────────────────────────────────────────────
+
+function SinClasificarSection(): React.ReactElement {
+  const { data, isLoading } = useSinServicioDiagnostico();
+  const [expanded, setExpanded] = useState(false);
+
+  if (isLoading || !data || data.length === 0) return <></>;
+
+  const totalCnt = data.reduce((s, r) => s + r.cnt, 0);
+  const totalVal = data.reduce((s, r) => s + r.total, 0);
+
+  return (
+    <div className="sin-clasificar-section" style={{ marginTop: '24px' }}>
+      <button
+        type="button"
+        className="sin-clasificar-toggle"
+        onClick={() => setExpanded((p) => !p)}
+      >
+        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span>
+          <strong>{fmtNum(totalCnt)}</strong> registros sin clasificar
+          {' · '}
+          <span style={{ color: '#f59e0b' }}>{fmtCOP(totalVal)}</span>
+        </span>
+        <span className="sin-clasificar-hint">
+          — ver descripciones para agregar palabras clave al catálogo
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="tabla-entidades-wrapper" style={{ marginTop: '8px' }}>
+          <table className="tabla-entidades-table">
+            <thead>
+              <tr>
+                <th className="tabla-entidades-th">Descripción en el Sheet</th>
+                <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '90px' }}>Registros</th>
+                <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '130px' }}>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((r, i) => (
+                <tr key={i} className="tabla-entidades-tr">
+                  <td className="tabla-entidades-td" style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                    {r.descripcion_raw ?? '(vacío)'}
+                  </td>
+                  <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b' }}>
+                    {fmtNum(r.cnt)}
+                  </td>
+                  <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b' }}>
+                    {fmtCOP(r.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -137,6 +201,8 @@ export default function TabServicios(): React.ReactElement {
       <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
         El modo de conteo persiste entre reinicios del servidor. Las palabras clave se actualizan automáticamente en cada reinicio.
       </p>
+
+      <SinClasificarSection />
     </div>
   );
 }

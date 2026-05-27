@@ -270,6 +270,23 @@ export function useSinEntidadDiagnostico(mesIdx: number, anio: number) {
   });
 }
 
+export interface SinServicioRow {
+  descripcion_raw: string | null;
+  cnt: number;
+  total: number;
+}
+
+export function useSinServicioDiagnostico() {
+  return useQuery<SinServicioRow[]>({
+    queryKey: ['sin-servicio-diagnostico'],
+    queryFn: async () => {
+      const res = await apiClient.get<SinServicioRow[]>('/diagnostico/sin-servicio');
+      return res.data;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 // Alias used by Configuracion page (matches spec name)
 export type Presupuesto = PresupuestoRow;
 

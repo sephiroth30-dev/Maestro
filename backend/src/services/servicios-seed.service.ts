@@ -28,17 +28,30 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 2,
   },
   {
-    nombre: 'CONSULTA DE CONTROL',
-    palabrasClave: ['CONSULTA DE CONTROL', 'CONSULTA CONTROL', 'CONTROL NEUROLOGO', 'CONTROL FISIATRA', 'CONTROL MEDICO'],
+    nombre: 'CONSULTA DE CONTROL NEUROLOGIA',
+    palabrasClave: ['CONTROL NEUROLOG', 'CONTROL DE NEUROLOG'],
     tipoConteo: 'unidad',
     orden: 3,
+  },
+  {
+    nombre: 'CONSULTA DE CONTROL FISIATRIA',
+    palabrasClave: ['CONTROL FISIATRA', 'CONTROL DE FISIATRA'],
+    tipoConteo: 'unidad',
+    orden: 4,
+  },
+  {
+    // Catch-all para otros controles médicos
+    nombre: 'CONSULTA DE CONTROL',
+    palabrasClave: ['CONSULTA DE CONTROL', 'CONSULTA CONTROL', 'CONTROL MEDICO'],
+    tipoConteo: 'unidad',
+    orden: 5,
   },
   {
     // Catch-all para otras especialidades / consultas sin clasificar por especialidad
     nombre: 'CONSULTA PRIMERA VEZ',
     palabrasClave: ['CONSULTA PRIMERA VEZ'],
     tipoConteo: 'unidad',
-    orden: 4,
+    orden: 6,
   },
   {
     // Telemetría / Video-EEG: cada fila = 1 hora → agrupar por fecha+paciente para contar sesiones
@@ -50,68 +63,68 @@ const SERVICIOS: ServicioSeed[] = [
       'MONITOREO CONTINUO EEG', 'MONITORIZACION CONTINUA',
     ],
     tipoConteo: 'sesion',
-    orden: 5,
+    orden: 7,
   },
   {
     nombre: 'ELECTROENCEFALOGRAMA COMPUTARIZADO',
     palabrasClave: ['ELECTROENCEFALOGRAMA COMPUTARIZADO'],
     tipoConteo: 'unidad',
-    orden: 6,
+    orden: 8,
   },
   {
     nombre: 'ELECTROMIOGRAFIA',
     palabrasClave: ['ELECTROMIOGRAFIA'],
     tipoConteo: 'unidad',
-    orden: 7,
+    orden: 9,
   },
   {
     nombre: 'NEUROCONDUCCION',
     palabrasClave: ['NEUROCONDUCCION', 'CONDUCCION NERVIOSA'],
     tipoConteo: 'unidad',
-    orden: 8,
+    orden: 10,
   },
   {
     nombre: 'AGUJA MONOPOLAR',
     palabrasClave: ['AGUJA MONOPOLAR'],
     tipoConteo: 'unidad',
-    orden: 9,
+    orden: 11,
   },
   {
     nombre: 'TERAPIA ONDAS DE CHOQUE',
     palabrasClave: ['ONDAS CHOQUE'],
     tipoConteo: 'unidad',
-    orden: 10,
+    orden: 12,
   },
   {
     nombre: 'REFLEJO H',
     palabrasClave: ['REFLEJO H'],
     tipoConteo: 'unidad',
-    orden: 11,
+    orden: 13,
   },
   {
     nombre: 'INYECCION TOXINA BOTULINICA',
     palabrasClave: ['TOXINA BOTULINICA', 'MIORELAJANTE'],
     tipoConteo: 'unidad',
-    orden: 12,
+    orden: 14,
   },
   {
     nombre: 'JUNTA MEDICA INTERDISCIPLINARIA',
     palabrasClave: ['JUNTA MEDICA', 'EQUIPO INTERDISCIPLINARIO', 'PARTICIPACION JUNTA'],
     tipoConteo: 'unidad',
-    orden: 13,
+    orden: 15,
   },
   {
     // Polisomnografía: estudio nocturno completo, puede estar en varias filas
     nombre: 'POLISOMNOGRAFIA',
     palabrasClave: ['POLISOMNOGRAFIA', 'POLISOMNOGRAFICO'],
     tipoConteo: 'sesion',
-    orden: 14,
+    orden: 16,
   },
   {
     nombre: 'POTENCIALES EVOCADOS',
     palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO'],
     tipoConteo: 'unidad',
-    orden: 15,
+    orden: 17,
   },
 ];
 
