@@ -470,15 +470,17 @@ class ReportesService {
     startDate?: Date;
     endDate?: Date;
     entidadId?: string;
+    diaSemana?: number;
   }): Promise<ServiciosResult> {
-    const { mesIdx, anio, startDate, endDate, entidadId } = params;
-    const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate, entidadId);
+    const { mesIdx, anio, startDate, endDate, entidadId, diaSemana } = params;
+    const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate, entidadId)
+      + (diaSemana !== undefined ? `:d${diaSemana}` : '');
 
-    // Skip cache when filtering by entity (specific queries should not pollute general cache)
-    const cached = entidadId ? null : await cacheGet<ServiciosResult>(cacheKey);
+    // Skip cache when using runtime filters (entity or day)
+    const cached = (entidadId || diaSemana !== undefined) ? null : await cacheGet<ServiciosResult>(cacheKey);
     if (cached) return cached;
 
-    const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId);
+    const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId, diaSemana);
 
     let sinClasificar = 0;
     let valorSinClasificar = 0;
@@ -521,7 +523,7 @@ class ReportesService {
       neuro_count: neuroCount,
     };
 
-    if (!entidadId) await cacheSet(cacheKey, result, 30 * 60);
+    if (!entidadId && diaSemana === undefined) await cacheSet(cacheKey, result, 30 * 60);
     return result;
   }
 }

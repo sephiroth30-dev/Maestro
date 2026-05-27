@@ -200,7 +200,14 @@ export interface ServiciosResult {
   neuro_count: number;
 }
 
-export function useServicios(mesIdx: number, anio: number, startDate?: string, endDate?: string, entidadId?: string | null) {
+export function useServicios(
+  mesIdx: number,
+  anio: number,
+  startDate?: string,
+  endDate?: string,
+  entidadId?: string | null,
+  diaSemana?: number | null,
+) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -210,8 +217,9 @@ export function useServicios(mesIdx: number, anio: number, startDate?: string, e
     params.set('anio', String(anio));
   }
   if (entidadId) params.set('entidad_id', entidadId);
+  if (diaSemana != null) params.set('dia_semana', String(diaSemana));
   return useQuery<ServiciosResult>({
-    queryKey: ['servicios', mesIdx, anio, startDate, endDate, entidadId ?? null],
+    queryKey: ['servicios', mesIdx, anio, startDate, endDate, entidadId ?? null, diaSemana ?? null],
     queryFn: async () => {
       const response = await apiClient.get<ServiciosResult>(`/reportes/servicios?${params}`);
       return response.data;

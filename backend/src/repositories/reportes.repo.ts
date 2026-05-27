@@ -479,8 +479,9 @@ export async function getServiciosAgg(
   startDate?: Date,
   endDate?: Date,
   entidadId?: string,
+  diaSemana?: number,
 ): Promise<ServicioAggRow[]> {
-  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
 
   const entidadExtra = entidadId ? ' AND a.entidad_id = ?' : '';
   const entidadParams = entidadId ? [entidadId] : [];

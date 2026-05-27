@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.4] - 2026-05-27
+
+### Fixed
+- **Mix por Servicio responde a todos los filtros activos**: filtro de día de semana, rango de fechas y entidad ahora se aplican también al bloque de procedimientos. Antes sólo actualizaban KPIs y tabla de entidades.
+
+---
+
 ## [1.4.3] - 2026-05-27
 
 ### Added

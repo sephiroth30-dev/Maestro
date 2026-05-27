@@ -362,7 +362,7 @@ export default function Reportes(): React.ReactElement {
   // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
   const tendenciaQ  = useTendencia(12);
-  const serviciosQ  = useServicios(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId);
+  const serviciosQ  = useServicios(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId, diaSemana ?? null);
 
   // Annual mode: filter tendencia to current year, ordered chronologically
   const currentYear = new Date().getFullYear();

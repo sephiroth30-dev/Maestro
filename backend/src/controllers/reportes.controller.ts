@@ -213,13 +213,14 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date, entidad_id } = parsed.data;
+      const { mes_idx, anio, start_date, end_date, entidad_id, dia_semana } = parsed.data;
       const result = await reportesService.getServicios({
         mesIdx: mes_idx,
         anio,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate:   end_date   ? new Date(end_date)   : undefined,
         entidadId: entidad_id,
+        diaSemana: dia_semana,
       });
       return reply.send(result);
     }
