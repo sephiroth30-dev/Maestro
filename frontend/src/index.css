@@ -4115,6 +4115,46 @@ body,
   border-top: 1px solid #f1f5f9;
 }
 
+/* ── Reclasificar button (TabServicios) ────────────────────────────────────── */
+.reclasificar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.reclasificar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.reclasificar-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.reclasificar-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reclasificar-result {
+  font-size: 0.75rem;
+  color: #16a34a;
+  font-weight: 500;
+}
+
 /* ── Sin clasificar section (TabServicios) ─────────────────────────────────── */
 .sin-clasificar-section {
   border-top: 1px dashed #e2e8f0;

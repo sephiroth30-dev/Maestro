@@ -1,6 +1,6 @@
 {
   "name": "neurofic-backend",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "Neurofic Admin Dashboard - Backend API",
   "main": "dist/index.js",
   "scripts": {

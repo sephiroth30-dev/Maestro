@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight } from 'lucide-react';
-import { useServiciosCatalog, useUpdateServicioTipoConteo } from '../../api/servicios.js';
+import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { useServiciosCatalog, useUpdateServicioTipoConteo, useReclasificarServicios } from '../../api/servicios.js';
 import { useSinServicioDiagnostico } from '../../api/reportes.js';
-import type { ServicioCatalogRow } from '../../api/servicios.js';
+import type { ServicioCatalogRow, ReclasificarResult } from '../../api/servicios.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 const fmtCOP = (n: number) =>
@@ -132,6 +132,41 @@ function SinClasificarSection(): React.ReactElement {
   );
 }
 
+// ─── Reclassify button ────────────────────────────────────────────────────────
+
+function ReclasificarBtn(): React.ReactElement {
+  const reclasificar = useReclasificarServicios();
+  const [result, setResult] = useState<ReclasificarResult | null>(null);
+
+  async function handle(): Promise<void> {
+    setResult(null);
+    const res = await reclasificar.mutateAsync();
+    setResult(res);
+  }
+
+  return (
+    <div className="reclasificar-wrap">
+      <button
+        type="button"
+        className="reclasificar-btn"
+        onClick={() => void handle()}
+        disabled={reclasificar.isPending}
+        title="Re-aplica las palabras clave del catálogo a todos los registros históricos"
+      >
+        {reclasificar.isPending ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+        {reclasificar.isPending ? 'Reclasificando…' : 'Reclasificar registros'}
+      </button>
+      {result && (
+        <span className="reclasificar-result">
+          {fmtNum(result.updated)} actualizados de {fmtNum(result.total)}
+          {' · '}
+          {fmtNum(result.sin_clasificar)} sin clasificar
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── Main tab ─────────────────────────────────────────────────────────────────
 
 export default function TabServicios(): React.ReactElement {
@@ -172,13 +207,16 @@ export default function TabServicios(): React.ReactElement {
         </span>
       </div>
 
-      <p className="entidades-stats" style={{ marginTop: '8px' }}>
-        {data.length} procedimientos en catálogo
-        {' · '}
-        <strong style={{ color: '#8b5cf6' }}>{sesionCount}</strong> en modo Sesión
-        {' · '}
-        <strong style={{ color: '#3b82f6' }}>{data.length - sesionCount}</strong> en modo Unidad
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
+        <p className="entidades-stats" style={{ margin: 0 }}>
+          {data.length} procedimientos en catálogo
+          {' · '}
+          <strong style={{ color: '#8b5cf6' }}>{sesionCount}</strong> en modo Sesión
+          {' · '}
+          <strong style={{ color: '#3b82f6' }}>{data.length - sesionCount}</strong> en modo Unidad
+        </p>
+        <ReclasificarBtn />
+      </div>
 
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">

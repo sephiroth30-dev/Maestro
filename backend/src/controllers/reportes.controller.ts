@@ -256,6 +256,16 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // POST /api/admin/reclasificar-servicios (ADMIN — re-run service classification on all atenciones)
+  fastify.post(
+    '/api/admin/reclasificar-servicios',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const result = await repo.reclasificarServicios();
+      return reply.send(result);
+    }
+  );
+
   // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
   fastify.get(
     '/api/diagnostico/sin-entidad',

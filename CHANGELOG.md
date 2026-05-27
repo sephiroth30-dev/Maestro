@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.7] - 2026-05-27
+
+### Added
+- **Botón "Reclasificar registros"** en Configuración > Procedimientos: re-aplica las palabras clave del catálogo a todos los registros históricos en la base de datos. Necesario cuando se agregan nuevos servicios (como CONSULTA DE CONTROL NEUROLOGIA/FISIATRIA) para que los registros anteriores queden asignados correctamente sin esperar a la próxima sincronización del Sheet.
+- Endpoint `POST /api/admin/reclasificar-servicios` (ADMIN) que retorna `{ total, updated, sin_clasificar }`.
+
+---
+
 ## [1.4.6] - 2026-05-27
 
 ### Added

@@ -32,3 +32,22 @@ export function useUpdateServicioTipoConteo() {
     },
   });
 }
+
+export interface ReclasificarResult {
+  total: number;
+  updated: number;
+  sin_clasificar: number;
+}
+
+export function useReclasificarServicios() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<ReclasificarResult>('/admin/reclasificar-servicios').then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['servicios-catalog'] });
+      void qc.invalidateQueries({ queryKey: ['servicios'] });
+      void qc.invalidateQueries({ queryKey: ['sin-servicio-diagnostico'] });
+    },
+  });
+}

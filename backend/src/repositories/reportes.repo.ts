@@ -670,3 +670,60 @@ export async function upsertPresupuesto(
   );
   return { id: newId, anio, mes, monto, notas: notasVal };
 }
+
+// ─── Reclassify all atenciones with current service catalog ──────────────────
+
+export async function reclasificarServicios(): Promise<{ total: number; updated: number; sin_clasificar: number }> {
+  // Load current service catalog ordered by precedence
+  const [catRows] = await pool.query<RowDataPacket[]>(
+    'SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC'
+  );
+  const catalog: Array<{ id: string; keywords: string[] }> = catRows.map((r) => ({
+    id: r['id'] as string,
+    keywords: ((typeof r['palabras_clave'] === 'string'
+      ? JSON.parse(r['palabras_clave'])
+      : r['palabras_clave']) as string[]).map((kw: string) =>
+      kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    ),
+  }));
+
+  // Load all atenciones (id, descripcion_norm, current servicio_id)
+  const [rows] = await pool.query<RowDataPacket[]>(
+    'SELECT id, descripcion_norm, servicio_id FROM atenciones'
+  );
+
+  let updated = 0;
+  const batchSize = 200;
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const updates: Array<[string | null, string]> = [];
+
+    for (const row of batch) {
+      const norm = (row['descripcion_norm'] as string ?? '').toUpperCase();
+      let matched: string | null = null;
+      for (const svc of catalog) {
+        if (svc.keywords.some((kw) => norm.includes(kw))) {
+          matched = svc.id;
+          break;
+        }
+      }
+      const current = (row['servicio_id'] as string | null) ?? null;
+      if (matched !== current) {
+        updates.push([matched, row['id'] as string]);
+      }
+    }
+
+    for (const [newId, id] of updates) {
+      await pool.execute('UPDATE atenciones SET servicio_id = ? WHERE id = ?', [newId, id]);
+      updated++;
+    }
+  }
+
+  const sinClasificar = rows.filter((r) => {
+    const norm = (r['descripcion_norm'] as string ?? '').toUpperCase();
+    return !catalog.some((svc) => svc.keywords.some((kw) => norm.includes(kw)));
+  }).length;
+
+  return { total: rows.length, updated, sin_clasificar: sinClasificar };
+}
