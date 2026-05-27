@@ -104,9 +104,9 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 13,
   },
   {
-    // Reflejo H (H-reflex) y Reflejo F (F-wave) — mismo grupo de estudios de conducción tardía
+    // Reflejo H (H-reflex), Reflejo F (F-wave) y Onda F — estudios de conducción tardía
     nombre: 'REFLEJO H',
-    palabrasClave: ['REFLEJO H', 'REFLEJO F'],
+    palabrasClave: ['REFLEJO H', 'REFLEJO F', 'ONDA F'],
     tipoConteo: 'unidad',
     orden: 14,
   },
@@ -147,6 +147,18 @@ const SERVICIOS: ServicioSeed[] = [
     palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO', 'POTENCIAL'],
     tipoConteo: 'unidad',
     orden: 19,
+  },
+  {
+    nombre: 'PRUEBA ESTIMULO REPETITIVO',
+    palabrasClave: ['ESTIMULO REPETITIVO', 'ESTIMULACION REPETITIVA', 'PRUEBA ESTIMULO REPETITIVO'],
+    tipoConteo: 'unidad',
+    orden: 20,
+  },
+  {
+    nombre: 'ECOGRAFIA',
+    palabrasClave: ['ECOGRAFIA', 'ULTRASONIDO', 'ULTRASONOGRAFIA', 'ECOGRAFICO'],
+    tipoConteo: 'unidad',
+    orden: 21,
   },
 ];
 

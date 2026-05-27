@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.1] - 2026-05-27
+
+### Added
+- **PRUEBA ESTIMULO REPETITIVO** (orden 20): captura `ESTIMULO REPETITIVO`, `ESTIMULACION REPETITIVA` y variantes.
+- **ECOGRAFIA** (orden 21): captura `ECOGRAFIA`, `ULTRASONIDO`, `ULTRASONOGRAFIA`, `ECOGRAFICO`.
+
+### Changed
+- **REFLEJO H** agrega `ONDA F` — queda junto con Reflejo H y Reflejo F en el mismo grupo.
+
+---
+
 ## [1.5.0] - 2026-05-27
 
 ### Changed
