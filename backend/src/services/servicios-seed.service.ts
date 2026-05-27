@@ -160,6 +160,18 @@ const SERVICIOS: ServicioSeed[] = [
     tipoConteo: 'unidad',
     orden: 21,
   },
+  {
+    nombre: 'PRUEBA DE LATENCIA MULTIPLE',
+    palabrasClave: ['LATENCIA MULTIPLE', 'PRUEBA LATENCIA MULTIPLE', 'MSLT'],
+    tipoConteo: 'unidad',
+    orden: 22,
+  },
+  {
+    nombre: 'DERECHOS DE SALA',
+    palabrasClave: ['DERECHOS SALA', 'DERECHO SALA'],
+    tipoConteo: 'unidad',
+    orden: 23,
+  },
 ];
 
 export async function autoSeedServicios(): Promise<void> {

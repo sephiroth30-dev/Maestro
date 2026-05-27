@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.2] - 2026-05-27
+
+### Added
+- **PRUEBA DE LATENCIA MULTIPLE** (orden 22): captura `LATENCIA MULTIPLE`, `PRUEBA LATENCIA MULTIPLE`, `MSLT`.
+- **DERECHOS DE SALA** (orden 23): captura `DERECHOS SALA`, `DERECHO SALA`.
+
+---
+
 ## [1.5.1] - 2026-05-27
 
 ### Added
