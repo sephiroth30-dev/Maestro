@@ -116,23 +116,35 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 15,
   },
   {
+    // Agrupa infiltraciones articulares, de esteroide, periarticulares y similares
+    nombre: 'INFILTRACION',
+    palabrasClave: [
+      'INFILTRACION', 'INYECCION O INFILTRACION',
+      'INFILTRACION ESTEROIDE', 'INFILTRACION ARTICULAR',
+      'INFILTRACION INTRAARTICULAR', 'INFILTRACION PERIARTICULAR',
+      'INYECCION ESTEROIDE',
+    ],
+    tipoConteo: 'unidad',
+    orden: 16,
+  },
+  {
     nombre: 'JUNTA MEDICA INTERDISCIPLINARIA',
     palabrasClave: ['JUNTA MEDICA', 'EQUIPO INTERDISCIPLINARIO', 'PARTICIPACION JUNTA'],
     tipoConteo: 'unidad',
-    orden: 16,
+    orden: 17,
   },
   {
     // Polisomnografía: estudio nocturno completo — sesion agrupa filas del mismo paciente/fecha
     nombre: 'POLISOMNOGRAFIA',
     palabrasClave: ['POLISOMNOGRAFIA', 'POLISOMNOGRAFICO', 'POLISOMNOGRAMA'],
     tipoConteo: 'sesion',
-    orden: 17,
+    orden: 18,
   },
   {
     nombre: 'POTENCIALES EVOCADOS',
     palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO'],
     tipoConteo: 'unidad',
-    orden: 18,
+    orden: 19,
   },
 ];
 

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.9] - 2026-05-27
+
+### Added
+- **INFILTRACION** (orden 16): nuevo servicio que agrupa todas las infiltraciones articulares, perirarticulares y de esteroide: `INFILTRACION`, `INYECCION O INFILTRACION`, `INFILTRACION ESTEROIDE`, `INFILTRACION ARTICULAR`, `INFILTRACION INTRAARTICULAR`, `INFILTRACION PERIARTICULAR`, `INYECCION ESTEROIDE`.
+
+### Changed
+- Junta Médica, Polisomnografía y Potenciales Evocados renumerados (+1) para dar paso al nuevo servicio.
+
+---
+
 ## [1.4.8] - 2026-05-27
 
 ### Added
