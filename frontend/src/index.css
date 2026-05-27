@@ -3706,12 +3706,10 @@ body,
 
 .mix-servicios__nombre {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.45rem;
-  white-space: nowrap;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 200px;
+  word-break: break-word;
 }
 
 .mix-servicios__dot {

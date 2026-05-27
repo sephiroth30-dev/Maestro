@@ -40,9 +40,9 @@ function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceR
 
   return (
     <tr className={`mix-servicios__row${isAlerta ? ' mix-servicios__row--alerta' : ''}`}>
-      <td className="mix-servicios__nombre">
-        <span className="mix-servicios__dot" style={{ background: color }} />
-        {r.nombre}
+      <td className="mix-servicios__nombre" title={r.nombre}>
+        <span className="mix-servicios__dot" style={{ background: color, marginTop: '2px' }} />
+        <span>{r.nombre}</span>
         {isSesion && (
           <span className="mix-servicios__badge" title={`${r.horas ?? 0} registros totales`}>
             {r.horas ?? 0} reg.
