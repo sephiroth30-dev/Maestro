@@ -297,6 +297,38 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/servicios (catalog for config UI — ADMIN only)
+  fastify.get(
+    '/api/servicios',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.listServiciosCatalog();
+      return reply.send(rows);
+    }
+  );
+
+  // PATCH /api/servicios/:id (update tipo_conteo — ADMIN only)
+  fastify.patch(
+    '/api/servicios/:id',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const parsed = z.object({
+        tipo_conteo: z.enum(['unidad', 'sesion']),
+      }).safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join(', '),
+          statusCode: 400,
+        });
+      }
+      await repo.patchServicio(id, { tipo_conteo: parsed.data.tipo_conteo });
+      return reply.status(200).send({ ok: true });
+    }
+  );
+
+
   // GET /api/reportes/presupuestos
   fastify.get(
     '/api/reportes/presupuestos',

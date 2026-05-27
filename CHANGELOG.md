@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.3] - 2026-05-27
+
+### Added
+- **Pestaña "Procedimientos"** en Configuración: tabla con todos los servicios del catálogo y toggle **Unidad / Sesión** por procedimiento. El modo Sesión agrupa los registros del mismo paciente en la misma fecha como 1 cita — correcto para monitoreo continuo (telemetría, video-EEG, polisomnografía) donde el Sheet genera una fila por hora.
+- Endpoints `GET /api/servicios` y `PATCH /api/servicios/:id` (ADMIN) para gestionar el catálogo de procedimientos.
+
+### Fixed
+- El seed de servicios ya **no sobreescribe** `tipo_conteo` en reinicios — los cambios hechos desde la UI de Procedimientos persisten.
+- Nuevas palabras clave para capturar variantes de Video-EEG / Videotabiometría: `VIDEO EEG`, `VIDEOTELEMETRIA`, `VIDEOTABIOMETRIA`, `VIDEO TABIOMETRIA`, `VIDEOENCEFALOGRAFIA`, `MONITOREO CONTINUO EEG`, `MONITORIZACION CONTINUA`.
+
+---
+
 ## [1.4.2] - 2026-05-27
 
 ### Added

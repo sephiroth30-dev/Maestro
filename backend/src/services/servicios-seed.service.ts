@@ -21,9 +21,14 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 1,
   },
   {
-    // Telemetría: cada fila = 1 hora → agrupar por fecha+paciente para contar sesiones
+    // Telemetría / Video-EEG: cada fila = 1 hora → agrupar por fecha+paciente para contar sesiones
     nombre: 'MONITORIZACION EEG VIDEO-RADIO',
-    palabrasClave: ['MONITORIZACION ELECTROENCEFALOG', 'TELEMETRIA'],
+    palabrasClave: [
+      'MONITORIZACION ELECTROENCEFALOG', 'TELEMETRIA',
+      'VIDEO EEG', 'VIDEOTELEMETRIA', 'VIDETELEMETRIA',
+      'VIDEOTABIOMETRIA', 'VIDEO TABIOMETRIA', 'VIDEOENCEFALOGRAFIA',
+      'MONITOREO CONTINUO EEG', 'MONITORIZACION CONTINUA',
+    ],
     tipoConteo: 'sesion',
     orden: 2,
   },
@@ -103,9 +108,11 @@ export async function autoSeedServicios(): Promise<void> {
       const kwJson = JSON.stringify(s.palabrasClave);
 
       if (rows[0]) {
+        // Do NOT update tipo_conteo — manual UI changes must survive restarts.
+        // Only sync palabras_clave and orden from the seed.
         await pool.execute(
-          'UPDATE servicios SET palabras_clave = ?, tipo_conteo = ?, orden = ? WHERE id = ?',
-          [kwJson, s.tipoConteo, s.orden, rows[0].id]
+          'UPDATE servicios SET palabras_clave = ?, orden = ? WHERE id = ?',
+          [kwJson, s.orden, rows[0].id]
         );
         updated++;
       } else {

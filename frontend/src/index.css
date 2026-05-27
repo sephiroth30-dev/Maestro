@@ -3760,6 +3760,67 @@ body,
   margin: 0;
 }
 
+/* ─── Servicios catalog — toggle Unidad / Sesión ───────────────────────────── */
+
+.svc-conteo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.svc-conteo-toggle--unidad {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+.svc-conteo-toggle--unidad:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+.svc-conteo-toggle--sesion {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+.svc-conteo-toggle--sesion:hover:not(:disabled) {
+  background: #ede9fe;
+}
+.svc-conteo-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Servicios catalog — keywords ──────────────────────────────────────────── */
+
+.svc-kws-cell {
+  max-width: 340px;
+}
+
+.svc-kws-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.svc-kw-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 0.68rem;
+  font-weight: 500;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
 .mix-servicios__entidad-badge {
   display: inline-flex;
   align-items: center;

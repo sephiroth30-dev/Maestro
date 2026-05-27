@@ -568,6 +568,49 @@ export async function getServiciosAgg(
   return result.sort((a, b) => a.orden - b.orden || (a.nombre ?? '').localeCompare(b.nombre ?? ''));
 }
 
+// ─── Servicios catalog management ────────────────────────────────────────────
+
+export interface ServicioCatalogRow {
+  id: string;
+  nombre: string;
+  palabras_clave: string[];
+  tipo_conteo: 'unidad' | 'sesion';
+  orden: number;
+  total_atenciones: number;
+}
+
+export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & {
+    id: string; nombre: string; palabras_clave: string | null;
+    tipo_conteo: string; orden: string;
+    total_atenciones: string;
+  })[]>(
+    `SELECT s.id, s.nombre, s.palabras_clave, s.tipo_conteo, s.orden,
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+     FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    nombre: r.nombre,
+    palabras_clave: (() => { try { return JSON.parse(r.palabras_clave ?? '[]') as string[]; } catch { return []; } })(),
+    tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
+    orden: Number(r.orden),
+    total_atenciones: Number(r.total_atenciones),
+  }));
+}
+
+export async function patchServicio(id: string, fields: { tipo_conteo?: 'unidad' | 'sesion' }): Promise<void> {
+  const sets: string[] = [];
+  const params: string[] = [];
+  if (fields.tipo_conteo !== undefined) {
+    sets.push('tipo_conteo = ?');
+    params.push(fields.tipo_conteo);
+  }
+  if (sets.length === 0) return;
+  params.push(id);
+  await pool.execute<ResultSetHeader>(`UPDATE servicios SET ${sets.join(', ')} WHERE id = ?`, params);
+}
+
 export async function upsertPresupuesto(
   anio: number,
   mes: number,
