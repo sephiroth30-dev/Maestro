@@ -362,7 +362,7 @@ export default function Reportes(): React.ReactElement {
   // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
   const tendenciaQ  = useTendencia(12);
-  const serviciosQ  = useServicios(selected.mes, selected.anio, periodStart, periodEnd);
+  const serviciosQ  = useServicios(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId);
 
   // Annual mode: filter tendencia to current year, ordered chronologically
   const currentYear = new Date().getFullYear();
@@ -746,11 +746,12 @@ export default function Reportes(): React.ReactElement {
         <h2 className="chart-title">
           Mix por Servicio
           {diaLabel && <span className="chart-title-badge">{diaLabel}</span>}
+          {selectedEntidadName && <span className="chart-title-badge chart-title-badge--green">{selectedEntidadName}</span>}
         </h2>
         {serviciosQ.isLoading ? <ChartSkeleton /> :
          serviciosQ.isError   ? <ErrorState onRetry={() => void serviciosQ.refetch()} /> :
          serviciosQ.data      ? (
-           <TablaServicios result={serviciosQ.data} />
+           <TablaServicios result={serviciosQ.data} entidadNombre={selectedEntidadName} />
          ) : null}
       </div>
     </div>

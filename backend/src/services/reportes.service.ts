@@ -59,6 +59,7 @@ export interface ServicioRow {
   nombre: string;
   tipo_conteo: 'unidad' | 'sesion';
   orden: number;
+  categoria: string | null;
   cantidad: number;
   horas: number | null;
   valor_bruto: number;
@@ -468,14 +469,16 @@ class ReportesService {
     anio: number;
     startDate?: Date;
     endDate?: Date;
+    entidadId?: string;
   }): Promise<ServiciosResult> {
-    const { mesIdx, anio, startDate, endDate } = params;
-    const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate);
+    const { mesIdx, anio, startDate, endDate, entidadId } = params;
+    const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate, entidadId);
 
-    const cached = await cacheGet<ServiciosResult>(cacheKey);
+    // Skip cache when filtering by entity (specific queries should not pollute general cache)
+    const cached = entidadId ? null : await cacheGet<ServiciosResult>(cacheKey);
     if (cached) return cached;
 
-    const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate);
+    const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId);
 
     let sinClasificar = 0;
     let valorSinClasificar = 0;
@@ -497,6 +500,7 @@ class ReportesService {
         nombre: r.nombre ?? '(sin nombre)',
         tipo_conteo: r.tipo_conteo,
         orden: r.orden,
+        categoria: r.categoria ?? null,
         cantidad: esSesion ? r.sesiones : r.total_filas,
         horas: esSesion ? r.total_filas : null,
         valor_bruto: r.valor_bruto,
@@ -517,7 +521,7 @@ class ReportesService {
       neuro_count: neuroCount,
     };
 
-    await cacheSet(cacheKey, result, 30 * 60);
+    if (!entidadId) await cacheSet(cacheKey, result, 30 * 60);
     return result;
   }
 }

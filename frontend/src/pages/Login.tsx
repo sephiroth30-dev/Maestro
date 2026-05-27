@@ -1,6 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, KeyRound, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 
 export default function Login(): React.ReactElement {
@@ -9,6 +9,7 @@ export default function Login(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetInfo, setShowResetInfo] = useState(false);
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {
@@ -135,6 +136,33 @@ export default function Login(): React.ReactElement {
             )}
           </button>
         </form>
+
+        {/* Reset password info */}
+        {showResetInfo ? (
+          <div className="login-reset-info" role="status">
+            <button
+              type="button"
+              className="login-reset-close"
+              onClick={() => setShowResetInfo(false)}
+              aria-label="Cerrar"
+            >
+              <X size={14} />
+            </button>
+            <KeyRound size={16} style={{ flexShrink: 0, color: '#3b82f6' }} />
+            <span>
+              Contacta al <strong>administrador del sistema</strong> para restablecer tu contraseña.
+              El administrador puede hacerlo desde el panel de Usuarios.
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="login-reset-link"
+            onClick={() => setShowResetInfo(true)}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
 
         <p className="login-footer">
           Acceso restringido al personal autorizado de Neurofic.

@@ -201,7 +201,10 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     '/api/reportes/servicios',
     { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = mesAnioDateSchema.safeParse(request.query);
+      const serviciosQuerySchema = mesAnioDateSchema.extend({
+        entidad_id: z.string().optional(),
+      });
+      const parsed = serviciosQuerySchema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -210,12 +213,13 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const { mes_idx, anio, start_date, end_date, entidad_id } = parsed.data;
       const result = await reportesService.getServicios({
         mesIdx: mes_idx,
         anio,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate:   end_date   ? new Date(end_date)   : undefined,
+        entidadId: entidad_id,
       });
       return reply.send(result);
     }

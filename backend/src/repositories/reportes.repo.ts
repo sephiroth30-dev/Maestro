@@ -467,6 +467,7 @@ export interface ServicioAggRow {
   nombre: string | null;
   tipo_conteo: 'unidad' | 'sesion';
   orden: number;
+  categoria: string | null;
   total_filas: number;
   sesiones: number;
   valor_bruto: number;
@@ -477,8 +478,12 @@ export async function getServiciosAgg(
   anio: number,
   startDate?: Date,
   endDate?: Date,
+  entidadId?: string,
 ): Promise<ServicioAggRow[]> {
   const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);
+
+  const entidadExtra = entidadId ? ' AND a.entidad_id = ?' : '';
+  const entidadParams = entidadId ? [entidadId] : [];
 
   // Step 1: Core aggregation — only columns that always exist
   const [coreRows] = await pool.query<(RowDataPacket & {
@@ -488,9 +493,9 @@ export async function getServiciosAgg(
   })[]>(
     `SELECT a.servicio_id, COUNT(a.id) AS total_filas, SUM(a.valor_bruto) AS valor_bruto
      FROM atenciones a
-     WHERE ${whereClause}
+     WHERE ${whereClause}${entidadExtra}
      GROUP BY a.servicio_id`,
-    params
+    [...params, ...entidadParams]
   );
 
   if (coreRows.length === 0) return [];
@@ -504,38 +509,39 @@ export async function getServiciosAgg(
            COALESCE(a.paciente_nombre, ''), '|',
            COALESCE(a.paciente_documento, ''))) AS sesiones
        FROM atenciones a
-       WHERE ${whereClause}
+       WHERE ${whereClause}${entidadExtra}
        GROUP BY a.servicio_id`,
-      params
+      [...params, ...entidadParams]
     );
     for (const r of sesRows) sesionesMap.set(r.servicio_id, Number(r.sesiones));
   } catch {
     // paciente columns not yet migrated — sesiones will fall back to total_filas per row
   }
 
-  // Step 3: Catalog metadata — requires tipo_conteo & orden (new servicios columns)
-  interface ServicioMeta { id: string; nombre: string | null; tipo_conteo: 'unidad' | 'sesion'; orden: number }
+  // Step 3: Catalog metadata — requires tipo_conteo, orden, categoria (new servicios columns)
+  interface ServicioMeta { id: string; nombre: string | null; tipo_conteo: 'unidad' | 'sesion'; orden: number; categoria: string | null }
   const svcMap = new Map<string, ServicioMeta>();
   try {
     const [svcRows] = await pool.query<(RowDataPacket & {
-      id: string; nombre: string | null; tipo_conteo: string | null; orden: string | null;
-    })[]>('SELECT id, nombre, tipo_conteo, orden FROM servicios');
+      id: string; nombre: string | null; tipo_conteo: string | null; orden: string | null; categoria: string | null;
+    })[]>('SELECT id, nombre, tipo_conteo, orden, categoria FROM servicios');
     for (const r of svcRows) {
       svcMap.set(r.id, {
         id: r.id,
         nombre: r.nombre,
         tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
         orden: Number(r.orden ?? 99),
+        categoria: r.categoria ?? null,
       });
     }
   } catch {
-    // tipo_conteo / orden columns missing — try simpler fallback
+    // tipo_conteo / orden / categoria columns missing — try simpler fallback
     try {
       const [svcRows] = await pool.query<(RowDataPacket & { id: string; nombre: string | null })[]>(
         'SELECT id, nombre FROM servicios'
       );
       for (const r of svcRows) {
-        svcMap.set(r.id, { id: r.id, nombre: r.nombre, tipo_conteo: 'unidad', orden: 99 });
+        svcMap.set(r.id, { id: r.id, nombre: r.nombre, tipo_conteo: 'unidad', orden: 99, categoria: null });
       }
     } catch {
       // servicios table missing entirely — proceed with nulls
@@ -552,6 +558,7 @@ export async function getServiciosAgg(
       nombre: svc?.nombre ?? null,
       tipo_conteo: svc?.tipo_conteo ?? 'unidad',
       orden: svc?.orden ?? 99,
+      categoria: svc?.categoria ?? null,
       total_filas: totalFilas,
       sesiones,
       valor_bruto: Number(r.valor_bruto),

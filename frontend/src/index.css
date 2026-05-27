@@ -277,6 +277,49 @@ body,
   to { transform: rotate(360deg); }
 }
 
+.login-reset-link {
+  display: block;
+  margin: 10px auto 0;
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+}
+.login-reset-link:hover { color: #1d4ed8; }
+
+.login-reset-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #1e3a5f;
+  line-height: 1.45;
+  position: relative;
+}
+
+.login-reset-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #93c5fd;
+  padding: 2px;
+  border-radius: 4px;
+  line-height: 1;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.login-reset-close:hover { color: #3b82f6; }
+
 .login-footer {
   margin-top: var(--space-6);
   text-align: center;
@@ -3715,6 +3758,133 @@ body,
   font-size: 0.72rem;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.mix-servicios__entidad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  color: #166534;
+  margin-bottom: 10px;
+}
+
+/* ─── Mix Servicios — category filter chips ─────────────────────────────────── */
+
+.svc-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.svc-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.svc-filter-chip:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.svc-filter-chip--active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.svc-filter-chip-count {
+  font-weight: 700;
+  color: #3b82f6;
+  font-size: 0.72rem;
+}
+
+/* ─── Mix Servicios — group header row ──────────────────────────────────────── */
+
+.svc-group-header {
+  background: #f8fafc;
+  cursor: pointer;
+  border-top: 1px solid #e2e8f0;
+}
+.svc-group-header:hover td { background: #f1f5f9; }
+.svc-group-header td {
+  padding: 8px 12px !important;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+
+.svc-group-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.svc-group-chevron {
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.svc-group-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.svc-group-nombre {
+  font-weight: 600;
+  color: #0f172a;
+  flex: 1;
+}
+
+.svc-group-count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-left: 4px;
+}
+
+/* ─── Mix Servicios — child row (indented) ──────────────────────────────────── */
+
+.mix-servicios__row--child .mix-servicios__nombre {
+  padding-left: 28px !important;
+}
+
+.mix-servicios__row--child td {
+  font-size: 0.82rem;
+  background: #fafafa;
+}
+
+/* ─── Mix Servicios — category tag ─────────────────────────────────────────── */
+
+.mix-servicios__cat-cell {
+  white-space: nowrap;
+  max-width: 110px;
+}
+
+.mix-servicios__cat-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
 }
 
 /* ─── Nombres Raw — botón de fila ───────────────────────────────────────────── */

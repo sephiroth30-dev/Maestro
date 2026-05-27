@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.2] - 2026-05-27
+
+### Added
+- **"¿Olvidaste tu contraseña?"** en la pantalla de login: muestra un aviso inline indicando que el administrador puede restablecer la contraseña desde el panel de Usuarios.
+- **Filtro por entidad en Mix por Servicio**: al hacer clic en una entidad de la tabla de facturación, el Mix por Servicio se filtra automáticamente para mostrar solo los procedimientos prestados a esa entidad.
+- **Agrupación por categoría en Mix por Servicio**: los servicios se agrupan bajo encabezados de categoría colapsables. Chips de filtro en la barra superior permiten aislar una categoría específica. Cada grupo muestra subtotales de cantidad, valor y porcentaje.
+- **Columna "Categoría"** visible en la vista plana (cuando se filtra por una categoría específica).
+- `categoria` expuesto en `GET /api/reportes/servicios` y aceptado como filtro `entidad_id`.
+
+### Changed
+- Versión visible en sidebar y en todos los `package.json` bumpeada a `1.4.2`.
+
+---
+
 ## [1.4.1] - 2026-05-27
 
 ### Added

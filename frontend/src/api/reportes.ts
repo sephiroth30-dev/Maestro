@@ -185,6 +185,7 @@ export interface ServicioRow {
   nombre: string;
   tipo_conteo: 'unidad' | 'sesion';
   orden: number;
+  categoria: string | null;
   cantidad: number;
   horas: number | null;
   valor_bruto: number;
@@ -199,7 +200,7 @@ export interface ServiciosResult {
   neuro_count: number;
 }
 
-export function useServicios(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+export function useServicios(mesIdx: number, anio: number, startDate?: string, endDate?: string, entidadId?: string | null) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -208,8 +209,9 @@ export function useServicios(mesIdx: number, anio: number, startDate?: string, e
     params.set('mes_idx', String(mesIdx));
     params.set('anio', String(anio));
   }
+  if (entidadId) params.set('entidad_id', entidadId);
   return useQuery<ServiciosResult>({
-    queryKey: ['servicios', mesIdx, anio, startDate, endDate],
+    queryKey: ['servicios', mesIdx, anio, startDate, endDate, entidadId ?? null],
     queryFn: async () => {
       const response = await apiClient.get<ServiciosResult>(`/reportes/servicios?${params}`);
       return response.data;
