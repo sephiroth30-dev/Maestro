@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.5] - 2026-05-27
+
+### Added
+- **3 nuevos servicios** en el catálogo de procedimientos:
+  - `CONSULTA PRIMERA VEZ FISIATRA` (orden 1) — captura variantes con "FISIATRA".
+  - `CONSULTA PRIMERA VEZ NEUROLOGIA` (orden 2) — captura variantes con "NEUROLOG".
+  - `CONSULTA DE CONTROL` (orden 3) — captura "CONTROL NEUROLOG", "CONTROL FISIATRA", "CONTROL MEDICO".
+  - El servicio genérico `CONSULTA PRIMERA VEZ` se desplazó al orden 4 como comodín.
+
+### Changed
+- **Mix por Servicio simplificado**: eliminadas las agrupaciones por categoría, los chips de filtro y la columna "Categoría". La tabla ahora muestra un listado plano ordenado por valor facturado, sin "Sin categoría".
+
+---
+
 ## [1.4.4] - 2026-05-27
 
 ### Fixed
