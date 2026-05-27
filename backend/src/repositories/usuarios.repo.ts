@@ -55,6 +55,20 @@ export interface CreateRefreshTokenData {
   expiresAt: Date;
 }
 
+export interface CreateUsuarioData {
+  nombre: string;
+  email: string;
+  passwordHash: string;
+  rol: Rol;
+}
+
+export interface UpdateUsuarioData {
+  nombre?: string;
+  email?: string;
+  rol?: Rol;
+  activo?: boolean;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function mapUsuario(row: UsuarioRow): UsuarioMapped {
@@ -156,6 +170,63 @@ export class UsuariosRepository {
       [id]
     );
     return rows[0]?.rol ?? null;
+  }
+
+  // ─── Admin CRUD ───────────────────────────────────────────────────────────
+
+  async listAll(): Promise<UsuarioMapped[]> {
+    const [rows] = await pool.query<UsuarioRow[]>(
+      'SELECT * FROM usuarios WHERE deleted_at IS NULL ORDER BY nombre ASC'
+    );
+    return rows.map(mapUsuario);
+  }
+
+  async findByEmailExcluding(email: string, excludeId: string): Promise<UsuarioMapped | null> {
+    const [rows] = await pool.query<UsuarioRow[]>(
+      'SELECT * FROM usuarios WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1',
+      [email, excludeId]
+    );
+    return rows[0] ? mapUsuario(rows[0]) : null;
+  }
+
+  async create(data: CreateUsuarioData): Promise<UsuarioMapped> {
+    const id = randomUUID();
+    await pool.execute<ResultSetHeader>(
+      'INSERT INTO usuarios (id, email, nombre, password_hash, rol, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())',
+      [id, data.email, data.nombre, data.passwordHash, data.rol]
+    );
+    const [rows] = await pool.query<UsuarioRow[]>('SELECT * FROM usuarios WHERE id = ? LIMIT 1', [id]);
+    return mapUsuario(rows[0]!);
+  }
+
+  async update(id: string, data: UpdateUsuarioData): Promise<void> {
+    const sets: string[] = [];
+    const params: (string | number)[] = [];
+    if (data.nombre !== undefined) { sets.push('nombre = ?'); params.push(data.nombre); }
+    if (data.email !== undefined) { sets.push('email = ?'); params.push(data.email); }
+    if (data.rol !== undefined) { sets.push('rol = ?'); params.push(data.rol); }
+    if (data.activo !== undefined) { sets.push('activo = ?'); params.push(data.activo ? 1 : 0); }
+    if (sets.length === 0) return;
+    sets.push('updated_at = NOW()');
+    params.push(id);
+    await pool.execute<ResultSetHeader>(
+      `UPDATE usuarios SET ${sets.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+      params
+    );
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await pool.execute<ResultSetHeader>(
+      'UPDATE usuarios SET password_hash = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+      [passwordHash, id]
+    );
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await pool.execute<ResultSetHeader>(
+      'UPDATE usuarios SET deleted_at = NOW(), activo = 0 WHERE id = ? AND deleted_at IS NULL',
+      [id]
+    );
   }
 }
 

@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { AuthService } from '../services/auth.service.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
+import { usuariosRepo } from '../repositories/usuarios.repo.js';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -88,6 +90,48 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const usuario = await authService.getMe(request.authenticatedUser.id);
       await reply.status(200).send(usuario);
+    }
+  );
+
+  // POST /api/auth/change-password — authenticated user changes their own password
+  fastify.post(
+    '/auth/change-password',
+    { preHandler: requireAuth },
+    async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const parsed = z.object({
+        currentPassword: z.string().min(1, 'La contraseña actual es requerida'),
+        newPassword: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
+      }).safeParse(request.body);
+
+      if (!parsed.success) {
+        await reply.status(400).send({
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join(', '),
+          statusCode: 400,
+        });
+        return;
+      }
+
+      const userId = request.authenticatedUser.id;
+      const usuario = await usuariosRepo.findById(userId);
+      if (!usuario) {
+        await reply.status(401).send({ error: 'Unauthorized', statusCode: 401 });
+        return;
+      }
+
+      const valid = await bcrypt.compare(parsed.data.currentPassword, usuario.passwordHash);
+      if (!valid) {
+        await reply.status(400).send({
+          error: 'Bad Request',
+          message: 'La contraseña actual es incorrecta',
+          statusCode: 400,
+        });
+        return;
+      }
+
+      const newHash = await bcrypt.hash(parsed.data.newPassword, 12);
+      await usuariosRepo.updatePassword(userId, newHash);
+      await reply.status(200).send({ ok: true });
     }
   );
 }

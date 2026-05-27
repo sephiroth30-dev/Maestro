@@ -12,10 +12,12 @@ import {
   Menu,
   X,
   ChevronRight,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth.js';
 import type { Rol } from '../../types/index.js';
 import { ROL_LABELS } from '../../types/index.js';
+import ChangePasswordModal from '../ChangePasswordModal.js';
 
 // ─── Nav item config ──────────────────────────────────────────────────────────
 
@@ -79,7 +81,6 @@ const NAV_SECTIONS: NavSection[] = [
         to: '/admin/usuarios',
         icon: <Users size={18} />,
         roles: ['ADMIN'],
-        disabled: true,
       },
       {
         label: 'Configuración',
@@ -97,11 +98,12 @@ export default function Sidebar(): React.ReactElement {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showChangePwd, setShowChangePwd] = useState(false);
 
   if (!user) return <></>;
 
   const userRol = user.rol as Rol;
-  const initials = user.nombre
+  const avatarInitials = user.nombre
     .split(' ')
     .slice(0, 2)
     .map((n) => n.charAt(0).toUpperCase())
@@ -128,12 +130,9 @@ export default function Sidebar(): React.ReactElement {
       {/* Navigation */}
       <nav className="sidebar-nav">
         {NAV_SECTIONS.map((section, si) => {
-          // Hide admin section for non-admins
           if (section.adminOnly && userRol !== 'ADMIN') return null;
 
-          const visibleItems = section.items.filter((item) =>
-            hasRole(item.roles)
-          );
+          const visibleItems = section.items.filter((item) => hasRole(item.roles));
           if (visibleItems.length === 0) return null;
 
           return (
@@ -146,26 +145,19 @@ export default function Sidebar(): React.ReactElement {
                   key={item.to}
                   to={item.disabled ? '#' : item.to}
                   onClick={(e) => {
-                    if (item.disabled) {
-                      e.preventDefault();
-                      return;
-                    }
+                    if (item.disabled) { e.preventDefault(); return; }
                     setMobileOpen(false);
                   }}
                   className={[
                     'sidebar-nav-item',
                     isActive(item.to) ? 'sidebar-nav-item--active' : '',
                     item.disabled ? 'sidebar-nav-item--disabled' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+                  ].filter(Boolean).join(' ')}
                   aria-disabled={item.disabled}
                 >
                   <span className="sidebar-nav-icon">{item.icon}</span>
                   <span className="sidebar-nav-label">{item.label}</span>
-                  {item.disabled && (
-                    <span className="sidebar-nav-soon">Pronto</span>
-                  )}
+                  {item.disabled && <span className="sidebar-nav-soon">Pronto</span>}
                   {!item.disabled && isActive(item.to) && (
                     <ChevronRight size={14} className="sidebar-nav-chevron" />
                   )}
@@ -179,22 +171,30 @@ export default function Sidebar(): React.ReactElement {
       {/* User footer */}
       <div className="sidebar-footer">
         <div className="sidebar-user">
-          <div className="sidebar-user-avatar">{initials}</div>
+          <div className="sidebar-user-avatar">{avatarInitials}</div>
           <div className="sidebar-user-info">
             <span className="sidebar-user-name">{user.nombre}</span>
-            <span className="sidebar-user-rol">
-              {ROL_LABELS[userRol] ?? userRol}
-            </span>
+            <span className="sidebar-user-rol">{ROL_LABELS[userRol] ?? userRol}</span>
           </div>
         </div>
-        <button
-          type="button"
-          className="sidebar-logout"
-          onClick={logout}
-          title="Cerrar sesión"
-        >
-          <LogOut size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <button
+            type="button"
+            className="sidebar-logout"
+            onClick={() => setShowChangePwd(true)}
+            title="Cambiar contraseña"
+          >
+            <KeyRound size={15} />
+          </button>
+          <button
+            type="button"
+            className="sidebar-logout"
+            onClick={logout}
+            title="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
       {/* Version tag */}
       <div style={{ padding: '4px 16px 8px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', letterSpacing: '0.04em' }}>
@@ -228,9 +228,7 @@ export default function Sidebar(): React.ReactElement {
       )}
 
       {/* Mobile drawer */}
-      <aside
-        className={`sidebar sidebar--mobile ${mobileOpen ? 'sidebar--open' : ''}`}
-      >
+      <aside className={`sidebar sidebar--mobile ${mobileOpen ? 'sidebar--open' : ''}`}>
         <button
           type="button"
           className="sidebar-mobile-close"
@@ -241,6 +239,8 @@ export default function Sidebar(): React.ReactElement {
         </button>
         {sidebarContent}
       </aside>
+
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
     </>
   );
 }
