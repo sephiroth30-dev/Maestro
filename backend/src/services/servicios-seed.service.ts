@@ -104,8 +104,9 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 13,
   },
   {
+    // Reflejo H (H-reflex) y Reflejo F (F-wave) — mismo grupo de estudios de conducción tardía
     nombre: 'REFLEJO H',
-    palabrasClave: ['REFLEJO H'],
+    palabrasClave: ['REFLEJO H', 'REFLEJO F'],
     tipoConteo: 'unidad',
     orden: 14,
   },
@@ -122,7 +123,7 @@ const SERVICIOS: ServicioSeed[] = [
       'INFILTRACION', 'INYECCION O INFILTRACION',
       'INFILTRACION ESTEROIDE', 'INFILTRACION ARTICULAR',
       'INFILTRACION INTRAARTICULAR', 'INFILTRACION PERIARTICULAR',
-      'INYECCION ESTEROIDE',
+      'INYECCION ESTEROIDE', 'SUSTANCIA TERAPEUTICA',
     ],
     tipoConteo: 'unidad',
     orden: 16,
@@ -141,8 +142,9 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 18,
   },
   {
+    // Catch-all para todos los tipos de potenciales evocados (auditivos, somatosensoriales, visuales, motores)
     nombre: 'POTENCIALES EVOCADOS',
-    palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO'],
+    palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO', 'POTENCIAL'],
     tipoConteo: 'unidad',
     orden: 19,
   },

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.0] - 2026-05-27
+
+### Changed
+- **REFLEJO H** agrega palabra clave `REFLEJO F` — Reflejo H (H-reflex) y Reflejo F (F-wave) quedan en el mismo servicio.
+- **INFILTRACION** agrega `SUSTANCIA TERAPEUTICA` — captura "INYECCION DE SUSTANCIA TERAPEUTICA" y variantes.
+- **POTENCIALES EVOCADOS** agrega `POTENCIAL` como catch-all — captura todos los tipos: auditivos, somatosensoriales, visuales, motores, etc.
+
+---
+
 ## [1.4.9] - 2026-05-27
 
 ### Added
