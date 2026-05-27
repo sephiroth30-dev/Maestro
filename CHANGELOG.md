@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.8] - 2026-05-27
+
+### Added
+- **ELECTROENCEFALOGRAMA PORTATIL** (orden 8): nuevo servicio para estudios realizados en UCI o domicilio. Al tener orden menor que el genérico, se evalúa primero.
+
+### Changed
+- **ELECTROENCEFALOGRAMA COMPUTARIZADO** amplía sus palabras clave a `ELECTROENCEFALOGRAMA COMPUTARIZADO`, `ELECTROENCEFALOGRAMA CONVENCIONAL` y `ELECTROENCEFALOGRAMA` (catch-all para cualquier EEG ambulatorio no portátil). Captura descripciones como "ELECTROENCEFALOGRAMA CONVENCIONAL . NUA."
+- **POLISOMNOGRAFIA** agrega palabra clave `POLISOMNOGRAMA` para capturar variantes como "POLISOMNOGRAMA EN TITULACION DE DISPOSITIVO MEDICO".
+- Ordenes renumerados: ELECTROMIOGRAFIA pasa a 10, resto de servicios +1 hasta POTENCIALES EVOCADOS en 18.
+- **Acción recomendada**: tras desplegar, hacer clic en "Reclasificar registros" en Configuración > Procedimientos para re-mapear los 159 registros actualmente sin clasificar.
+
+---
+
 ## [1.4.7] - 2026-05-27
 
 ### Added

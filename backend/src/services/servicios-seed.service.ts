@@ -66,65 +66,73 @@ const SERVICIOS: ServicioSeed[] = [
     orden: 7,
   },
   {
-    nombre: 'ELECTROENCEFALOGRAMA COMPUTARIZADO',
-    palabrasClave: ['ELECTROENCEFALOGRAMA COMPUTARIZADO'],
+    // EEG portátil: se realiza en UCI/domicilio, es un servicio diferente al estudio ambulatorio
+    nombre: 'ELECTROENCEFALOGRAMA PORTATIL',
+    palabrasClave: ['ELECTROENCEFALOGRAMA PORTATIL', 'EEG PORTATIL'],
     tipoConteo: 'unidad',
     orden: 8,
+  },
+  {
+    // Catch-all para todos los EEG ambulatorios (computarizado, convencional, básico, etc.)
+    nombre: 'ELECTROENCEFALOGRAMA COMPUTARIZADO',
+    palabrasClave: ['ELECTROENCEFALOGRAMA COMPUTARIZADO', 'ELECTROENCEFALOGRAMA CONVENCIONAL', 'ELECTROENCEFALOGRAMA'],
+    tipoConteo: 'unidad',
+    orden: 9,
   },
   {
     nombre: 'ELECTROMIOGRAFIA',
     palabrasClave: ['ELECTROMIOGRAFIA'],
     tipoConteo: 'unidad',
-    orden: 9,
+    orden: 10,
   },
   {
     nombre: 'NEUROCONDUCCION',
     palabrasClave: ['NEUROCONDUCCION', 'CONDUCCION NERVIOSA'],
     tipoConteo: 'unidad',
-    orden: 10,
+    orden: 11,
   },
   {
     nombre: 'AGUJA MONOPOLAR',
     palabrasClave: ['AGUJA MONOPOLAR'],
     tipoConteo: 'unidad',
-    orden: 11,
+    orden: 12,
   },
   {
     nombre: 'TERAPIA ONDAS DE CHOQUE',
     palabrasClave: ['ONDAS CHOQUE'],
     tipoConteo: 'unidad',
-    orden: 12,
+    orden: 13,
   },
   {
     nombre: 'REFLEJO H',
     palabrasClave: ['REFLEJO H'],
     tipoConteo: 'unidad',
-    orden: 13,
+    orden: 14,
   },
   {
     nombre: 'INYECCION TOXINA BOTULINICA',
     palabrasClave: ['TOXINA BOTULINICA', 'MIORELAJANTE'],
     tipoConteo: 'unidad',
-    orden: 14,
+    orden: 15,
   },
   {
     nombre: 'JUNTA MEDICA INTERDISCIPLINARIA',
     palabrasClave: ['JUNTA MEDICA', 'EQUIPO INTERDISCIPLINARIO', 'PARTICIPACION JUNTA'],
     tipoConteo: 'unidad',
-    orden: 15,
+    orden: 16,
   },
   {
-    // Polisomnografía: estudio nocturno completo, puede estar en varias filas
+    // Polisomnografía: estudio nocturno completo — sesion agrupa filas del mismo paciente/fecha
     nombre: 'POLISOMNOGRAFIA',
-    palabrasClave: ['POLISOMNOGRAFIA', 'POLISOMNOGRAFICO'],
+    palabrasClave: ['POLISOMNOGRAFIA', 'POLISOMNOGRAFICO', 'POLISOMNOGRAMA'],
     tipoConteo: 'sesion',
-    orden: 16,
+    orden: 17,
   },
   {
     nombre: 'POTENCIALES EVOCADOS',
     palabrasClave: ['POTENCIALES EVOCADOS', 'POTENCIAL EVOCADO'],
     tipoConteo: 'unidad',
-    orden: 17,
+    orden: 18,
   },
 ];
 
