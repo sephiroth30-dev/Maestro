@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Loader2, AlertCircle, Info, Check, Pencil } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Loader2, AlertCircle, Info, Check, Pencil, Search, X, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
 import { useProfesionales, useUpdateProfesional } from '../../api/profesionales.js';
 import type { ProfesionalRow, Especialidad } from '../../api/profesionales.js';
 
@@ -100,6 +100,28 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
 
 export default function TabProfesionales(): React.ReactElement {
   const { data, isLoading, isError } = useProfesionales();
+  const [search, setSearch] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+
+  const displayed = useMemo(() => {
+    if (!data) return [];
+    let rows = data;
+    if (search.trim()) {
+      const q = search.trim().toUpperCase();
+      rows = rows.filter((p) =>
+        p.nombre.toUpperCase().includes(q) ||
+        (p.nombre_completo ?? '').toUpperCase().includes(q)
+      );
+    }
+    if (sortDir) {
+      rows = [...rows].sort((a, b) => {
+        const na = (a.nombre_completo ?? a.nombre).toUpperCase();
+        const nb = (b.nombre_completo ?? b.nombre).toUpperCase();
+        return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+      });
+    }
+    return rows;
+  }, [data, search, sortDir]);
 
   if (isLoading) {
     return (
@@ -146,6 +168,34 @@ export default function TabProfesionales(): React.ReactElement {
         ))}
       </p>
 
+      {/* Búsqueda + orden */}
+      <div className="table-toolbar">
+        <div className="table-search-wrap">
+          <Search size={13} />
+          <input
+            className="table-search-input"
+            placeholder="Buscar profesional…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="table-search-clear" onClick={() => setSearch('')}><X size={12} /></button>
+          )}
+        </div>
+        <button
+          className={`table-sort-btn${sortDir === 'asc' ? ' table-sort-btn--active' : ''}`}
+          onClick={() => setSortDir(sortDir === 'asc' ? null : 'asc')}
+        >
+          <ArrowDownAZ size={13} /> A → Z
+        </button>
+        <button
+          className={`table-sort-btn${sortDir === 'desc' ? ' table-sort-btn--active' : ''}`}
+          onClick={() => setSortDir(sortDir === 'desc' ? null : 'desc')}
+        >
+          <ArrowUpAZ size={13} /> Z → A
+        </button>
+      </div>
+
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">
           <thead>
@@ -157,7 +207,9 @@ export default function TabProfesionales(): React.ReactElement {
             </tr>
           </thead>
           <tbody>
-            {data.map((p) => <ProfRow key={p.id} p={p} />)}
+            {displayed.length === 0 ? (
+              <tr><td colSpan={4} className="table-no-results">Sin resultados para "{search}"</td></tr>
+            ) : displayed.map((p) => <ProfRow key={p.id} p={p} />)}
           </tbody>
         </table>
       </div>

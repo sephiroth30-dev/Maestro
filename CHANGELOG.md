@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.5] - 2026-05-28
+
+### Changed
+- **Presupuestos** rediseñado como tabla compacta: los 12 meses en lista, campos siempre visibles, guardado automático al salir del campo (blur) o con Enter/Tab. Muestra total anual en la cabecera.
+- **Búsqueda + orden** (A → Z / Z → A) agregado a Entidades, Profesionales y Procedimientos.
+
+---
+
 ## [1.5.4] - 2026-05-28
 
 ### Added

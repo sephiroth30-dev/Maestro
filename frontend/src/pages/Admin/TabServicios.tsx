@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight, RefreshCw, Search, X, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
 import { useServiciosCatalog, useUpdateServicioTipoConteo, useReclasificarServicios } from '../../api/servicios.js';
 import { useSinServicioDiagnostico } from '../../api/reportes.js';
 import type { ServicioCatalogRow, ReclasificarResult } from '../../api/servicios.js';
@@ -171,6 +171,23 @@ function ReclasificarBtn(): React.ReactElement {
 
 export default function TabServicios(): React.ReactElement {
   const { data, isLoading, isError } = useServiciosCatalog();
+  const [search, setSearch] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+
+  const displayed = useMemo(() => {
+    if (!data) return [];
+    let rows = data;
+    if (search.trim()) {
+      const q = search.trim().toUpperCase();
+      rows = rows.filter((s) => s.nombre.toUpperCase().includes(q));
+    }
+    if (sortDir) {
+      rows = [...rows].sort((a, b) =>
+        sortDir === 'asc' ? a.nombre.localeCompare(b.nombre) : b.nombre.localeCompare(a.nombre)
+      );
+    }
+    return rows;
+  }, [data, search, sortDir]);
 
   if (isLoading) {
     return (
@@ -218,6 +235,34 @@ export default function TabServicios(): React.ReactElement {
         <ReclasificarBtn />
       </div>
 
+      {/* Búsqueda + orden */}
+      <div className="table-toolbar" style={{ marginTop: '10px' }}>
+        <div className="table-search-wrap">
+          <Search size={13} />
+          <input
+            className="table-search-input"
+            placeholder="Buscar procedimiento…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button className="table-search-clear" onClick={() => setSearch('')}><X size={12} /></button>
+          )}
+        </div>
+        <button
+          className={`table-sort-btn${sortDir === 'asc' ? ' table-sort-btn--active' : ''}`}
+          onClick={() => setSortDir(sortDir === 'asc' ? null : 'asc')}
+        >
+          <ArrowDownAZ size={13} /> A → Z
+        </button>
+        <button
+          className={`table-sort-btn${sortDir === 'desc' ? ' table-sort-btn--active' : ''}`}
+          onClick={() => setSortDir(sortDir === 'desc' ? null : 'desc')}
+        >
+          <ArrowUpAZ size={13} /> Z → A
+        </button>
+      </div>
+
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">
           <thead>
@@ -229,7 +274,9 @@ export default function TabServicios(): React.ReactElement {
             </tr>
           </thead>
           <tbody>
-            {data.map((s) => (
+            {displayed.length === 0 ? (
+              <tr><td colSpan={4} className="table-no-results">Sin resultados para "{search}"</td></tr>
+            ) : displayed.map((s) => (
               <ServicioRow key={s.id} s={s} />
             ))}
           </tbody>

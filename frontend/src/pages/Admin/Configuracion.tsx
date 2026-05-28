@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Save, Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope, UserCog } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope, UserCog } from 'lucide-react';
 import { usePresupuestos, useUpsertPresupuesto, useSinEntidadDiagnostico } from '../../api/reportes.js';
 import type { Presupuesto } from '../../api/reportes.js';
 import TabEntidades from './TabEntidades.js';
@@ -35,7 +35,7 @@ function getYearOptions(): number[] {
   return [current - 2, current - 1, current, current + 1, current + 2];
 }
 
-// ─── Month Card ───────────────────────────────────────────────────────────────
+// ─── Month Row ────────────────────────────────────────────────────────────────
 
 interface MonthCardProps {
   mes: number;
@@ -43,104 +43,71 @@ interface MonthCardProps {
   current: Presupuesto | undefined;
 }
 
-function MonthCard({ mes, anio, current }: MonthCardProps): React.ReactElement {
-  const [monto, setMonto] = useState<string>(current ? String(current.monto) : '0');
-  const [notas, setNotas] = useState<string>(current?.notas ?? '');
-  const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState<string>('');
-
+function MonthRow({ mes, anio, current }: MonthCardProps): React.ReactElement {
   const upsert = useUpsertPresupuesto();
+  const [monto, setMonto] = useState(current ? String(current.monto) : '');
+  const [notas, setNotas] = useState(current?.notas ?? '');
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    setMonto(current ? String(current.monto) : '0');
+    setMonto(current ? String(current.monto) : '');
     setNotas(current?.notas ?? '');
-    setStatus('idle');
-  }, [current, mes, anio]);
+  }, [current?.monto, current?.notas]);
 
-  const montoNum = parseInt(monto.replace(/\D/g, ''), 10) || 0;
-  const isSet = montoNum > 0;
-
-  async function handleSave(): Promise<void> {
+  async function save(): Promise<void> {
+    const montoNum = parseInt(monto.replace(/\D/g, ''), 10) || 0;
+    const notasTrimmed = notas.trim();
+    if (montoNum === (current?.monto ?? 0) && notasTrimmed === (current?.notas ?? '')) return;
     setStatus('saving');
-    setErrorMsg('');
     try {
-      await upsert.mutateAsync({ anio, mes, monto: montoNum, notas: notas.trim() || undefined });
-      setStatus('success');
-      setTimeout(() => setStatus('idle'), 2500);
-    } catch (err) {
+      await upsert.mutateAsync({ anio, mes, monto: montoNum, notas: notasTrimmed || undefined });
+      setStatus('saved');
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setStatus('idle'), 2000);
+    } catch {
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Error al guardar');
     }
   }
 
+  const montoNum = parseInt(monto.replace(/\D/g, ''), 10) || 0;
+  const isSet = montoNum > 0 || (current?.monto ?? 0) > 0;
+
   return (
-    <div className={`config-month-card ${isSet ? 'config-month-card--set' : 'config-month-card--unset'}`}>
-      <div className="config-month-header">
-        <span className="config-month-name">{MESES_ES[mes]}</span>
-        {isSet ? (
-          <CheckCircle size={14} className="config-month-icon config-month-icon--ok" />
-        ) : (
-          <AlertCircle size={14} className="config-month-icon config-month-icon--warn" />
-        )}
-      </div>
-
-      <div className="config-month-display">
-        {isSet ? fmtCOP(montoNum) : 'Sin presupuesto'}
-      </div>
-
-      <div className="config-month-form">
-        <div className="form-group">
-          <label className="form-label" htmlFor={`monto-${anio}-${mes}`}>Monto (COP)</label>
-          <input
-            id={`monto-${anio}-${mes}`}
-            type="number"
-            className="form-input config-month-input"
-            value={monto}
-            min={0}
-            step={1000}
-            onChange={(e) => setMonto(e.target.value)}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor={`notas-${anio}-${mes}`}>
-            Notas <span className="config-optional">(opcional)</span>
-          </label>
-          <input
-            id={`notas-${anio}-${mes}`}
-            type="text"
-            className="form-input config-month-input"
-            value={notas}
-            maxLength={100}
-            placeholder="Ej: Incluye campañas especiales"
-            onChange={(e) => setNotas(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="config-month-actions">
-        <button
-          type="button"
-          className={`btn btn--sm ${status === 'success' ? 'btn--ghost config-btn-success' : 'btn--primary'}`}
-          onClick={() => void handleSave()}
-          disabled={status === 'saving'}
-        >
-          {status === 'saving' ? (
-            <><Loader2 size={13} className="spin" /> Guardando…</>
-          ) : status === 'success' ? (
-            <><CheckCircle size={13} /> Guardado</>
-          ) : (
-            <><Save size={13} /> Guardar</>
-          )}
-        </button>
-      </div>
-
-      {status === 'error' && (
-        <div className="config-month-error">
-          <AlertCircle size={12} />
-          {errorMsg}
-        </div>
-      )}
-    </div>
+    <tr className="presup-row">
+      <td className={`presup-mes${isSet ? '' : ' presup-mes--unset'}`}>{MESES_ES[mes]}</td>
+      <td className="presup-monto-cell">
+        <input
+          type="number"
+          className="presup-input"
+          value={monto}
+          min={0}
+          step={100000}
+          placeholder="0"
+          onChange={(e) => { setStatus('idle'); setMonto(e.target.value); }}
+          onBlur={() => void save()}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        />
+      </td>
+      <td className="presup-notas-cell">
+        <input
+          type="text"
+          className="presup-input presup-input--notas"
+          value={notas}
+          maxLength={100}
+          placeholder="Notas opcionales…"
+          onChange={(e) => { setStatus('idle'); setNotas(e.target.value); }}
+          onBlur={() => void save()}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        />
+      </td>
+      <td className="presup-status-cell">
+        {status === 'saving' && <Loader2 size={13} className="spin" style={{ color: '#3b82f6' }} />}
+        {status === 'saved'  && <CheckCircle size={13} style={{ color: '#10b981' }} />}
+        {status === 'error'  && <AlertCircle size={13} style={{ color: '#ef4444' }} />}
+        {status === 'idle' && isSet && <CheckCircle size={13} style={{ color: '#10b981', opacity: 0.4 }} />}
+      </td>
+    </tr>
   );
 }
 
@@ -160,9 +127,30 @@ function TabPresupuestos(): React.ReactElement {
     return map;
   }, [presupuestos]);
 
+  const totalPresupuestado = Array.from({ length: 12 }, (_, i) => i + 1)
+    .reduce((sum, mes) => sum + (byMonthKey.get(`${selectedYear}-${mes}`)?.monto ?? 0), 0);
+
+  if (isError) {
+    return (
+      <div className="reportes-error">
+        <AlertCircle size={16} />
+        Error al cargar los presupuestos. Reintente recargando la página.
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="page-loading">
+        <Loader2 size={32} className="spin" style={{ color: '#3b82f6' }} />
+        <p style={{ color: '#64748b' }}>Cargando presupuestos…</p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+      <div className="presup-header">
         <div className="config-year-selector">
           <label className="form-label" htmlFor="year-select">Año</label>
           <select
@@ -174,32 +162,48 @@ function TabPresupuestos(): React.ReactElement {
             {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
+        {totalPresupuestado > 0 && (
+          <span className="presup-total-badge">
+            Total {selectedYear}: <strong>{fmtCOP(totalPresupuestado)}</strong>
+          </span>
+        )}
       </div>
 
-      {isError && (
-        <div className="reportes-error" style={{ marginBottom: '1.5rem' }}>
-          <AlertCircle size={16} />
-          Error al cargar los presupuestos. Reintente recargando la página.
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="page-loading">
-          <Loader2 size={32} className="spin" style={{ color: '#3b82f6' }} />
-          <p style={{ color: '#64748b' }}>Cargando presupuestos…</p>
-        </div>
-      ) : (
-        <div className="config-months-grid">
+      <table className="presup-table">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>Presupuesto (COP)</th>
+            <th>Notas</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
           {Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
-            <MonthCard
+            <MonthRow
               key={`${selectedYear}-${mes}`}
               mes={mes}
               anio={selectedYear}
               current={byMonthKey.get(`${selectedYear}-${mes}`)}
             />
           ))}
-        </div>
-      )}
+        </tbody>
+        {totalPresupuestado > 0 && (
+          <tfoot>
+            <tr className="presup-row presup-row--total">
+              <td className="presup-total-label">Total</td>
+              <td className="presup-monto-cell">
+                <input readOnly className="presup-input presup-input--total" value={fmtCOP(totalPresupuestado)} />
+              </td>
+              <td /><td />
+            </tr>
+          </tfoot>
+        )}
+      </table>
+
+      <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+        Tab o Enter para pasar al siguiente campo · Los cambios se guardan automáticamente al salir del campo
+      </p>
     </div>
   );
 }
