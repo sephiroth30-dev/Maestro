@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Loader2, AlertCircle, Info, Check, Pencil, Search, X, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Check, Pencil } from 'lucide-react';
+import { ColFilter, useColSort } from '../../components/ColFilter.js';
 import { useProfesionales, useUpdateProfesional } from '../../api/profesionales.js';
 import type { ProfesionalRow, Especialidad } from '../../api/profesionales.js';
 
@@ -101,27 +102,22 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
 export default function TabProfesionales(): React.ReactElement {
   const { data, isLoading, isError } = useProfesionales();
   const [search, setSearch] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
-  const displayed = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!data) return [];
-    let rows = data;
-    if (search.trim()) {
-      const q = search.trim().toUpperCase();
-      rows = rows.filter((p) =>
-        p.nombre.toUpperCase().includes(q) ||
-        (p.nombre_completo ?? '').toUpperCase().includes(q)
-      );
-    }
-    if (sortDir) {
-      rows = [...rows].sort((a, b) => {
-        const na = (a.nombre_completo ?? a.nombre).toUpperCase();
-        const nb = (b.nombre_completo ?? b.nombre).toUpperCase();
-        return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
-      });
-    }
-    return rows;
-  }, [data, search, sortDir]);
+    if (!search.trim()) return data;
+    const q = search.trim().toUpperCase();
+    return data.filter((p) =>
+      p.nombre.toUpperCase().includes(q) ||
+      (p.nombre_completo ?? '').toUpperCase().includes(q)
+    );
+  }, [data, search]);
+
+  const { sorted: displayed, sortField, sortDir, onSort } = useColSort(filtered, (row, field) => {
+    if (field === 'nombre') return (row.nombre_completo ?? row.nombre);
+    if (field === 'registros') return row.total_atenciones;
+    return row.nombre;
+  });
 
   if (isLoading) {
     return (
@@ -168,42 +164,32 @@ export default function TabProfesionales(): React.ReactElement {
         ))}
       </p>
 
-      {/* Búsqueda + orden */}
-      <div className="table-toolbar">
-        <div className="table-search-wrap">
-          <Search size={13} />
-          <input
-            className="table-search-input"
-            placeholder="Buscar profesional…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="table-search-clear" onClick={() => setSearch('')}><X size={12} /></button>
-          )}
-        </div>
-        <button
-          className={`table-sort-btn${sortDir === 'asc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'asc' ? null : 'asc')}
-        >
-          <ArrowDownAZ size={13} /> A → Z
-        </button>
-        <button
-          className={`table-sort-btn${sortDir === 'desc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'desc' ? null : 'desc')}
-        >
-          <ArrowUpAZ size={13} /> Z → A
-        </button>
-      </div>
-
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">
           <thead>
             <tr>
-              <th className="tabla-entidades-th">Nombre completo</th>
+              <ColFilter
+                label="Nombre completo"
+                field="nombre"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={onSort}
+                searchValue={search}
+                onSearch={setSearch}
+                searchPlaceholder="Buscar profesional…"
+              />
               <th className="tabla-entidades-th">Nombres en el Sheet</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '180px' }}>Especialidad</th>
-              <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '90px' }}>Registros</th>
+              <ColFilter
+                label="Registros"
+                field="registros"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={onSort}
+                align="right"
+                sortLabels={['Menor → Mayor', 'Mayor → Menor']}
+                width="90px"
+              />
             </tr>
           </thead>
           <tbody>

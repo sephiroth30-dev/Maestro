@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import {
   Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight,
-  RefreshCw, Search, X, ArrowDownAZ, ArrowUpAZ, Pencil, Check, Eye,
+  RefreshCw, X, Pencil, Check, Eye,
 } from 'lucide-react';
+import { ColFilter, useColSort } from '../../components/ColFilter.js';
 import {
   useServiciosCatalog, useUpdateServicio, useReclasificarServicios,
   useServicioAgrupaciones,
@@ -268,7 +269,6 @@ export default function TabServicios(): React.ReactElement {
   const { data, isLoading, isError } = useServiciosCatalog();
   const { data: agrupaciones } = useServicioAgrupaciones();
   const [search, setSearch] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
   const agrupMap = useMemo(() => {
     const m = new Map<string, ServicioAgrupacion>();
@@ -276,25 +276,21 @@ export default function TabServicios(): React.ReactElement {
     return m;
   }, [agrupaciones]);
 
-  const displayed = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!data) return [];
-    let rows = data;
-    if (search.trim()) {
-      const q = search.trim().toUpperCase();
-      rows = rows.filter((s) =>
-        s.nombre.toUpperCase().includes(q) ||
-        (s.nombre_display ?? '').toUpperCase().includes(q)
-      );
-    }
-    if (sortDir) {
-      rows = [...rows].sort((a, b) => {
-        const na = (a.nombre_display ?? a.nombre).toUpperCase();
-        const nb = (b.nombre_display ?? b.nombre).toUpperCase();
-        return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
-      });
-    }
-    return rows;
-  }, [data, search, sortDir]);
+    if (!search.trim()) return data;
+    const q = search.trim().toUpperCase();
+    return data.filter((s) =>
+      s.nombre.toUpperCase().includes(q) ||
+      (s.nombre_display ?? '').toUpperCase().includes(q)
+    );
+  }, [data, search]);
+
+  const { sorted: displayed, sortField, sortDir, onSort } = useColSort(filtered, (row, field) => {
+    if (field === 'nombre') return (row.nombre_display ?? row.nombre);
+    if (field === 'registros') return row.total_atenciones;
+    return row.nombre;
+  });
 
   if (isLoading) {
     return (
@@ -339,42 +335,32 @@ export default function TabServicios(): React.ReactElement {
         <ReclasificarBtn />
       </div>
 
-      {/* Búsqueda + orden */}
-      <div className="table-toolbar" style={{ marginTop: '10px' }}>
-        <div className="table-search-wrap">
-          <Search size={13} />
-          <input
-            className="table-search-input"
-            placeholder="Buscar procedimiento…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="table-search-clear" onClick={() => setSearch('')}><X size={12} /></button>
-          )}
-        </div>
-        <button
-          className={`table-sort-btn${sortDir === 'asc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'asc' ? null : 'asc')}
-        >
-          <ArrowDownAZ size={13} /> A → Z
-        </button>
-        <button
-          className={`table-sort-btn${sortDir === 'desc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'desc' ? null : 'desc')}
-        >
-          <ArrowUpAZ size={13} /> Z → A
-        </button>
-      </div>
-
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">
           <thead>
             <tr>
-              <th className="tabla-entidades-th">Nombre en reportes</th>
+              <ColFilter
+                label="Nombre en reportes"
+                field="nombre"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={onSort}
+                searchValue={search}
+                onSearch={setSearch}
+                searchPlaceholder="Buscar procedimiento…"
+              />
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '110px' }}>Modo conteo</th>
               <th className="tabla-entidades-th">Palabras clave (matching)</th>
-              <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '110px' }}>Registros</th>
+              <ColFilter
+                label="Registros"
+                field="registros"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={onSort}
+                align="right"
+                sortLabels={['Menor → Mayor', 'Mayor → Menor']}
+                width="110px"
+              />
             </tr>
           </thead>
           <tbody>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check, Search, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check } from 'lucide-react';
+import { ColFilter, useColSort } from '../../components/ColFilter.js';
 import {
   useEntidadesCatalog,
   useUpdateEntidadGrupoCaja,
@@ -339,7 +340,6 @@ export default function TabEntidades(): React.ReactElement {
   const [filterTipo, setFilterTipo] = useState<string>('Todas');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
   const tiposDisponibles = useMemo(() => {
     if (!data) return [];
@@ -354,13 +354,13 @@ export default function TabEntidades(): React.ReactElement {
       const q = search.trim().toUpperCase();
       rows = rows.filter((e) => e.nombre.toUpperCase().includes(q));
     }
-    if (sortDir) {
-      rows = [...rows].sort((a, b) =>
-        sortDir === 'asc' ? a.nombre.localeCompare(b.nombre) : b.nombre.localeCompare(a.nombre)
-      );
-    }
     return rows;
-  }, [data, filterTipo, search, sortDir]);
+  }, [data, filterTipo, search]);
+
+  const { sorted: displayed, sortField, sortDir, onSort } = useColSort(filtered, (row, field) => {
+    if (field === 'nombre') return row.nombre;
+    return row.nombre;
+  });
 
   const stats = useMemo(() => {
     if (!data) return { total: 0, caja: 0 };
@@ -371,7 +371,7 @@ export default function TabEntidades(): React.ReactElement {
     };
   }, [data, filterTipo]);
 
-  const allVisibleIds = filtered.map((e) => e.id);
+  const allVisibleIds = displayed.map((e) => e.id);
   const allSelected   = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.has(id));
   const someSelected  = allVisibleIds.some((id) => selectedIds.has(id));
 
@@ -452,33 +452,8 @@ export default function TabEntidades(): React.ReactElement {
         </span>
       </div>
 
-      {/* Búsqueda + orden + filtros por tipo — fila unificada */}
-      <div className="table-toolbar" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-        <div className="table-search-wrap">
-          <Search size={13} />
-          <input
-            className="table-search-input"
-            placeholder="Buscar entidad…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="table-search-clear" onClick={() => setSearch('')}><X size={12} /></button>
-          )}
-        </div>
-        <button
-          className={`table-sort-btn${sortDir === 'asc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'asc' ? null : 'asc')}
-        >
-          <ArrowDownAZ size={13} /> A → Z
-        </button>
-        <button
-          className={`table-sort-btn${sortDir === 'desc' ? ' table-sort-btn--active' : ''}`}
-          onClick={() => setSortDir(sortDir === 'desc' ? null : 'desc')}
-        >
-          <ArrowUpAZ size={13} /> Z → A
-        </button>
-        <div style={{ width: 1, height: 22, background: '#e2e8f0', flexShrink: 0 }} />
+      {/* Filtros por tipo */}
+      <div className="entidades-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', margin: '8px 0' }}>
         {tiposDisponibles.map((tipo) => {
           const count = tipo === 'Todas' ? data.length : data.filter((e) => e.tipo === tipo).length;
           return (
@@ -524,7 +499,16 @@ export default function TabEntidades(): React.ReactElement {
                   title={allSelected ? 'Deseleccionar todas' : 'Seleccionar todas'}
                 />
               </th>
-              <th className="tabla-entidades-th">Entidad</th>
+              <ColFilter
+                label="Entidad"
+                field="nombre"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={onSort}
+                searchValue={search}
+                onSearch={setSearch}
+                searchPlaceholder="Buscar entidad…"
+              />
               <th className="tabla-entidades-th">Tipo</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '130px' }}>
                 Clasificación
@@ -538,9 +522,9 @@ export default function TabEntidades(): React.ReactElement {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {displayed.length === 0 ? (
               <tr><td colSpan={6} className="table-no-results">Sin resultados para "{search}"</td></tr>
-            ) : filtered.map((e) => (
+            ) : displayed.map((e) => (
               <EntidadRow
                 key={e.id}
                 entidad={e}

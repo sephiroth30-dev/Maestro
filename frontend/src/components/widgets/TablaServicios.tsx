@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { ColFilter, useColSort } from '../ColFilter.js';
 import type { ServiciosResult, ServicioRow } from '../../api/reportes.js';
 
 interface Props {
@@ -54,10 +55,7 @@ function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceR
       </td>
       <td>
         <div className="mix-servicios__bar-track">
-          <div
-            className="mix-servicios__bar-fill"
-            style={{ width: `${pctBar}%`, background: color }}
-          />
+          <div className="mix-servicios__bar-fill" style={{ width: `${pctBar}%`, background: color }} />
         </div>
       </td>
       <td style={{ textAlign: 'right' }}>{fmtCOP(r.valor_bruto)}</td>
@@ -74,11 +72,25 @@ function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceR
 export default function TablaServicios({ result, entidadNombre }: Props): React.ReactElement {
   const { rows, sin_clasificar, valor_sin_clasificar, alerta_emg_neuro, emg_count, neuro_count } = result;
 
-  const sorted = useMemo(() => [...rows].sort((a, b) => b.valor_bruto - a.valor_bruto), [rows]);
-
   const totalValor    = rows.reduce((s, r) => s + r.valor_bruto, 0) + valor_sin_clasificar;
   const totalCantidad = rows.reduce((s, r) => s + r.cantidad, 0) + sin_clasificar;
-  const maxCantidad   = sorted.length > 0 ? sorted[0]!.cantidad : 1;
+
+  const { sorted, sortField, sortDir, onSort } = useColSort(rows, (row, field) => {
+    if (field === 'nombre')   return row.nombre;
+    if (field === 'cantidad') return row.cantidad;
+    if (field === 'valor')    return row.valor_bruto;
+    if (field === 'promedio') return row.cantidad > 0 ? row.valor_bruto / row.cantidad : 0;
+    if (field === 'pct')      return totalValor > 0 ? row.valor_bruto / totalValor : 0;
+    return row.valor_bruto;
+  });
+
+  // Default sort by valor desc on first render
+  const displayed = useMemo(() => {
+    if (sortField) return sorted;
+    return [...rows].sort((a, b) => b.valor_bruto - a.valor_bruto);
+  }, [rows, sorted, sortField]);
+
+  const maxCantidad = displayed.length > 0 ? Math.max(...displayed.map((r) => r.cantidad)) : 1;
 
   if (rows.length === 0 && sin_clasificar === 0) {
     return (
@@ -105,20 +117,20 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
         </div>
       )}
 
-      <div className="mix-servicios__table-wrap">
+      <div className="mix-servicios__table-wrap" style={{ overflow: 'visible' }}>
         <table className="mix-servicios__table">
           <thead>
             <tr>
-              <th>Procedimiento</th>
-              <th style={{ textAlign: 'right' }}>Cantidad</th>
-              <th style={{ width: '20%' }}>Volumen</th>
-              <th style={{ textAlign: 'right' }}>Valor total</th>
-              <th style={{ textAlign: 'right' }}>Promedio</th>
-              <th style={{ textAlign: 'right' }}>% facturación</th>
+              <ColFilter label="Procedimiento" field="nombre"   sortField={sortField} sortDir={sortDir} onSort={onSort} />
+              <ColFilter label="Cantidad"       field="cantidad" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
+              <th style={{ width: '20%', padding: '6px 12px', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--color-gray-200)', background: 'var(--color-gray-50)' }}>Volumen</th>
+              <ColFilter label="Valor total"    field="valor"    sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
+              <ColFilter label="Promedio"       field="promedio" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
+              <ColFilter label="% Facturación"  field="pct"      sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r, i) => {
+            {displayed.map((r, i) => {
               const isAlerta = alerta_emg_neuro && (
                 r.nombre.toUpperCase().includes('ELECTROMIOGRAFIA') ||
                 r.nombre.toUpperCase().includes('NEUROCONDUCCION')
@@ -144,10 +156,7 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
                 <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtNum(sin_clasificar)}</td>
                 <td>
                   <div className="mix-servicios__bar-track">
-                    <div
-                      className="mix-servicios__bar-fill"
-                      style={{ width: `${maxCantidad > 0 ? (sin_clasificar / maxCantidad) * 100 : 0}%`, background: '#9ca3af' }}
-                    />
+                    <div className="mix-servicios__bar-fill" style={{ width: `${maxCantidad > 0 ? (sin_clasificar / maxCantidad) * 100 : 0}%`, background: '#9ca3af' }} />
                   </div>
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtCOP(valor_sin_clasificar)}</td>
