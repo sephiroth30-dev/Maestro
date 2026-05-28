@@ -182,8 +182,9 @@ model Profesional {
   nombresRaw   Json       @map("nombres_raw")
   esNomina     Boolean    @default(false) @map("es_nomina")
   activo       Boolean    @default(true)
-  especialidad String?    @db.VarChar(20)
-  createdAt    DateTime   @default(now()) @map("created_at")
+  especialidad    String?    @db.VarChar(20)
+  nombreCompleto  String?    @map("nombre_completo") @db.VarChar(200)
+  createdAt       DateTime   @default(now()) @map("created_at")
   atenciones   Atencion[]
 
   @@map("profesionales")

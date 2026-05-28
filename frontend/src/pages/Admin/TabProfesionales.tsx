@@ -1,6 +1,6 @@
-import React from 'react';
-import { Loader2, AlertCircle, Info } from 'lucide-react';
-import { useProfesionales, useUpdateProfesionalEspecialidad } from '../../api/profesionales.js';
+import React, { useState } from 'react';
+import { Loader2, AlertCircle, Info, Check, Pencil } from 'lucide-react';
+import { useProfesionales, useUpdateProfesional } from '../../api/profesionales.js';
 import type { ProfesionalRow, Especialidad } from '../../api/profesionales.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
@@ -18,11 +18,19 @@ const ESP_COLORS: Record<string, string> = {
 };
 
 function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
-  const update = useUpdateProfesionalEspecialidad();
+  const update = useUpdateProfesional();
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState(p.nombre_completo ?? '');
 
   function setEsp(val: string): void {
     const esp: Especialidad = val === '' ? null : (val as Especialidad);
     void update.mutateAsync({ id: p.id, especialidad: esp });
+  }
+
+  function saveName(): void {
+    const trimmed = nameVal.trim();
+    if (trimmed === (p.nombre_completo ?? '')) { setEditingName(false); return; }
+    void update.mutateAsync({ id: p.id, nombre_completo: trimmed || null }).then(() => setEditingName(false));
   }
 
   const current = p.especialidad ?? '';
@@ -30,8 +38,37 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
 
   return (
     <tr className="tabla-entidades-tr">
-      <td className="tabla-entidades-td" style={{ fontWeight: 500 }}>
-        {p.nombre}
+      <td className="tabla-entidades-td" style={{ minWidth: 200 }}>
+        {editingName ? (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input
+              className="prof-name-input"
+              value={nameVal}
+              onChange={(e) => setNameVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+              autoFocus
+              placeholder="Nombre completo…"
+            />
+            <button className="prof-name-save" onClick={saveName} disabled={update.isPending}>
+              {update.isPending ? <Loader2 size={12} className="spin" /> : <Check size={12} />}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div>
+              {p.nombre_completo
+                ? <span style={{ fontWeight: 600 }}>{p.nombre_completo}</span>
+                : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{p.nombre}</span>
+              }
+              {p.nombre_completo && (
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>{p.nombre}</div>
+              )}
+            </div>
+            <button className="prof-name-edit" onClick={() => { setNameVal(p.nombre_completo ?? ''); setEditingName(true); }} title="Editar nombre">
+              <Pencil size={11} />
+            </button>
+          </div>
+        )}
       </td>
       <td className="tabla-entidades-td">
         <div className="svc-kws-list">
@@ -53,7 +90,6 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
           <option value="FISIATRIA">Fisiatría</option>
           <option value="OTRO">Otra especialidad</option>
         </select>
-        {update.isPending && <Loader2 size={11} className="spin" style={{ marginLeft: 4 }} />}
       </td>
       <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b' }}>
         {fmtNum(p.total_atenciones)}
@@ -93,10 +129,8 @@ export default function TabProfesionales(): React.ReactElement {
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
         <span>
-          Asigna la especialidad de cada profesional. Las consultas genéricas ("CONSULTA PRIMERA VEZ",
-          "CONSULTA DE CONTROL") se reclasifican automáticamente como Neurología o Fisiatría según
-          quién las realizó. Tras etiquetar, usa{' '}
-          <strong>Reclasificar registros</strong> en la pestaña Procedimientos.
+          Registra el nombre completo de cada profesional para los reportes de honorarios.
+          También asigna la especialidad para que las consultas genéricas se clasifiquen correctamente.
         </span>
       </div>
 
@@ -116,7 +150,7 @@ export default function TabProfesionales(): React.ReactElement {
         <table className="tabla-entidades-table">
           <thead>
             <tr>
-              <th className="tabla-entidades-th">Profesional</th>
+              <th className="tabla-entidades-th">Nombre completo</th>
               <th className="tabla-entidades-th">Nombres en el Sheet</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '180px' }}>Especialidad</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '90px' }}>Registros</th>

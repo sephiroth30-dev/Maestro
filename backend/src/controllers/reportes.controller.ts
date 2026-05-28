@@ -276,19 +276,26 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
-  // PATCH /api/profesionales/:id (ADMIN — set especialidad)
+  // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
   fastify.patch(
     '/api/profesionales/:id',
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const body = request.body as { especialidad?: string | null };
-      const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
-      const esp = body?.especialidad ?? null;
-      if (!allowed.includes(esp)) {
-        return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+      const body = request.body as { especialidad?: string | null; nombre_completo?: string | null };
+      const fields: Parameters<typeof repo.patchProfesional>[1] = {};
+      if ('especialidad' in body) {
+        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
+        if (!allowed.includes(body.especialidad ?? null)) {
+          return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+        }
+        fields.especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
       }
-      await repo.patchProfesionalEspecialidad(id, esp as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null);
+      if ('nombre_completo' in body) {
+        const nc = body.nombre_completo;
+        fields.nombre_completo = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+      }
+      await repo.patchProfesional(id, fields);
       return reply.send({ ok: true });
     }
   );

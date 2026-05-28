@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.4] - 2026-05-28
+
+### Added
+- Campo **Nombre completo** editable en la pestaña Profesionales: icono de lápiz por fila, input inline con Enter para guardar y Escape para cancelar. Se muestra como nombre principal; el código de matching del Sheet queda como subtítulo.
+- Campo `nombre_completo VARCHAR(200) NULL` en la tabla `profesionales` (migración 0004).
+- Endpoint `PATCH /api/profesionales/:id` ahora acepta tanto `especialidad` como `nombre_completo` en el mismo request.
+
+---
+
 ## [1.5.3] - 2026-05-27
 
 ### Added

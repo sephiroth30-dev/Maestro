@@ -6,6 +6,7 @@ export type Especialidad = 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
 export interface ProfesionalRow {
   id: string;
   nombre: string;
+  nombre_completo: string | null;
   nombres_raw: string[];
   es_nomina: boolean;
   especialidad: Especialidad;
@@ -23,11 +24,11 @@ export function useProfesionales() {
   });
 }
 
-export function useUpdateProfesionalEspecialidad() {
+export function useUpdateProfesional() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, especialidad }: { id: string; especialidad: Especialidad }) =>
-      apiClient.patch(`/profesionales/${id}`, { especialidad }).then((r) => r.data),
+    mutationFn: ({ id, ...fields }: { id: string; especialidad?: Especialidad; nombre_completo?: string | null }) =>
+      apiClient.patch(`/profesionales/${id}`, fields).then((r) => r.data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['profesionales-catalog'] });
     },

@@ -389,6 +389,7 @@ export async function getDiagnosticoConectores(): Promise<DiagnosticoRow[]> {
 export interface ProfesionalRow {
   id: string;
   nombre: string;
+  nombre_completo: string | null;
   nombres_raw: string[];
   es_nomina: boolean;
   especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
@@ -397,7 +398,7 @@ export interface ProfesionalRow {
 
 export async function listProfesionales(): Promise<ProfesionalRow[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT p.id, p.nombre, p.nombres_raw, p.es_nomina, p.especialidad,
+    `SELECT p.id, p.nombre, p.nombre_completo, p.nombres_raw, p.es_nomina, p.especialidad,
             COUNT(a.id) AS total_atenciones
      FROM profesionales p
      LEFT JOIN atenciones a ON a.profesional_id = p.id
@@ -408,6 +409,7 @@ export async function listProfesionales(): Promise<ProfesionalRow[]> {
   return rows.map((r) => ({
     id: r['id'] as string,
     nombre: r['nombre'] as string,
+    nombre_completo: (r['nombre_completo'] as string | null) ?? null,
     nombres_raw: (typeof r['nombres_raw'] === 'string'
       ? JSON.parse(r['nombres_raw'])
       : r['nombres_raw']) as string[],
@@ -417,14 +419,17 @@ export async function listProfesionales(): Promise<ProfesionalRow[]> {
   }));
 }
 
-export async function patchProfesionalEspecialidad(
+export async function patchProfesional(
   id: string,
-  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null
+  fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null; nombre_completo?: string | null }
 ): Promise<void> {
-  await pool.execute<ResultSetHeader>(
-    'UPDATE profesionales SET especialidad = ? WHERE id = ?',
-    [especialidad, id]
-  );
+  const parts: string[] = [];
+  const vals: unknown[] = [];
+  if ('especialidad' in fields) { parts.push('especialidad = ?'); vals.push(fields.especialidad); }
+  if ('nombre_completo' in fields) { parts.push('nombre_completo = ?'); vals.push(fields.nombre_completo ?? null); }
+  if (parts.length === 0) return;
+  vals.push(id);
+  await pool.execute<ResultSetHeader>(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals);
 }
 
 // ─── Diagnostic: unmatched entity names (SIN ENTIDAD) ────────────────────────
