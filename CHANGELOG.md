@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.6] - 2026-05-28
+
+### Added
+- **Nombre en reportes** editable por servicio (campo `nombre_display`, migración 0005). Permite cambiar cómo aparece el procedimiento en Mix por Servicio sin tocar las palabras clave de matching. El nombre interno (`nombre`) se muestra en gris como subtítulo.
+- **Panel de agrupaciones** por servicio: botón ojo en cada fila que despliega todas las descripciones literales del Sheet que están siendo agrupadas bajo ese procedimiento, con conteo y valor. Incluye las sesiones de telemetría hora por hora.
+- Endpoint `GET /api/diagnostico/servicio-agrupaciones` (ADMIN).
+- El mix report usa `COALESCE(nombre_display, nombre)` para mostrar el nombre personalizado.
+
+---
+
 ## [1.5.5] - 2026-05-28
 
 ### Changed

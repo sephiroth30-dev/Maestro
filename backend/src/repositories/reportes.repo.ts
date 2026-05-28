@@ -600,8 +600,9 @@ export async function getServiciosAgg(
   const svcMap = new Map<string, ServicioMeta>();
   try {
     const [svcRows] = await pool.query<(RowDataPacket & {
-      id: string; nombre: string | null; tipo_conteo: string | null; orden: string | null; categoria: string | null;
-    })[]>('SELECT id, nombre, tipo_conteo, orden, categoria FROM servicios');
+      id: string; nombre: string | null; nombre_display: string | null;
+      tipo_conteo: string | null; orden: string | null; categoria: string | null;
+    })[]>('SELECT id, COALESCE(nombre_display, nombre) AS nombre, tipo_conteo, orden, categoria FROM servicios');
     for (const r of svcRows) {
       svcMap.set(r.id, {
         id: r.id,
@@ -615,7 +616,7 @@ export async function getServiciosAgg(
     // tipo_conteo / orden / categoria columns missing — try simpler fallback
     try {
       const [svcRows] = await pool.query<(RowDataPacket & { id: string; nombre: string | null })[]>(
-        'SELECT id, nombre FROM servicios'
+        'SELECT id, COALESCE(nombre_display, nombre) AS nombre FROM servicios'
       );
       for (const r of svcRows) {
         svcMap.set(r.id, { id: r.id, nombre: r.nombre, tipo_conteo: 'unidad', orden: 99, categoria: null });
@@ -650,6 +651,7 @@ export async function getServiciosAgg(
 export interface ServicioCatalogRow {
   id: string;
   nombre: string;
+  nombre_display: string | null;
   palabras_clave: string[];
   tipo_conteo: 'unidad' | 'sesion';
   orden: number;
@@ -658,17 +660,17 @@ export interface ServicioCatalogRow {
 
 export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
   const [rows] = await pool.query<(RowDataPacket & {
-    id: string; nombre: string; palabras_clave: string | null;
-    tipo_conteo: string; orden: string;
-    total_atenciones: string;
+    id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null;
+    tipo_conteo: string; orden: string; total_atenciones: string;
   })[]>(
-    `SELECT s.id, s.nombre, s.palabras_clave, s.tipo_conteo, s.orden,
+    `SELECT s.id, s.nombre, s.nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
        (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`
   );
   return rows.map((r) => ({
     id: r.id,
     nombre: r.nombre,
+    nombre_display: r.nombre_display ?? null,
     palabras_clave: (() => { try { return JSON.parse(r.palabras_clave ?? '[]') as string[]; } catch { return []; } })(),
     tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
     orden: Number(r.orden),
@@ -676,16 +678,58 @@ export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
   }));
 }
 
-export async function patchServicio(id: string, fields: { tipo_conteo?: 'unidad' | 'sesion' }): Promise<void> {
+export async function patchServicio(
+  id: string,
+  fields: { tipo_conteo?: 'unidad' | 'sesion'; nombre_display?: string | null }
+): Promise<void> {
   const sets: string[] = [];
-  const params: string[] = [];
-  if (fields.tipo_conteo !== undefined) {
-    sets.push('tipo_conteo = ?');
-    params.push(fields.tipo_conteo);
-  }
+  const params: unknown[] = [];
+  if (fields.tipo_conteo !== undefined) { sets.push('tipo_conteo = ?'); params.push(fields.tipo_conteo); }
+  if ('nombre_display' in fields) { sets.push('nombre_display = ?'); params.push(fields.nombre_display ?? null); }
   if (sets.length === 0) return;
   params.push(id);
   await pool.execute<ResultSetHeader>(`UPDATE servicios SET ${sets.join(', ')} WHERE id = ?`, params);
+}
+
+// ─── Servicio agrupaciones (actual raw descriptions per service) ──────────────
+
+export interface ServicioAgrupacionItem {
+  descripcion_raw: string | null;
+  cnt: number;
+  valor: number;
+}
+
+export interface ServicioAgrupacion {
+  servicio_id: string;
+  nombre: string;
+  total_cnt: number;
+  items: ServicioAgrupacionItem[];
+}
+
+export async function getServicioAgrupaciones(): Promise<ServicioAgrupacion[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT s.id AS servicio_id,
+            COALESCE(s.nombre_display, s.nombre) AS nombre,
+            a.descripcion_raw,
+            COUNT(*) AS cnt,
+            SUM(a.valor_bruto) AS valor
+     FROM servicios s
+     JOIN atenciones a ON a.servicio_id = s.id
+     GROUP BY s.id, nombre, a.descripcion_raw
+     ORDER BY s.orden ASC, s.nombre ASC, cnt DESC`
+  );
+  const map = new Map<string, ServicioAgrupacion>();
+  for (const r of rows) {
+    const sid = r['servicio_id'] as string;
+    if (!map.has(sid)) {
+      map.set(sid, { servicio_id: sid, nombre: r['nombre'] as string, total_cnt: 0, items: [] });
+    }
+    const entry = map.get(sid)!;
+    const cnt = Number(r['cnt']);
+    entry.total_cnt += cnt;
+    entry.items.push({ descripcion_raw: r['descripcion_raw'] as string | null, cnt, valor: Number(r['valor']) });
+  }
+  return [...map.values()];
 }
 
 export async function upsertPresupuesto(

@@ -1,8 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight, RefreshCw, Search, X, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
-import { useServiciosCatalog, useUpdateServicioTipoConteo, useReclasificarServicios } from '../../api/servicios.js';
+import {
+  Loader2, AlertCircle, Info, Repeat2, Hash, ChevronDown, ChevronRight,
+  RefreshCw, Search, X, ArrowDownAZ, ArrowUpAZ, Pencil, Check, Eye,
+} from 'lucide-react';
+import {
+  useServiciosCatalog, useUpdateServicio, useReclasificarServicios,
+  useServicioAgrupaciones,
+} from '../../api/servicios.js';
 import { useSinServicioDiagnostico } from '../../api/reportes.js';
-import type { ServicioCatalogRow, ReclasificarResult } from '../../api/servicios.js';
+import type { ServicioCatalogRow, ReclasificarResult, ServicioAgrupacion } from '../../api/servicios.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 const fmtCOP = (n: number) =>
@@ -10,64 +16,153 @@ const fmtCOP = (n: number) =>
 
 // ─── Catalog row ──────────────────────────────────────────────────────────────
 
-function ServicioRow({ s }: { s: ServicioCatalogRow }): React.ReactElement {
-  const update = useUpdateServicioTipoConteo();
+interface ServicioRowProps {
+  s: ServicioCatalogRow;
+  agrupacion: ServicioAgrupacion | undefined;
+}
+
+function ServicioRow({ s, agrupacion }: ServicioRowProps): React.ReactElement {
+  const update = useUpdateServicio();
   const [optimistic, setOptimistic] = useState<'unidad' | 'sesion' | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState(s.nombre_display ?? '');
+  const [expanded, setExpanded] = useState(false);
   const current = optimistic ?? s.tipo_conteo;
 
-  async function toggle(): Promise<void> {
+  async function toggleConteo(): Promise<void> {
     const next: 'unidad' | 'sesion' = current === 'sesion' ? 'unidad' : 'sesion';
     setOptimistic(next);
-    try {
-      await update.mutateAsync({ id: s.id, tipo_conteo: next });
-    } catch {
-      setOptimistic(null);
-      return;
-    }
+    try { await update.mutateAsync({ id: s.id, tipo_conteo: next }); }
+    catch { setOptimistic(null); return; }
     setOptimistic(null);
   }
 
+  function saveName(): void {
+    const trimmed = nameVal.trim();
+    if (trimmed === (s.nombre_display ?? '')) { setEditingName(false); return; }
+    void update.mutateAsync({ id: s.id, nombre_display: trimmed || null }).then(() => setEditingName(false));
+  }
+
   const isSesion = current === 'sesion';
+  const displayName = s.nombre_display ?? s.nombre;
 
   return (
-    <tr className="tabla-entidades-tr">
-      <td className="tabla-entidades-td" style={{ fontWeight: 500 }}>
-        {s.nombre}
-      </td>
-      <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
-        <button
-          type="button"
-          className={`svc-conteo-toggle ${isSesion ? 'svc-conteo-toggle--sesion' : 'svc-conteo-toggle--unidad'}`}
-          onClick={() => void toggle()}
-          disabled={update.isPending}
-          title={isSesion
-            ? 'Sesión: agrupa registros del mismo paciente en la misma fecha como 1 cita'
-            : 'Unidad: cada registro cuenta por separado'}
-        >
-          {update.isPending ? (
-            <Loader2 size={11} className="spin" />
-          ) : isSesion ? (
-            <><Repeat2 size={11} /> Sesión</>
+    <>
+      <tr className="tabla-entidades-tr">
+        {/* Nombre / nombre editable */}
+        <td className="tabla-entidades-td" style={{ minWidth: 200 }}>
+          {editingName ? (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <input
+                className="prof-name-input"
+                value={nameVal}
+                onChange={(e) => setNameVal(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+                autoFocus
+                placeholder={s.nombre}
+              />
+              <button className="prof-name-save" onClick={saveName} disabled={update.isPending}>
+                {update.isPending ? <Loader2 size={12} className="spin" /> : <Check size={12} />}
+              </button>
+              <button className="prof-name-save" style={{ background: '#94a3b8' }} onClick={() => setEditingName(false)}>
+                <X size={12} />
+              </button>
+            </div>
           ) : (
-            <><Hash size={11} /> Unidad</>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <div>
+                <span style={{ fontWeight: 500 }}>{displayName}</span>
+                {s.nombre_display && (
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: 1 }}>{s.nombre}</div>
+                )}
+              </div>
+              <button
+                className="prof-name-edit"
+                onClick={() => { setNameVal(s.nombre_display ?? ''); setEditingName(true); }}
+                title="Editar nombre en reportes"
+              >
+                <Pencil size={10} />
+              </button>
+            </div>
           )}
-        </button>
-      </td>
-      <td className="tabla-entidades-td svc-kws-cell">
-        {s.palabras_clave.length === 0 ? (
-          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Sin palabras clave</span>
-        ) : (
-          <div className="svc-kws-list">
-            {s.palabras_clave.map((kw) => (
-              <span key={kw} className="svc-kw-tag">{kw}</span>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b' }}>
-        {fmtNum(s.total_atenciones)}
-      </td>
-    </tr>
+        </td>
+
+        {/* Tipo conteo */}
+        <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
+          <button
+            type="button"
+            className={`svc-conteo-toggle ${isSesion ? 'svc-conteo-toggle--sesion' : 'svc-conteo-toggle--unidad'}`}
+            onClick={() => void toggleConteo()}
+            disabled={update.isPending}
+            title={isSesion
+              ? 'Sesión: agrupa registros del mismo paciente en la misma fecha como 1 cita'
+              : 'Unidad: cada registro cuenta por separado'}
+          >
+            {update.isPending ? <Loader2 size={11} className="spin" /> : isSesion ? <><Repeat2 size={11} /> Sesión</> : <><Hash size={11} /> Unidad</>}
+          </button>
+        </td>
+
+        {/* Palabras clave */}
+        <td className="tabla-entidades-td svc-kws-cell">
+          {s.palabras_clave.length === 0 ? (
+            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Sin palabras clave</span>
+          ) : (
+            <div className="svc-kws-list">
+              {s.palabras_clave.map((kw) => <span key={kw} className="svc-kw-tag">{kw}</span>)}
+            </div>
+          )}
+        </td>
+
+        {/* Registros + ver agrupaciones */}
+        <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b', whiteSpace: 'nowrap' }}>
+          {fmtNum(s.total_atenciones)}
+          {agrupacion && agrupacion.items.length > 0 && (
+            <button
+              className="svc-agrup-toggle"
+              onClick={() => setExpanded((p) => !p)}
+              title="Ver descripciones del Sheet agrupadas aquí"
+            >
+              <Eye size={11} />
+              {agrupacion.items.length}
+            </button>
+          )}
+        </td>
+      </tr>
+
+      {/* Panel de agrupaciones */}
+      {expanded && agrupacion && (
+        <tr className="svc-agrup-row">
+          <td colSpan={4} className="svc-agrup-cell">
+            <div className="svc-agrup-header">
+              <strong>{displayName}</strong>
+              <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                — {agrupacion.items.length} descripciones distintas del Sheet agrupadas aquí
+              </span>
+            </div>
+            <table className="svc-agrup-table">
+              <thead>
+                <tr>
+                  <th>Descripción literal en el Sheet</th>
+                  <th style={{ textAlign: 'right', width: 70 }}>Registros</th>
+                  <th style={{ textAlign: 'right', width: 130 }}>Valor total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agrupacion.items.map((item, i) => (
+                  <tr key={i}>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.77rem', color: '#334155' }}>
+                      {item.descripcion_raw ?? '(vacío)'}
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#64748b', fontSize: '0.8rem' }}>{fmtNum(item.cnt)}</td>
+                    <td style={{ textAlign: 'right', color: '#64748b', fontSize: '0.8rem' }}>{fmtCOP(item.valor)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -171,20 +266,32 @@ function ReclasificarBtn(): React.ReactElement {
 
 export default function TabServicios(): React.ReactElement {
   const { data, isLoading, isError } = useServiciosCatalog();
+  const { data: agrupaciones } = useServicioAgrupaciones();
   const [search, setSearch] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
+
+  const agrupMap = useMemo(() => {
+    const m = new Map<string, ServicioAgrupacion>();
+    agrupaciones?.forEach((a) => m.set(a.servicio_id, a));
+    return m;
+  }, [agrupaciones]);
 
   const displayed = useMemo(() => {
     if (!data) return [];
     let rows = data;
     if (search.trim()) {
       const q = search.trim().toUpperCase();
-      rows = rows.filter((s) => s.nombre.toUpperCase().includes(q));
+      rows = rows.filter((s) =>
+        s.nombre.toUpperCase().includes(q) ||
+        (s.nombre_display ?? '').toUpperCase().includes(q)
+      );
     }
     if (sortDir) {
-      rows = [...rows].sort((a, b) =>
-        sortDir === 'asc' ? a.nombre.localeCompare(b.nombre) : b.nombre.localeCompare(a.nombre)
-      );
+      rows = [...rows].sort((a, b) => {
+        const na = (a.nombre_display ?? a.nombre).toUpperCase();
+        const nb = (b.nombre_display ?? b.nombre).toUpperCase();
+        return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+      });
     }
     return rows;
   }, [data, search, sortDir]);
@@ -215,12 +322,9 @@ export default function TabServicios(): React.ReactElement {
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
         <span>
-          <strong>Unidad</strong>: cada fila del Google Sheet cuenta como 1 atención.
+          <strong>Nombre en reportes</strong>: haz clic en el lápiz para cambiar cómo se llama el procedimiento en el Mix por Servicio — sin afectar las palabras clave de matching.
           {' '}
-          <strong>Sesión</strong>: los registros del mismo paciente en la misma fecha se agrupan en 1 cita —
-          ideal para procedimientos de monitoreo continuo (telemetría, video-EEG, polisomnografía)
-          donde el sistema factura una fila por hora.
-          El cambio se aplica en la próxima consulta de reportes.
+          <strong>Ojo</strong> <Eye size={11} style={{ verticalAlign: 'middle' }} />: muestra qué descripciones del Sheet caen en ese grupo.
         </span>
       </div>
 
@@ -267,24 +371,24 @@ export default function TabServicios(): React.ReactElement {
         <table className="tabla-entidades-table">
           <thead>
             <tr>
-              <th className="tabla-entidades-th">Procedimiento</th>
+              <th className="tabla-entidades-th">Nombre en reportes</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '110px' }}>Modo conteo</th>
-              <th className="tabla-entidades-th">Palabras clave (en el Sheet)</th>
-              <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '90px' }}>Registros</th>
+              <th className="tabla-entidades-th">Palabras clave (matching)</th>
+              <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '110px' }}>Registros</th>
             </tr>
           </thead>
           <tbody>
             {displayed.length === 0 ? (
               <tr><td colSpan={4} className="table-no-results">Sin resultados para "{search}"</td></tr>
             ) : displayed.map((s) => (
-              <ServicioRow key={s.id} s={s} />
+              <ServicioRow key={s.id} s={s} agrupacion={agrupMap.get(s.id)} />
             ))}
           </tbody>
         </table>
       </div>
 
       <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-        El modo de conteo persiste entre reinicios del servidor. Las palabras clave se actualizan automáticamente en cada reinicio.
+        El modo de conteo y el nombre en reportes persisten entre reinicios. Las palabras clave se actualizan automáticamente en cada reinicio.
       </p>
 
       <SinClasificarSection />

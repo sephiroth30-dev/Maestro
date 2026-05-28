@@ -362,24 +362,35 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
-  // PATCH /api/servicios/:id (update tipo_conteo — ADMIN only)
+  // PATCH /api/servicios/:id (update tipo_conteo and/or nombre_display — ADMIN only)
   fastify.patch(
     '/api/servicios/:id',
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const parsed = z.object({
-        tipo_conteo: z.enum(['unidad', 'sesion']),
-      }).safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({
-          error: 'Bad Request',
-          message: parsed.error.issues.map((i) => i.message).join(', '),
-          statusCode: 400,
-        });
+      const body = request.body as { tipo_conteo?: string; nombre_display?: string | null };
+      const fields: Parameters<typeof repo.patchServicio>[1] = {};
+      if ('tipo_conteo' in body) {
+        const parsed = z.enum(['unidad', 'sesion']).safeParse(body.tipo_conteo);
+        if (!parsed.success) return reply.status(400).send({ error: 'Bad Request', message: 'tipo_conteo must be unidad or sesion', statusCode: 400 });
+        fields.tipo_conteo = parsed.data;
       }
-      await repo.patchServicio(id, { tipo_conteo: parsed.data.tipo_conteo });
+      if ('nombre_display' in body) {
+        const nd = body.nombre_display;
+        fields.nombre_display = (typeof nd === 'string' && nd.trim() !== '') ? nd.trim() : null;
+      }
+      await repo.patchServicio(id, fields);
       return reply.status(200).send({ ok: true });
+    }
+  );
+
+  // GET /api/diagnostico/servicio-agrupaciones (ADMIN — actual raw descriptions per service)
+  fastify.get(
+    '/api/diagnostico/servicio-agrupaciones',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const data = await repo.getServicioAgrupaciones();
+      return reply.send(data);
     }
   );
 
