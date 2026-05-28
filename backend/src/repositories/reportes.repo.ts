@@ -429,7 +429,7 @@ export async function patchProfesional(
   if ('nombre_completo' in fields) { parts.push('nombre_completo = ?'); vals.push(fields.nombre_completo ?? null); }
   if (parts.length === 0) return;
   vals.push(id);
-  await pool.execute<ResultSetHeader>(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals);
+  await pool.execute<ResultSetHeader>(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals as (string | null)[]);
 }
 
 // ─── Diagnostic: unmatched entity names (SIN ENTIDAD) ────────────────────────
@@ -662,9 +662,10 @@ export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
        (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
   ];
-  let rows: (RowDataPacket & { id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null; tipo_conteo: string; orden: string; total_atenciones: string })[] = [];
+  type SvcRow = RowDataPacket & { id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null; tipo_conteo: string; orden: string; total_atenciones: string };
+  let rows: SvcRow[] = [];
   for (const q of queries) {
-    try { [rows] = await pool.query(q); break; } catch { /* try next */ }
+    try { [rows] = await pool.query<SvcRow[]>(q); break; } catch { /* try next */ }
   }
   return rows.map((r) => ({
     id: r.id,
@@ -687,7 +688,7 @@ export async function patchServicio(
   if ('nombre_display' in fields) { sets.push('nombre_display = ?'); params.push(fields.nombre_display ?? null); }
   if (sets.length === 0) return;
   params.push(id);
-  await pool.execute<ResultSetHeader>(`UPDATE servicios SET ${sets.join(', ')} WHERE id = ?`, params);
+  await pool.execute<ResultSetHeader>(`UPDATE servicios SET ${sets.join(', ')} WHERE id = ?`, params as (string | null)[]);
 }
 
 // ─── Servicio agrupaciones (actual raw descriptions per service) ──────────────
