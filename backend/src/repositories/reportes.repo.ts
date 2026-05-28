@@ -598,32 +598,26 @@ export async function getServiciosAgg(
   // Step 3: Catalog metadata — requires tipo_conteo, orden, categoria (new servicios columns)
   interface ServicioMeta { id: string; nombre: string | null; tipo_conteo: 'unidad' | 'sesion'; orden: number; categoria: string | null }
   const svcMap = new Map<string, ServicioMeta>();
-  try {
-    const [svcRows] = await pool.query<(RowDataPacket & {
-      id: string; nombre: string | null; nombre_display: string | null;
-      tipo_conteo: string | null; orden: string | null; categoria: string | null;
-    })[]>('SELECT id, COALESCE(nombre_display, nombre) AS nombre, tipo_conteo, orden, categoria FROM servicios');
-    for (const r of svcRows) {
-      svcMap.set(r.id, {
-        id: r.id,
-        nombre: r.nombre,
-        tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
-        orden: Number(r.orden ?? 99),
-        categoria: r.categoria ?? null,
-      });
-    }
-  } catch {
-    // tipo_conteo / orden / categoria columns missing — try simpler fallback
+  // Try queries in order from most to least capable, gracefully handling missing columns
+  const svcQueries = [
+    'SELECT id, COALESCE(nombre_display, nombre) AS nombre, tipo_conteo, orden, categoria FROM servicios',
+    'SELECT id, nombre, tipo_conteo, orden, categoria FROM servicios',
+    'SELECT id, nombre FROM servicios',
+  ];
+  for (const q of svcQueries) {
+    if (svcMap.size > 0) break;
     try {
-      const [svcRows] = await pool.query<(RowDataPacket & { id: string; nombre: string | null })[]>(
-        'SELECT id, COALESCE(nombre_display, nombre) AS nombre FROM servicios'
-      );
+      const [svcRows] = await pool.query<(RowDataPacket & { id: string; nombre: string | null; tipo_conteo?: string; orden?: string; categoria?: string })[]>(q);
       for (const r of svcRows) {
-        svcMap.set(r.id, { id: r.id, nombre: r.nombre, tipo_conteo: 'unidad', orden: 99, categoria: null });
+        svcMap.set(r.id, {
+          id: r.id,
+          nombre: r.nombre,
+          tipo_conteo: r.tipo_conteo === 'sesion' ? 'sesion' : 'unidad',
+          orden: Number(r.orden ?? 99),
+          categoria: r.categoria ?? null,
+        });
       }
-    } catch {
-      // servicios table missing entirely — proceed with nulls
-    }
+    } catch { /* try next fallback */ }
   }
 
   // Step 4: Join in JavaScript
@@ -659,14 +653,19 @@ export interface ServicioCatalogRow {
 }
 
 export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
-  const [rows] = await pool.query<(RowDataPacket & {
-    id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null;
-    tipo_conteo: string; orden: string; total_atenciones: string;
-  })[]>(
+  // Try with nombre_display first; fall back gracefully if column not yet migrated
+  const queries = [
     `SELECT s.id, s.nombre, s.nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
        (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
-     FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`
-  );
+     FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
+    `SELECT s.id, s.nombre, NULL AS nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+     FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
+  ];
+  let rows: (RowDataPacket & { id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null; tipo_conteo: string; orden: string; total_atenciones: string })[] = [];
+  for (const q of queries) {
+    try { [rows] = await pool.query(q); break; } catch { /* try next */ }
+  }
   return rows.map((r) => ({
     id: r.id,
     nombre: r.nombre,
