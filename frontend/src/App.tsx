@@ -12,6 +12,7 @@ import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
 import { Conectores, Configuracion, Usuarios } from './pages/Admin/index.js';
+import Honorarios from './pages/Honorarios.js';
 import Sidebar from './components/layout/Sidebar.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
@@ -138,6 +139,18 @@ export default function App(): ReactElement {
               <ReportesRoute>
                 <AppLayout>
                   <Reportes />
+                </AppLayout>
+              </ReportesRoute>
+            }
+          />
+
+          {/* Honorarios route */}
+          <Route
+            path="/honorarios"
+            element={
+              <ReportesRoute>
+                <AppLayout>
+                  <Honorarios />
                 </AppLayout>
               </ReportesRoute>
             }

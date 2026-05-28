@@ -37,6 +37,7 @@ exports.registerReportesController = registerReportesController;
 const zod_1 = require("zod");
 const reportes_service_js_1 = require("../services/reportes.service.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
+const honorarios_service_js_1 = require("../services/honorarios.service.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -339,6 +340,16 @@ async function registerReportesController(fastify) {
         const { anio, mes, monto, notas } = parsed.data;
         const result = await repo.upsertPresupuesto(anio, mes, monto, notas);
         return reply.status(200).send(result);
+    });
+    // GET /api/honorarios?mes_idx=1&anio=2026
+    fastify.get('/api/honorarios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const parsed = mesAnioSchema.safeParse(request.query);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'Bad Request', statusCode: 400 });
+        }
+        const { mes_idx, anio } = parsed.data;
+        const result = await (0, honorarios_service_js_1.calcularHonorarios)(mes_idx, anio);
+        return reply.send(result);
     });
 }
 //# sourceMappingURL=reportes.controller.js.map

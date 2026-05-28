@@ -53,8 +53,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Honorarios',
         to: '/honorarios',
         icon: <DollarSign size={18} />,
-        roles: ['ADMIN', 'FACTURACION'],
-        disabled: true,
+        roles: ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION'],
       },
       {
         label: 'Auditoría',

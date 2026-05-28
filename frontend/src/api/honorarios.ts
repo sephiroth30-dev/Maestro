@@ -1,0 +1,43 @@
+import { useQuery } from '@tanstack/react-query';
+import { apiClient as api } from './client.js';
+
+export interface HonorariosCeldas {
+  monto: number;
+  cnt: number;
+}
+
+export interface HonorariosProfesionalRow {
+  profesional_id: string;
+  nombre: string;
+  consulta:       HonorariosCeldas;
+  emg_vcn:        HonorariosCeldas;
+  infiltracion:   HonorariosCeldas;
+  ecografia:      HonorariosCeldas;
+  terapia_choque: HonorariosCeldas;
+  junta:          HonorariosCeldas;
+  eeg:            HonorariosCeldas;
+  psg_lms:        HonorariosCeldas;
+  tlm:            HonorariosCeldas;
+  pe:             HonorariosCeldas;
+  total: number;
+  sin_regla: HonorariosCeldas;
+}
+
+export interface HonorariosResult {
+  year: number;
+  month: number;
+  rows: HonorariosProfesionalRow[];
+  totales: Omit<HonorariosProfesionalRow, 'profesional_id' | 'nombre'>;
+}
+
+export function useHonorarios(mesIdx: number, anio: number) {
+  return useQuery<HonorariosResult>({
+    queryKey: ['honorarios', anio, mesIdx],
+    queryFn: () =>
+      api
+        .get<HonorariosResult>('/api/honorarios', { params: { mes_idx: mesIdx, anio } })
+        .then((r) => r.data),
+    enabled: mesIdx >= 1 && mesIdx <= 12 && anio >= 2020,
+    staleTime: 60_000,
+  });
+}

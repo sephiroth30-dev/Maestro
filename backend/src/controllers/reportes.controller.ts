@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { reportesService } from '../services/reportes.service.js';
 import * as repo from '../repositories/reportes.repo.js';
+import { calcularHonorarios } from '../services/honorarios.service.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 
@@ -422,6 +423,21 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const { anio, mes, monto, notas } = parsed.data;
       const result = await repo.upsertPresupuesto(anio, mes, monto, notas);
       return reply.status(200).send(result);
+    }
+  );
+
+  // GET /api/honorarios?mes_idx=1&anio=2026
+  fastify.get(
+    '/api/honorarios',
+    { preHandler: [requireAuth, requireRole('ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = mesAnioSchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Bad Request', statusCode: 400 });
+      }
+      const { mes_idx, anio } = parsed.data;
+      const result = await calcularHonorarios(mes_idx, anio);
+      return reply.send(result);
     }
   );
 }

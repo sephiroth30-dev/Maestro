@@ -4405,3 +4405,219 @@ body,
   color: #94a3b8;
   font-size: 0.78rem;
 }
+
+/* ─── Honorarios ────────────────────────────────────────────────────────────── */
+
+.hon-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.hon-period-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-gray-50, #f8fafc);
+  border: 1px solid var(--color-gray-200, #e2e8f0);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.hon-period-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.hon-period-btn:hover { background: #e2e8f0; }
+
+.hon-period-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1e293b;
+  min-width: 130px;
+  text-align: center;
+}
+
+/* Resumen de totales */
+.hon-resumen {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.hon-resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 160px;
+}
+
+.hon-resumen-item--warn {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.hon-resumen-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.hon-resumen-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Tabla */
+.hon-table-scroll {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.hon-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 1100px;
+}
+
+.hon-th {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  text-align: right;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.hon-th--nombre {
+  text-align: left;
+  min-width: 180px;
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  z-index: 2;
+}
+
+.hon-th--sub {
+  font-weight: 400;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  letter-spacing: 0;
+  text-transform: none;
+  padding-top: 2px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #e2e8f0;
+  max-width: 90px;
+  white-space: normal;
+}
+
+.hon-th--grand-total {
+  background: #eff6ff;
+  color: #2563eb;
+  min-width: 130px;
+  position: sticky;
+  right: 60px;
+  z-index: 2;
+}
+
+.hon-th--sin-regla {
+  background: #fffbeb;
+  color: #b45309;
+  min-width: 60px;
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+
+/* Filas */
+.hon-tr:nth-child(even) { background: #fafafa; }
+.hon-tr:hover { background: #f1f5f9; }
+
+.hon-tr--totales {
+  background: #f0f7ff !important;
+  border-top: 2px solid #bfdbfe;
+}
+
+.hon-td {
+  padding: 8px 10px;
+  text-align: right;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.hon-td--nombre {
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+  position: sticky;
+  left: 0;
+  background: inherit;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.hon-td--empty {
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.hon-td--total {
+  background: #fafeff;
+}
+
+.hon-td--grand-total {
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  position: sticky;
+  right: 60px;
+  z-index: 1;
+}
+
+.hon-td--sin-regla {
+  color: #b45309;
+  background: #fffbeb;
+  font-size: 0.73rem;
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.hon-monto {
+  display: block;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.hon-cnt {
+  display: block;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 1px;
+}
