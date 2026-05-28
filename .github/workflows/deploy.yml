@@ -1,0 +1,66 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        run: |
+          npm install --include=dev --prefix frontend
+          npm run build --prefix frontend
+
+      - name: Build backend
+        run: |
+          npm install --include=dev --prefix backend
+          npm run build --prefix backend
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+            cd ~/domains/neurofic.easystem.co/public_html
+
+            echo "=== Pulling latest code ==="
+            git pull origin main
+
+            echo "=== Installing backend dependencies ==="
+            npm install --prefix backend --omit=dev
+
+            echo "=== Running database migrations ==="
+            npm run db:migrate --prefix backend
+
+            echo "=== Installing frontend dependencies ==="
+            npm install --prefix frontend --omit=dev
+
+            echo "=== Building frontend ==="
+            npm run build --prefix frontend
+
+            echo "=== Building backend ==="
+            npm run build --prefix backend
+
+            echo "=== Restarting application ==="
+            pm2 restart all --update-env
+
+            echo "=== Deploy complete ==="
+            pm2 status
