@@ -33,16 +33,16 @@ INSERT INTO entidades (id, nombre, nombres_raw, tipo, es_grupo_caja, activa, cre
   ('a14a9455-d588-4e1e-aa33-aab2d38e50ef', 'PARTICULAR', '["PARTICULAR","PART"]', 'PARTICULAR', 1, 1, '2026-05-23 10:00:00.000');
 
 -- ─── Profesionales ─────────────────────────────────────────────────────────
-INSERT INTO profesionales (id, nombre, nombres_raw, es_nomina, activo, created_at) VALUES
-  ('8530860c-da6d-4660-976a-690df6bbeeb3', 'PERLAZA', '["PERLAZA","DR PERLAZA"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('8be8d8eb-9a7f-4a2f-9b0b-4b554b49af33', 'LAVERDE', '["LAVERDE","DRA LAVERDE"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('7edb268d-a006-48ff-9354-2a7812570ddf', 'ESCOBAR', '["ESCOBAR","DR ESCOBAR"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('415b5538-64e9-4c91-a486-185325967bb8', 'TERAN', '["TERAN","DRA TERAN"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('667f0b7f-8abc-4340-acaa-83fa4c75fac0', 'MONTAÑO', '["MONTAÑO","DR MONTAÑO"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('89ee654b-e9db-46dd-b9c6-dfec08a1494d', 'PARADA', '["PARADA","DR PARADA"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('43889476-a6d5-484f-a513-a749b873c32c', 'YOLIMA', '["YOLIMA","DRA YOLIMA"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('e7792451-aa8f-4515-8d3f-c9b8b720f397', 'CRUZ', '["CRUZ","DR CRUZ"]', 1, 1, '2026-05-23 10:00:00.000'),
-  ('48a20c49-4c89-4810-9601-ec4b4ec1f5e6', 'CONCHA', '["CONCHA","DRA CONCHA"]', 1, 1, '2026-05-23 10:00:00.000');
+INSERT INTO profesionales (id, nombre, nombre_completo, nombres_raw, especialidad, es_nomina, activo, created_at) VALUES
+  ('8530860c-da6d-4660-976a-690df6bbeeb3', 'PERLAZA', 'Gustavo Adolfo Perlaza',       '["PERLAZA","DR PERLAZA","GUSTAVO PERLAZA","GUSTAVO ADOLFO PERLAZA"]',                                                                   'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000'),
+  ('8be8d8eb-9a7f-4a2f-9b0b-4b554b49af33', 'LAVERDE', 'David Leonardo Laverde',       '["LAVERDE","DR LAVERDE","DAVID LAVERDE","DAVID LEONARDO LAVERDE"]',                                                                       'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000'),
+  ('7edb268d-a006-48ff-9354-2a7812570ddf', 'ESCOBAR', 'Juan Fernando Escobar',        '["ESCOBAR","DR ESCOBAR","JUAN ESCOBAR","JUAN FERNANDO ESCOBAR"]',                                                                        'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000'),
+  ('415b5538-64e9-4c91-a486-185325967bb8', 'TERAN',   'Claudia Liseth Therán Rosero', '["TERAN","DRA TERAN","CLAUDIA TERAN","CLAUDIA THERAN","CLAUDIA LISETH THERAN","CLAUDIA LISETH THERAN ROSERO","THERAN ROSERO"]',          'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000'),
+  ('667f0b7f-8abc-4340-acaa-83fa4c75fac0', 'MONTAÑO', 'Juan Manuel Montaño',          '["MONTAÑO","DR MONTAÑO","JUAN MONTAÑO","JUAN MANUEL MONTAÑO"]',                                                                          'FISIATRIA',  1, 1, '2026-05-23 10:00:00.000'),
+  ('89ee654b-e9db-46dd-b9c6-dfec08a1494d', 'PARADA',  'Diana María Parada Palacios',  '["PARADA","DRA PARADA","DIANA PARADA","DIANA MARIA PARADA","DIANA MARIA PARADA PALACIOS"]',                                              'FISIATRIA',  1, 1, '2026-05-23 10:00:00.000'),
+  ('43889476-a6d5-484f-a513-a749b873c32c', 'YOLIMA',  'Yolima Álvarez',               '["YOLIMA","DRA YOLIMA","YOLIMA ALVAREZ"]',                                                                                               NULL,         1, 1, '2026-05-23 10:00:00.000'),
+  ('e7792451-aa8f-4515-8d3f-c9b8b720f397', 'CRUZ',    'Sergio Santiago Cruz',         '["CRUZ","DR CRUZ","SERGIO CRUZ","SERGIO SANTIAGO CRUZ"]',                                                                                'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000'),
+  ('48a20c49-4c89-4810-9601-ec4b4ec1f5e6', 'CONCHA',  'Marcela Concha',               '["CONCHA","DRA CONCHA","MARCELA CONCHA"]',                                                                                               'NEUROLOGIA', 1, 1, '2026-05-23 10:00:00.000');
 
 -- ─── Presupuestos 2026 ─────────────────────────────────────────────────────
 INSERT INTO presupuestos_mensuales (id, anio, mes, monto, created_at) VALUES
