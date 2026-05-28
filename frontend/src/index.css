@@ -3246,6 +3246,7 @@ body,
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+  /* kept for legacy; chips now live inside .table-toolbar */
 }
 
 .entidades-filter-btn {

@@ -452,26 +452,8 @@ export default function TabEntidades(): React.ReactElement {
         </span>
       </div>
 
-      {/* Filtros por tipo */}
-      <div className="entidades-filter-bar">
-        {tiposDisponibles.map((tipo) => {
-          const count = tipo === 'Todas' ? data.length : data.filter((e) => e.tipo === tipo).length;
-          return (
-            <button
-              key={tipo}
-              type="button"
-              className={`entidades-filter-btn${filterTipo === tipo ? ' entidades-filter-btn--active' : ''}`}
-              onClick={() => { setFilterTipo(tipo); clearSelection(); }}
-            >
-              {tipo}
-              <span className="entidades-filter-count">{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Búsqueda + orden */}
-      <div className="table-toolbar">
+      {/* Búsqueda + orden + filtros por tipo — fila unificada */}
+      <div className="table-toolbar" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
         <div className="table-search-wrap">
           <Search size={13} />
           <input
@@ -496,6 +478,21 @@ export default function TabEntidades(): React.ReactElement {
         >
           <ArrowUpAZ size={13} /> Z → A
         </button>
+        <div style={{ width: 1, height: 22, background: '#e2e8f0', flexShrink: 0 }} />
+        {tiposDisponibles.map((tipo) => {
+          const count = tipo === 'Todas' ? data.length : data.filter((e) => e.tipo === tipo).length;
+          return (
+            <button
+              key={tipo}
+              type="button"
+              className={`entidades-filter-btn${filterTipo === tipo ? ' entidades-filter-btn--active' : ''}`}
+              onClick={() => { setFilterTipo(tipo); clearSelection(); }}
+            >
+              {tipo}
+              <span className="entidades-filter-count">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Stats */}
