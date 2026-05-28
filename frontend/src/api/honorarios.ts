@@ -35,7 +35,7 @@ export function useHonorarios(mesIdx: number, anio: number) {
     queryKey: ['honorarios', anio, mesIdx],
     queryFn: () =>
       api
-        .get<HonorariosResult>('/api/honorarios', { params: { mes_idx: mesIdx, anio } })
+        .get<HonorariosResult>('/honorarios', { params: { mes_idx: mesIdx, anio } })
         .then((r) => r.data),
     enabled: mesIdx >= 1 && mesIdx <= 12 && anio >= 2020,
     staleTime: 60_000,

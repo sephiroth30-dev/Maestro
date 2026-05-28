@@ -117,7 +117,12 @@ export default function Honorarios(): React.ReactElement {
     <div className="page-container">
       <div className="hon-header">
         <div>
-          <h1 className="page-title">Honorarios Médicos</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h1 className="page-title">Honorarios Médicos</h1>
+            <span style={{ fontSize: '11px', color: '#94a3b8', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
+              v{__APP_VERSION__}
+            </span>
+          </div>
           <p className="page-subtitle">
             Liquidación calculada desde los registros de facturación del período seleccionado
           </p>
