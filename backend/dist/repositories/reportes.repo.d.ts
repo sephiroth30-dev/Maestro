@@ -69,6 +69,7 @@ export interface EntidadCatalogRow {
     tipo: string;
     es_grupo_caja: boolean;
     activa: boolean;
+    nombres_raw: string[];
 }
 export declare function listEntidades(): Promise<EntidadCatalogRow[]>;
 export declare function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void>;
@@ -77,6 +78,7 @@ export type TipoEntidad = typeof TIPOS_VALIDOS[number];
 export interface PatchEntidadFields {
     es_grupo_caja?: boolean;
     tipo?: TipoEntidad;
+    nombres_raw?: string[];
 }
 export declare function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void>;
 export interface DiagnosticoRow {
@@ -90,12 +92,32 @@ export interface DiagnosticoRow {
     sin_valor: number;
 }
 export declare function getDiagnosticoConectores(): Promise<DiagnosticoRow[]>;
+export interface ProfesionalRow {
+    id: string;
+    nombre: string;
+    nombre_completo: string | null;
+    nombres_raw: string[];
+    es_nomina: boolean;
+    especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+    total_atenciones: number;
+}
+export declare function listProfesionales(): Promise<ProfesionalRow[]>;
+export declare function patchProfesional(id: string, fields: {
+    especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+    nombre_completo?: string | null;
+}): Promise<void>;
 export interface SinEntidadRow {
     nombre_raw: string | null;
     cnt: number;
     total: number;
 }
 export declare function getSinEntidadDiagnostico(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<SinEntidadRow[]>;
+export interface SinServicioRow {
+    descripcion_raw: string | null;
+    cnt: number;
+    total: number;
+}
+export declare function getSinServicioDiagnostico(limit?: number): Promise<SinServicioRow[]>;
 export declare function getServiciosDiagnostico(): Promise<{
     servicios_en_catalogo: number;
     servicios_con_keywords: number;
@@ -108,16 +130,48 @@ export interface ServicioAggRow {
     nombre: string | null;
     tipo_conteo: 'unidad' | 'sesion';
     orden: number;
+    categoria: string | null;
     total_filas: number;
     sesiones: number;
     valor_bruto: number;
 }
-export declare function getServiciosAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date): Promise<ServicioAggRow[]>;
+export declare function getServiciosAgg(mesIdx: number, anio: number, startDate?: Date, endDate?: Date, entidadId?: string, diaSemana?: number): Promise<ServicioAggRow[]>;
+export interface ServicioCatalogRow {
+    id: string;
+    nombre: string;
+    nombre_display: string | null;
+    palabras_clave: string[];
+    tipo_conteo: 'unidad' | 'sesion';
+    orden: number;
+    total_atenciones: number;
+}
+export declare function listServiciosCatalog(): Promise<ServicioCatalogRow[]>;
+export declare function patchServicio(id: string, fields: {
+    tipo_conteo?: 'unidad' | 'sesion';
+    nombre_display?: string | null;
+}): Promise<void>;
+export interface ServicioAgrupacionItem {
+    descripcion_raw: string | null;
+    cnt: number;
+    valor: number;
+}
+export interface ServicioAgrupacion {
+    servicio_id: string;
+    nombre: string;
+    total_cnt: number;
+    items: ServicioAgrupacionItem[];
+}
+export declare function getServicioAgrupaciones(): Promise<ServicioAgrupacion[]>;
 export declare function upsertPresupuesto(anio: number, mes: number, monto: number, notas?: string): Promise<{
     id: string;
     anio: number;
     mes: number;
     monto: number;
     notas: string | null;
+}>;
+export declare function reclasificarServicios(): Promise<{
+    total: number;
+    updated: number;
+    sin_clasificar: number;
 }>;
 //# sourceMappingURL=reportes.repo.d.ts.map

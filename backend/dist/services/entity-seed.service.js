@@ -56,6 +56,14 @@ const ENTIDADES = [
     { nombre: 'PROTEGEMOS', nombresRaw: ['PROTEGEMOS'], tipo: 'ARL', esGrupoCaja: true },
     // ── Particulares (unified — matches both PARTICULARES and PARTICULAR in sheets) ─
     { nombre: 'PARTICULARES', nombresRaw: ['PARTICULARES', 'PARTICULARES/CONVENIOS', 'PARTICULAR', 'PART'], tipo: 'PARTICULAR', esGrupoCaja: true },
+    // ── Entidades incorporadas desde diagnóstico Sin Entidad ──────────────────────
+    { nombre: 'REGIONAL DE ASEGURAMIENTO EN SALUD NO4', nombresRaw: ['REGIONAL DE ASEGURAMIENTO EN SALUD NO4', 'REGIONAL DE ASEGURAMIENTO EN SALUD N04', 'REGIONAL ASEGURAMIENTO EN SALUD NO4'], tipo: 'EPS' },
+    { nombre: 'GRUPO MEDICO LABORAL GML IPS SAS', nombresRaw: ['GRUPO MEDICO LABORAL GML IPS SAS', 'GRUPO MEDICO LABORAL GML', 'GML IPS SAS', 'GML IPS'], tipo: 'CONVENIO' },
+    { nombre: 'NEUROLOGOS DEL VALLE SAS', nombresRaw: ['NEUROLOGOS DEL VALLE SAS', 'NEUROLOGOS DEL VALLE'], tipo: 'OTRO' },
+    { nombre: 'ALLIANZ SEGUROS DE VIDA', nombresRaw: ['ALLIANZ SEGUROS DE VIDA SA', 'ALLIANZ SEGUROS DE VIDA'], tipo: 'OTRO' },
+    { nombre: 'ALLIANZ CARE', nombresRaw: ['ALLIANZ CARE'], tipo: 'OTRO' },
+    { nombre: 'PROYECTOSINVERSIONES EN SOLUCIONES MEDICAS SAS', nombresRaw: ['PROYECTOSINVERSIONES EN SOLUCIONES MEDICAS SAS', 'PROYECTOSINVERSIONES EN SOLUCIONES MEDICAS'], tipo: 'CONVENIO' },
+    { nombre: 'TARIFA EMPLEADOS NEUROFIC', nombresRaw: ['TARIFA EMPLEADOS NEUROFIC', 'EMPLEADOS NEUROFIC'], tipo: 'CONVENIO', esGrupoCaja: true },
 ];
 async function autoSeedEntidades() {
     let created = 0;

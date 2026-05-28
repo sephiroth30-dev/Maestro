@@ -344,12 +344,14 @@ class ReportesService {
         return rows;
     }
     async getServicios(params) {
-        const { mesIdx, anio, startDate, endDate } = params;
-        const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate);
-        const cached = await cacheGet(cacheKey);
+        const { mesIdx, anio, startDate, endDate, entidadId, diaSemana } = params;
+        const cacheKey = makeCacheKey('servicios', mesIdx, anio, startDate, endDate, entidadId)
+            + (diaSemana !== undefined ? `:d${diaSemana}` : '');
+        // Skip cache when using runtime filters (entity or day)
+        const cached = (entidadId || diaSemana !== undefined) ? null : await cacheGet(cacheKey);
         if (cached)
             return cached;
-        const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate);
+        const agg = await repo.getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId, diaSemana);
         let sinClasificar = 0;
         let valorSinClasificar = 0;
         let emgCount = 0;
@@ -367,6 +369,7 @@ class ReportesService {
                 nombre: r.nombre ?? '(sin nombre)',
                 tipo_conteo: r.tipo_conteo,
                 orden: r.orden,
+                categoria: r.categoria ?? null,
                 cantidad: esSesion ? r.sesiones : r.total_filas,
                 horas: esSesion ? r.total_filas : null,
                 valor_bruto: r.valor_bruto,
@@ -386,7 +389,8 @@ class ReportesService {
             emg_count: emgCount,
             neuro_count: neuroCount,
         };
-        await cacheSet(cacheKey, result, 30 * 60);
+        if (!entidadId && diaSemana === undefined)
+            await cacheSet(cacheKey, result, 30 * 60);
         return result;
     }
 }

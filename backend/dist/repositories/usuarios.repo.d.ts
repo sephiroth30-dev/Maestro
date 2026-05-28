@@ -23,6 +23,18 @@ export interface CreateRefreshTokenData {
     usuarioId: string;
     expiresAt: Date;
 }
+export interface CreateUsuarioData {
+    nombre: string;
+    email: string;
+    passwordHash: string;
+    rol: Rol;
+}
+export interface UpdateUsuarioData {
+    nombre?: string;
+    email?: string;
+    rol?: Rol;
+    activo?: boolean;
+}
 export declare class UsuariosRepository {
     findByEmail(email: string): Promise<UsuarioMapped | null>;
     findById(id: string): Promise<UsuarioMapped | null>;
@@ -33,6 +45,12 @@ export declare class UsuariosRepository {
     revokeAllUserRefreshTokens(usuarioId: string): Promise<void>;
     deleteExpiredTokens(): Promise<number>;
     getUserRol(id: string): Promise<Rol | null>;
+    listAll(): Promise<UsuarioMapped[]>;
+    findByEmailExcluding(email: string, excludeId: string): Promise<UsuarioMapped | null>;
+    create(data: CreateUsuarioData): Promise<UsuarioMapped>;
+    update(id: string, data: UpdateUsuarioData): Promise<void>;
+    updatePassword(id: string, passwordHash: string): Promise<void>;
+    softDelete(id: string): Promise<void>;
 }
 export declare const usuariosRepo: UsuariosRepository;
 //# sourceMappingURL=usuarios.repo.d.ts.map

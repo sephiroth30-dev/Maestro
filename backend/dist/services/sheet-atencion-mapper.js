@@ -163,19 +163,39 @@ function hashFila(fields) {
 async function buildCache() {
     const [[entidadRows], [profesionalRows]] = await Promise.all([
         prisma_js_1.pool.query('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
-        prisma_js_1.pool.query('SELECT id, nombres_raw FROM profesionales WHERE activo = 1'),
+        prisma_js_1.pool.query('SELECT id, nombres_raw, especialidad FROM profesionales WHERE activo = 1'),
     ]);
     // Servicios queried separately — if the column migration hasn't run yet this
     // must not crash the whole sync. Return empty catalog instead.
     let rawServicios = [];
     try {
-        const [rows] = await prisma_js_1.pool.query('SELECT id, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC');
+        const [rows] = await prisma_js_1.pool.query('SELECT id, nombre, palabras_clave FROM servicios WHERE palabras_clave IS NOT NULL ORDER BY orden ASC');
         rawServicios = rows;
     }
     catch (err) {
         logger_js_1.logger.warn('servicios cache build failed — service classification disabled for this sync', {
             error: err instanceof Error ? err.message : String(err),
         });
+    }
+    const servicios = rawServicios.map((row) => ({
+        id: row['id'],
+        nombre: row['nombre'],
+        palabrasClave: (typeof row['palabras_clave'] === 'string'
+            ? JSON.parse(row['palabras_clave'])
+            : row['palabras_clave']).map((kw) => kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
+    }));
+    // Build specialty upgrade map
+    const specialtyUpgrade = new Map();
+    const UPGRADES = [
+        ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
+        ['CONSULTA DE CONTROL', 'CONSULTA DE CONTROL NEUROLOGIA', 'CONSULTA DE CONTROL FISIATRIA'],
+    ];
+    for (const [generic, neuro, fisio] of UPGRADES) {
+        const genericId = servicios.find((s) => s.nombre === generic)?.id ?? null;
+        const neuroId = servicios.find((s) => s.nombre === neuro)?.id ?? null;
+        const fisioId = servicios.find((s) => s.nombre === fisio)?.id ?? null;
+        if (genericId)
+            specialtyUpgrade.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
     }
     return {
         entidades: entidadRows.map((row) => ({
@@ -189,21 +209,24 @@ async function buildCache() {
             nombres: (typeof row['nombres_raw'] === 'string'
                 ? JSON.parse(row['nombres_raw'])
                 : row['nombres_raw']).map((n) => n.toUpperCase()),
+            especialidad: row['especialidad'] ?? null,
         })),
-        servicios: rawServicios.map((row) => ({
-            id: row['id'],
-            palabrasClave: (typeof row['palabras_clave'] === 'string'
-                ? JSON.parse(row['palabras_clave'])
-                : row['palabras_clave']).map((kw) => kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
-        })),
+        servicios,
+        specialtyUpgrade,
     };
 }
-function resolveServicioId(descripcionNorm, catalog) {
+function resolveServicioId(descripcionNorm, catalog, profesionalEspecialidad, specialtyUpgrade) {
     const upper = descripcionNorm.toUpperCase();
     for (const servicio of catalog) {
         for (const kw of servicio.palabrasClave) {
-            if (upper.includes(kw))
-                return servicio.id;
+            if (upper.includes(kw)) {
+                let id = servicio.id;
+                // Upgrade generic consultations to specialty-specific when profesional is tagged
+                if (specialtyUpgrade.has(id) && (profesionalEspecialidad === 'NEUROLOGIA' || profesionalEspecialidad === 'FISIATRIA')) {
+                    id = specialtyUpgrade.get(id)[profesionalEspecialidad] ?? id;
+                }
+                return id;
+            }
         }
     }
     return null;
@@ -292,8 +315,11 @@ async function mapRowsToAtenciones(rows, conectorId) {
             const anio = fechaDia.getUTCFullYear();
             const entidadId = resolveId(rawEntidad, entityCache.entidades);
             const profesionalId = resolveId(rawProfesional, entityCache.profesionales);
+            const profEspecialidad = profesionalId
+                ? (entityCache.profesionales.find((p) => p.id === profesionalId)?.especialidad ?? null)
+                : null;
             const descripcionNorm = (0, normalizacion_service_js_1.normalizeDescripcion)(rawDescripcion);
-            const servicioId = resolveServicioId(descripcionNorm, entityCache.servicios);
+            const servicioId = resolveServicioId(descripcionNorm, entityCache.servicios, profEspecialidad, entityCache.specialtyUpgrade);
             const fechaStr = fechaDia.toISOString().slice(0, 10);
             const hash = hashFila({
                 descripcionRaw: rawDescripcion,

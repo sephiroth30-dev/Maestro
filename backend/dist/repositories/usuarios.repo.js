@@ -67,6 +67,52 @@ class UsuariosRepository {
         const [rows] = await prisma_js_1.pool.query('SELECT rol FROM usuarios WHERE id = ? AND activo = 1 AND deleted_at IS NULL LIMIT 1', [id]);
         return rows[0]?.rol ?? null;
     }
+    // ─── Admin CRUD ───────────────────────────────────────────────────────────
+    async listAll() {
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE deleted_at IS NULL ORDER BY nombre ASC');
+        return rows.map(mapUsuario);
+    }
+    async findByEmailExcluding(email, excludeId) {
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1', [email, excludeId]);
+        return rows[0] ? mapUsuario(rows[0]) : null;
+    }
+    async create(data) {
+        const id = (0, node_crypto_1.randomUUID)();
+        await prisma_js_1.pool.execute('INSERT INTO usuarios (id, email, nombre, password_hash, rol, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())', [id, data.email, data.nombre, data.passwordHash, data.rol]);
+        const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE id = ? LIMIT 1', [id]);
+        return mapUsuario(rows[0]);
+    }
+    async update(id, data) {
+        const sets = [];
+        const params = [];
+        if (data.nombre !== undefined) {
+            sets.push('nombre = ?');
+            params.push(data.nombre);
+        }
+        if (data.email !== undefined) {
+            sets.push('email = ?');
+            params.push(data.email);
+        }
+        if (data.rol !== undefined) {
+            sets.push('rol = ?');
+            params.push(data.rol);
+        }
+        if (data.activo !== undefined) {
+            sets.push('activo = ?');
+            params.push(data.activo ? 1 : 0);
+        }
+        if (sets.length === 0)
+            return;
+        sets.push('updated_at = NOW()');
+        params.push(id);
+        await prisma_js_1.pool.execute(`UPDATE usuarios SET ${sets.join(', ')} WHERE id = ? AND deleted_at IS NULL`, params);
+    }
+    async updatePassword(id, passwordHash) {
+        await prisma_js_1.pool.execute('UPDATE usuarios SET password_hash = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL', [passwordHash, id]);
+    }
+    async softDelete(id) {
+        await prisma_js_1.pool.execute('UPDATE usuarios SET deleted_at = NOW(), activo = 0 WHERE id = ? AND deleted_at IS NULL', [id]);
+    }
 }
 exports.UsuariosRepository = UsuariosRepository;
 exports.usuariosRepo = new UsuariosRepository();

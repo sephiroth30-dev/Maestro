@@ -83,9 +83,10 @@ const patchEntidadBodySchema = zod_1.z
     .object({
     es_grupo_caja: zod_1.z.boolean().optional(),
     tipo: zod_1.z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
+    nombres_raw: zod_1.z.array(zod_1.z.string().min(1)).min(1).optional(),
 })
-    .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined, {
-    message: 'Se requiere al menos un campo: es_grupo_caja o tipo',
+    .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined, {
+    message: 'Se requiere al menos un campo: es_grupo_caja, tipo o nombres_raw',
 });
 const presupuestoBodySchema = zod_1.z.object({
     anio: zod_1.z.number().int().min(2020).max(2100),
@@ -189,7 +190,10 @@ async function registerReportesController(fastify) {
     });
     // GET /api/reportes/servicios
     fastify.get('/api/reportes/servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (request, reply) => {
-        const parsed = mesAnioDateSchema.safeParse(request.query);
+        const serviciosQuerySchema = mesAnioDateSchema.extend({
+            entidad_id: zod_1.z.string().optional(),
+        });
+        const parsed = serviciosQuerySchema.safeParse(request.query);
         if (!parsed.success) {
             return reply.status(400).send({
                 error: 'Bad Request',
@@ -197,12 +201,14 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const { mes_idx, anio, start_date, end_date, entidad_id, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getServicios({
             mesIdx: mes_idx,
             anio,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
+            entidadId: entidad_id,
+            diaSemana: dia_semana,
         });
         return reply.send(result);
     });
@@ -215,6 +221,40 @@ async function registerReportesController(fastify) {
     fastify.get('/api/reportes/diagnostico', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.getDiagnosticoConectores();
         return reply.send(rows);
+    });
+    // GET /api/diagnostico/sin-servicio (ADMIN — unclassified service descriptions)
+    fastify.get('/api/diagnostico/sin-servicio', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.getSinServicioDiagnostico();
+        return reply.send(rows);
+    });
+    // POST /api/admin/reclasificar-servicios (ADMIN — re-run service classification on all atenciones)
+    fastify.post('/api/admin/reclasificar-servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const result = await repo.reclasificarServicios();
+        return reply.send(result);
+    });
+    // GET /api/profesionales (ADMIN — list all with specialty)
+    fastify.get('/api/profesionales', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.listProfesionales();
+        return reply.send(rows);
+    });
+    // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
+    fastify.patch('/api/profesionales/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const { id } = request.params;
+        const body = request.body;
+        const fields = {};
+        if ('especialidad' in body) {
+            const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
+            if (!allowed.includes(body.especialidad ?? null)) {
+                return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+            }
+            fields.especialidad = (body.especialidad ?? null);
+        }
+        if ('nombre_completo' in body) {
+            const nc = body.nombre_completo;
+            fields.nombre_completo = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+        }
+        await repo.patchProfesional(id, fields);
+        return reply.send({ ok: true });
     });
     // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
     fastify.get('/api/diagnostico/sin-entidad', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
@@ -249,8 +289,37 @@ async function registerReportesController(fastify) {
         await repo.patchEntidad(id, {
             es_grupo_caja: parsed.data.es_grupo_caja,
             tipo: parsed.data.tipo,
+            nombres_raw: parsed.data.nombres_raw,
         });
         return reply.status(200).send({ ok: true });
+    });
+    // GET /api/servicios (catalog for config UI — ADMIN only)
+    fastify.get('/api/servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.listServiciosCatalog();
+        return reply.send(rows);
+    });
+    // PATCH /api/servicios/:id (update tipo_conteo and/or nombre_display — ADMIN only)
+    fastify.patch('/api/servicios/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const { id } = request.params;
+        const body = request.body;
+        const fields = {};
+        if ('tipo_conteo' in body) {
+            const parsed = zod_1.z.enum(['unidad', 'sesion']).safeParse(body.tipo_conteo);
+            if (!parsed.success)
+                return reply.status(400).send({ error: 'Bad Request', message: 'tipo_conteo must be unidad or sesion', statusCode: 400 });
+            fields.tipo_conteo = parsed.data;
+        }
+        if ('nombre_display' in body) {
+            const nd = body.nombre_display;
+            fields.nombre_display = (typeof nd === 'string' && nd.trim() !== '') ? nd.trim() : null;
+        }
+        await repo.patchServicio(id, fields);
+        return reply.status(200).send({ ok: true });
+    });
+    // GET /api/diagnostico/servicio-agrupaciones (ADMIN — actual raw descriptions per service)
+    fastify.get('/api/diagnostico/servicio-agrupaciones', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const data = await repo.getServicioAgrupaciones();
+        return reply.send(data);
     });
     // GET /api/reportes/presupuestos
     fastify.get('/api/reportes/presupuestos', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (_request, reply) => {

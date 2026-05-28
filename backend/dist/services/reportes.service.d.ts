@@ -43,6 +43,7 @@ export interface ServicioRow {
     nombre: string;
     tipo_conteo: 'unidad' | 'sesion';
     orden: number;
+    categoria: string | null;
     cantidad: number;
     horas: number | null;
     valor_bruto: number;
@@ -102,6 +103,8 @@ declare class ReportesService {
         anio: number;
         startDate?: Date;
         endDate?: Date;
+        entidadId?: string;
+        diaSemana?: number;
     }): Promise<ServiciosResult>;
 }
 export declare const reportesService: ReportesService;
