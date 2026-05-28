@@ -185,7 +185,8 @@ model Profesional {
   especialidad    String?    @db.VarChar(20)
   nombreCompleto  String?    @map("nombre_completo") @db.VarChar(200)
   createdAt       DateTime   @default(now()) @map("created_at")
-  atenciones   Atencion[]
+  atenciones    Atencion[]
+  liquidaciones Liquidacion[]
 
   @@map("profesionales")
 }
@@ -233,6 +234,35 @@ model Atencion {
   @@index([hashFila])
   @@index([numeroAutorizacion])
   @@map("atenciones")
+}
+
+enum EstadoLiquidacion {
+  CALCULADO
+  APROBADO
+  PAGADO
+}
+
+model Liquidacion {
+  id            String             @id @default(uuid())
+  profesionalId String             @map("profesional_id")
+  profesional   Profesional        @relation(fields: [profesionalId], references: [id])
+  fechaDesde    DateTime           @map("fecha_desde") @db.Date
+  fechaHasta    DateTime           @map("fecha_hasta") @db.Date
+  estado        EstadoLiquidacion  @default(CALCULADO)
+  montoTotal    Decimal            @map("monto_total") @db.Decimal(15, 2)
+  datosSnapshot Json               @map("datos_snapshot")
+  aprobadoPor   String?            @map("aprobado_por")
+  aprobadoEn    DateTime?          @map("aprobado_en")
+  pagadoPor     String?            @map("pagado_por")
+  pagadoEn      DateTime?          @map("pagado_en")
+  notas         String?            @db.Text
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@unique([profesionalId, fechaDesde, fechaHasta])
+  @@index([fechaDesde, fechaHasta])
+  @@index([estado])
+  @@map("liquidaciones")
 }
 
 model PresupuestoMensual {

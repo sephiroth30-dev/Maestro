@@ -11,4 +11,6 @@ export interface HonorariosLineaDB {
     total_valor: number;
 }
 export declare function getLineasHonorarios(mesIdx: number, anio: number): Promise<HonorariosLineaDB[]>;
+export declare function getLineasHonorariosRango(fechaDesde: string, // 'YYYY-MM-DD'
+fechaHasta: string): Promise<HonorariosLineaDB[]>;
 //# sourceMappingURL=honorarios.repo.d.ts.map

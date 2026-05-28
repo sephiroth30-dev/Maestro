@@ -1,0 +1,21 @@
+CREATE TABLE `liquidaciones` (
+  `id`              VARCHAR(36)   NOT NULL DEFAULT (UUID()),
+  `profesional_id`  VARCHAR(36)   NOT NULL,
+  `fecha_desde`     DATE          NOT NULL,
+  `fecha_hasta`     DATE          NOT NULL,
+  `estado`          ENUM('CALCULADO','APROBADO','PAGADO') NOT NULL DEFAULT 'CALCULADO',
+  `monto_total`     DECIMAL(15,2) NOT NULL DEFAULT 0,
+  `datos_snapshot`  JSON          NOT NULL,
+  `aprobado_por`    VARCHAR(36)   NULL,
+  `aprobado_en`     DATETIME      NULL,
+  `pagado_por`      VARCHAR(36)   NULL,
+  `pagado_en`       DATETIME      NULL,
+  `notas`           TEXT          NULL,
+  `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_liq_prof_periodo` (`profesional_id`, `fecha_desde`, `fecha_hasta`),
+  KEY `idx_liq_fecha` (`fecha_desde`, `fecha_hasta`),
+  KEY `idx_liq_estado` (`estado`),
+  CONSTRAINT `fk_liq_profesional` FOREIGN KEY (`profesional_id`) REFERENCES `profesionales` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

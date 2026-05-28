@@ -8,6 +8,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calcularHonorarios = calcularHonorarios;
+exports.calcularHonorariosRango = calcularHonorariosRango;
 const honorarios_repo_js_1 = require("../repositories/honorarios.repo.js");
 // ─── Mapa servicio → categoría ────────────────────────────────────────────────
 const SERVICIO_CAT = {
@@ -211,5 +212,77 @@ async function calcularHonorarios(mesIdx, anio) {
     void _pid;
     void _n;
     return { year: anio, month: mesIdx, rows, totales: totalesSinId };
+}
+// ─── Motor compartido (acepta líneas ya cargadas) ─────────────────────────────
+function aplicarReglas(lineas) {
+    const mapaFilas = new Map();
+    for (const l of lineas) {
+        let fila = mapaFilas.get(l.profesional_id);
+        if (!fila) {
+            fila = nuevaFila(l.profesional_id, l.profesional_display);
+            mapaFilas.set(l.profesional_id, fila);
+        }
+        const cat = l.servicio_nombre ? (SERVICIO_CAT[l.servicio_nombre] ?? 'sin_regla') : 'sin_regla';
+        if (cat === 'excluido')
+            continue;
+        if (cat === 'sin_regla') {
+            acumular(fila, 'sin_regla', l.total_valor, l.cnt);
+            continue;
+        }
+        const isParticular = l.entidad_tipo === 'PARTICULAR';
+        const isSesion = l.servicio_tipo_conteo === 'sesion';
+        if (l.profesional_nombre === 'LAVERDE' && l.entidad_nombre === 'DALELA') {
+            acumular(fila, cat, l.total_valor * 0.80, isSesion ? l.cnt_sesiones : l.cnt);
+            continue;
+        }
+        const regla = REGLAS[l.profesional_nombre]?.[cat];
+        if (!regla) {
+            acumular(fila, 'sin_regla', l.total_valor, l.cnt);
+            continue;
+        }
+        let monto = 0;
+        const cnt = isSesion ? l.cnt_sesiones : l.cnt;
+        if (regla.tipo === 'fijo') {
+            let valorFijo;
+            if (cat === 'psg_lms') {
+                valorFijo = l.servicio_nombre === 'PRUEBA DE LATENCIA MULTIPLE' ? LMS_FIJO : PSG_FIJO;
+            }
+            else if (cat === 'consulta' && !isParticular &&
+                PROFESIONALES_CONSULTA_REDUCIDA.has(l.profesional_nombre) &&
+                l.entidad_nombre !== null && ENTIDADES_CONSULTA_REDUCIDA.has(l.entidad_nombre)) {
+                valorFijo = 36_000;
+            }
+            else {
+                valorFijo = isParticular ? regla.particular : regla.entidad;
+            }
+            monto = cnt * valorFijo;
+        }
+        else {
+            monto = l.total_valor * (isParticular ? regla.particular : regla.entidad);
+        }
+        acumular(fila, cat, monto, cnt);
+    }
+    return mapaFilas;
+}
+async function calcularHonorariosRango(fechaDesde, fechaHasta) {
+    const lineas = await (0, honorarios_repo_js_1.getLineasHonorariosRango)(fechaDesde, fechaHasta);
+    const mapaFilas = aplicarReglas(lineas);
+    const rows = [...mapaFilas.values()].sort((a, b) => b.total - a.total);
+    const totales = nuevaFila('__totales__', 'TOTAL');
+    for (const r of rows) {
+        const cats = ['consulta', 'emg_vcn', 'infiltracion', 'ecografia', 'terapia_choque', 'junta', 'eeg', 'psg_lms', 'tlm', 'pe'];
+        for (const c of cats) {
+            totales[c].monto += r[c].monto;
+            totales[c].cnt += r[c].cnt;
+        }
+        totales.total += r.total;
+        totales.sin_regla.monto += r.sin_regla.monto;
+        totales.sin_regla.cnt += r.sin_regla.cnt;
+    }
+    const { profesional_id: _pid, nombre: _n, ...totalesSinId } = totales;
+    void _pid;
+    void _n;
+    const [y, m] = fechaDesde.split('-').map(Number);
+    return { year: y, month: m, rows, totales: totalesSinId };
 }
 //# sourceMappingURL=honorarios.service.js.map

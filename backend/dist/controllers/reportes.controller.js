@@ -38,6 +38,7 @@ const zod_1 = require("zod");
 const reportes_service_js_1 = require("../services/reportes.service.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
 const honorarios_service_js_1 = require("../services/honorarios.service.js");
+const liquidaciones_service_js_1 = require("../services/liquidaciones.service.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -350,6 +351,80 @@ async function registerReportesController(fastify) {
         const { mes_idx, anio } = parsed.data;
         const result = await (0, honorarios_service_js_1.calcularHonorarios)(mes_idx, anio);
         return reply.send(result);
+    });
+    // ─── Liquidaciones ────────────────────────────────────────────────────────
+    const rangoSchema = zod_1.z.object({
+        fecha_desde: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        fecha_hasta: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    });
+    const HON_ROLES = ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION'];
+    // GET /api/liquidaciones?fecha_desde=2026-05-01&fecha_hasta=2026-05-31
+    fastify.get('/api/liquidaciones', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const parsed = rangoSchema.safeParse(request.query);
+        if (!parsed.success)
+            return reply.status(400).send({ error: 'Bad Request' });
+        const rows = await (0, liquidaciones_service_js_1.getLiquidacionesByPeriodo)(parsed.data.fecha_desde, parsed.data.fecha_hasta);
+        return reply.send(rows);
+    });
+    // POST /api/liquidaciones/generar  { fecha_desde, fecha_hasta }
+    fastify.post('/api/liquidaciones/generar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const parsed = rangoSchema.safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: 'Bad Request' });
+        const rows = await (0, liquidaciones_service_js_1.generarLiquidaciones)(parsed.data.fecha_desde, parsed.data.fecha_hasta);
+        return reply.status(200).send(rows);
+    });
+    // POST /api/liquidaciones/:id/aprobar
+    fastify.post('/api/liquidaciones/:id/aprobar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        const liq = await (0, liquidaciones_service_js_1.aprobarLiquidacion)(id, user.sub);
+        if (!liq)
+            return reply.status(404).send({ error: 'No encontrada o ya aprobada' });
+        return reply.send(liq);
+    });
+    // POST /api/liquidaciones/:id/pagar   { notas?: string }
+    fastify.post('/api/liquidaciones/:id/pagar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        const body = zod_1.z.object({ notas: zod_1.z.string().optional() }).safeParse(request.body);
+        const notas = body.success ? body.data.notas : undefined;
+        const liq = await (0, liquidaciones_service_js_1.pagarLiquidacion)(id, user.sub, notas);
+        if (!liq)
+            return reply.status(404).send({ error: 'No encontrada o no está aprobada' });
+        return reply.send(liq);
+    });
+    // POST /api/liquidaciones/aprobar-lote  { ids: string[] }
+    fastify.post('/api/liquidaciones/aprobar-lote', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const parsed = zod_1.z.object({ ids: zod_1.z.array(zod_1.z.string()).min(1) }).safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: 'Bad Request' });
+        const user = request.user;
+        await (0, liquidaciones_service_js_1.aprobarLote)(parsed.data.ids, user.sub);
+        return reply.send({ ok: true });
+    });
+    // POST /api/liquidaciones/pagar-lote  { ids: string[] }
+    fastify.post('/api/liquidaciones/pagar-lote', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const parsed = zod_1.z.object({ ids: zod_1.z.array(zod_1.z.string()).min(1) }).safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: 'Bad Request' });
+        const user = request.user;
+        await (0, liquidaciones_service_js_1.pagarLote)(parsed.data.ids, user.sub);
+        return reply.send({ ok: true });
+    });
+    // GET /api/liquidaciones/:id/pdf
+    fastify.get('/api/liquidaciones/:id/pdf', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const { id } = request.params;
+        try {
+            const buf = await (0, liquidaciones_service_js_1.generarPDFLiquidacion)(id);
+            return reply
+                .header('Content-Type', 'application/pdf')
+                .header('Content-Disposition', `attachment; filename="honorarios-${id.substring(0, 8)}.pdf"`)
+                .send(buf);
+        }
+        catch {
+            return reply.status(404).send({ error: 'Liquidación no encontrada' });
+        }
     });
 }
 //# sourceMappingURL=reportes.controller.js.map

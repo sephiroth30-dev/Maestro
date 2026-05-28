@@ -33,4 +33,5 @@ export interface HonorariosResult {
     totales: Omit<HonorariosProfesionalRow, 'profesional_id' | 'nombre'>;
 }
 export declare function calcularHonorarios(mesIdx: number, anio: number): Promise<HonorariosResult>;
+export declare function calcularHonorariosRango(fechaDesde: string, fechaHasta: string): Promise<HonorariosResult>;
 //# sourceMappingURL=honorarios.service.d.ts.map
