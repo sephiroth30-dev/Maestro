@@ -588,10 +588,7 @@ export default function Honorarios(): React.ReactElement {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="hon-header">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h1 className="page-title">Honorarios Médicos</h1>
-            <span className="liq-version-badge">v{__APP_VERSION__}</span>
-          </div>
+          <h1 className="page-title">Honorarios Médicos</h1>
           <p className="page-subtitle">Liquidación por período — aprueba y registra el pago por profesional</p>
         </div>
 
