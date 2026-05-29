@@ -11,9 +11,10 @@ import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
-import { Conectores, Configuracion, Usuarios } from './pages/Admin/index.js';
+import { Conectores, Configuracion, Usuarios, CapacidadConfig } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
+import Capacidad from './pages/Capacidad.js';
 import Sidebar from './components/layout/Sidebar.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
@@ -72,6 +73,24 @@ function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
   }
 
   if (!user || !(REPORTES_ROLES as readonly string[]).includes(user.rol)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+// ─── Capacidad Route (ADMIN + GERENCIA + DIRECCION + FACTURACION) ────────────
+
+const CAPACIDAD_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'] as const;
+
+function CapacidadRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user || !(CAPACIDAD_ROLES as readonly string[]).includes(user.rol)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -204,6 +223,30 @@ export default function App(): ReactElement {
               <AdminRoute>
                 <AppLayout>
                   <Usuarios />
+                </AppLayout>
+              </AdminRoute>
+            }
+          />
+
+          {/* Capacidad route */}
+          <Route
+            path="/capacidad"
+            element={
+              <CapacidadRoute>
+                <AppLayout>
+                  <Capacidad />
+                </AppLayout>
+              </CapacidadRoute>
+            }
+          />
+
+          {/* Admin — Capacidad config */}
+          <Route
+            path="/admin/capacidad"
+            element={
+              <AdminRoute>
+                <AppLayout>
+                  <CapacidadConfig />
                 </AppLayout>
               </AdminRoute>
             }
