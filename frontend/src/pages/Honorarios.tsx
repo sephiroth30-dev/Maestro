@@ -583,7 +583,7 @@ export default function Honorarios(): React.ReactElement {
   };
 
   return (
-    <div className="page-container">
+    <div className="page">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="hon-header">
