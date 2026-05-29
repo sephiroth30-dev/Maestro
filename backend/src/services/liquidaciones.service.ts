@@ -6,6 +6,7 @@ import {
   upsertLiquidacion,
   actualizarEstado,
   actualizarEstadoLote,
+  revertirEstado,
   type LiquidacionDB,
 } from '../repositories/liquidaciones.repo.js';
 import type { HonorariosProfesionalRow } from './honorarios.service.js';
@@ -62,6 +63,13 @@ export async function pagarLiquidacion(id: string, usuarioId: string, notas?: st
 
 export async function pagarLote(ids: string[], usuarioId: string): Promise<void> {
   await actualizarEstadoLote(ids, 'PAGADO', usuarioId);
+}
+
+// ─── Revertir a borrador ──────────────────────────────────────────────────────
+
+export async function revertirLiquidacion(id: string, usuarioId: string, razon: string): Promise<LiquidacionDB | null> {
+  await revertirEstado(id, usuarioId, razon);
+  return getLiquidacionById(id);
 }
 
 // ─── Re-exportar queries ──────────────────────────────────────────────────────

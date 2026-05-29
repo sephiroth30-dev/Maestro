@@ -2,12 +2,13 @@ import React, { useState, useMemo } from 'react';
 import {
   Loader2, AlertCircle, ChevronLeft, ChevronRight, Info,
   RefreshCw, Check, Banknote, FileText, ChevronDown, ChevronUp,
-  Calendar,
+  Calendar, RotateCcw,
 } from 'lucide-react';
 import {
   useLiquidaciones, useGenerarLiquidaciones,
   useAprobarLiquidacion, usePagarLiquidacion,
   useAprobarLote, usePagarLote,
+  useRevertirLiquidacion,
   descargarPDF,
   type LiquidacionRow, type EstadoLiquidacion,
 } from '../api/liquidaciones.js';
@@ -20,8 +21,12 @@ const fmtCOP = (n: number) =>
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 
-const fmtFecha = (iso: string) =>
-  new Date(iso + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtFecha = (iso: string | null | undefined): string => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
+};
 
 const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -92,6 +97,54 @@ function ModalPagar({
   );
 }
 
+// ─── Modal revertir ───────────────────────────────────────────────────────────
+
+function ModalRevertir({
+  liq,
+  onConfirm,
+  onClose,
+}: {
+  liq: LiquidacionRow;
+  onConfirm: (razon: string) => void;
+  onClose: () => void;
+}) {
+  const [razon, setRazon] = useState('');
+  return (
+    <div className="liq-modal-overlay" onClick={onClose}>
+      <div className="liq-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="liq-modal-title" style={{ color: '#b45309' }}>Revertir a borrador</h3>
+        <p className="liq-modal-sub">
+          <strong>{liq.profesional_display}</strong> — {fmtCOP(liq.monto_total)}<br />
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+            El registro volverá a estado <strong>Calculado</strong> y podrás revisarlo antes de aprobarlo nuevamente.
+          </span>
+        </p>
+        <label className="liq-modal-label">Razón de reversión <span style={{ color: '#ef4444' }}>*</span></label>
+        <textarea
+          className="liq-modal-textarea"
+          rows={3}
+          placeholder="Ej: Valor incorrecto, faltan servicios adicionales..."
+          value={razon}
+          onChange={(e) => setRazon(e.target.value)}
+          autoFocus
+        />
+        <div className="liq-modal-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancelar</button>
+          <button
+            type="button"
+            className="btn"
+            style={{ background: '#f59e0b', color: '#fff' }}
+            disabled={razon.trim().length < 5}
+            onClick={() => onConfirm(razon.trim())}
+          >
+            <RotateCcw size={14} /> Revertir a borrador
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Fila expandible ──────────────────────────────────────────────────────────
 
 function FilaLiquidacion({
@@ -100,6 +153,7 @@ function FilaLiquidacion({
   onCheck,
   onAprobar,
   onPagar,
+  onRevertir,
   onPDF,
 }: {
   liq: LiquidacionRow;
@@ -107,6 +161,7 @@ function FilaLiquidacion({
   onCheck: (id: string) => void;
   onAprobar: (liq: LiquidacionRow) => void;
   onPagar: (liq: LiquidacionRow) => void;
+  onRevertir: (liq: LiquidacionRow) => void;
   onPDF: (liq: LiquidacionRow) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -143,9 +198,14 @@ function FilaLiquidacion({
               </button>
             )}
             {liq.estado === 'APROBADO' && (
-              <button type="button" className="liq-btn liq-btn--pay" onClick={() => onPagar(liq)} title="Pagar">
-                <Banknote size={13} /> Pagar
-              </button>
+              <>
+                <button type="button" className="liq-btn liq-btn--pay" onClick={() => onPagar(liq)} title="Pagar">
+                  <Banknote size={13} /> Pagar
+                </button>
+                <button type="button" className="liq-btn liq-btn--revert" onClick={() => onRevertir(liq)} title="Revertir a borrador">
+                  <RotateCcw size={13} />
+                </button>
+              </>
             )}
             {liq.estado !== 'CALCULADO' && (
               <button type="button" className="liq-btn liq-btn--pdf" onClick={() => onPDF(liq)} title="Descargar PDF">
@@ -231,7 +291,8 @@ export default function Honorarios(): React.ReactElement {
   const [rangoDesde, setRangoDesde] = useState(primeroDelMes(now.getFullYear(), now.getMonth() + 1));
   const [rangoHasta, setRangoHasta] = useState(ultimoDelMes(now.getFullYear(), now.getMonth() + 1));
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [pagarModal, setPagarModal] = useState<LiquidacionRow | null>(null);
+  const [pagarModal, setPagarModal]     = useState<LiquidacionRow | null>(null);
+  const [revertirModal, setRevertirModal] = useState<LiquidacionRow | null>(null);
 
   const fechaDesde = modoRango ? rangoDesde : primeroDelMes(anio, mes);
   const fechaHasta = modoRango ? rangoHasta : ultimoDelMes(anio, mes);
@@ -240,6 +301,7 @@ export default function Honorarios(): React.ReactElement {
   const generar   = useGenerarLiquidaciones();
   const aprobar1  = useAprobarLiquidacion();
   const pagar1    = usePagarLiquidacion();
+  const revertir1 = useRevertirLiquidacion();
   const aprobarL  = useAprobarLote();
   const pagarL    = usePagarLote();
 
@@ -457,6 +519,7 @@ export default function Honorarios(): React.ReactElement {
                     onCheck={toggleOne}
                     onAprobar={(l) => aprobar1.mutate(l.id)}
                     onPagar={(l) => setPagarModal(l)}
+                    onRevertir={(l) => setRevertirModal(l)}
                     onPDF={(l) => void descargarPDF(l.id, l.profesional_display)}
                   />
                 ))}
@@ -464,6 +527,17 @@ export default function Honorarios(): React.ReactElement {
             </table>
           </div>
         </>
+      )}
+
+      {/* ── Modal revertir ─────────────────────────────────────────────────── */}
+      {revertirModal && (
+        <ModalRevertir
+          liq={revertirModal}
+          onConfirm={(razon) => {
+            revertir1.mutate({ id: revertirModal.id, razon }, { onSuccess: () => setRevertirModal(null) });
+          }}
+          onClose={() => setRevertirModal(null)}
+        />
       )}
 
       {/* ── Modal pagar ────────────────────────────────────────────────────── */}

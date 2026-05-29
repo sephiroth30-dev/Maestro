@@ -82,6 +82,15 @@ export function useAprobarLote() {
   });
 }
 
+export function useRevertirLiquidacion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, razon }: { id: string; razon: string }) =>
+      api.post<LiquidacionRow>(`/liquidaciones/${id}/revertir`, { razon }).then((r) => r.data),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['liquidaciones'] }); },
+  });
+}
+
 export function usePagarLote() {
   const qc = useQueryClient();
   return useMutation({

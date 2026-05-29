@@ -21,6 +21,7 @@ export interface LiquidacionDB {
     created_at: string;
     updated_at: string;
 }
+export declare function revertirEstado(id: string, _usuarioId: string, razon: string): Promise<void>;
 export declare function getLiquidacionesByPeriodo(fechaDesde: string, fechaHasta: string): Promise<LiquidacionDB[]>;
 export declare function getLiquidacionById(id: string): Promise<LiquidacionDB | null>;
 export declare function upsertLiquidacion(data: {

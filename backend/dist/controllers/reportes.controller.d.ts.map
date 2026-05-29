@@ -1,1 +1,1 @@
-{"version":3,"file":"reportes.controller.d.ts","sourceRoot":"","sources":["../../src/controllers/reportes.controller.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAgC,MAAM,SAAS,CAAC;AAmF7E,wBAAsB,0BAA0B,CAAC,OAAO,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAudxF"}
+{"version":3,"file":"reportes.controller.d.ts","sourceRoot":"","sources":["../../src/controllers/reportes.controller.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAgC,MAAM,SAAS,CAAC;AAoF7E,wBAAsB,0BAA0B,CAAC,OAAO,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAsexF"}

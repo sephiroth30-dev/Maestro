@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.revertirEstado = revertirEstado;
 exports.getLiquidacionesByPeriodo = getLiquidacionesByPeriodo;
 exports.getLiquidacionById = getLiquidacionById;
 exports.upsertLiquidacion = upsertLiquidacion;
@@ -49,14 +50,27 @@ function mapRow(r) {
             : r.datos_snapshot,
         aprobado_por: r.aprobado_por ?? null,
         aprobado_por_nombre: r.aprobado_por_nombre ?? null,
-        aprobado_en: r.aprobado_en ?? null,
+        aprobado_en: r.aprobado_en ? new Date(r.aprobado_en).toISOString() : null,
         pagado_por: r.pagado_por ?? null,
         pagado_por_nombre: r.pagado_por_nombre ?? null,
-        pagado_en: r.pagado_en ?? null,
+        pagado_en: r.pagado_en ? new Date(r.pagado_en).toISOString() : null,
         notas: r.notas ?? null,
         created_at: r.created_at,
         updated_at: r.updated_at,
     };
+}
+async function revertirEstado(id, _usuarioId, razon) {
+    // Solo se puede revertir si está APROBADO (no PAGADO)
+    const [rows] = await prisma_js_1.pool.query(`SELECT id, notas FROM liquidaciones WHERE id = ? AND estado = 'APROBADO'`, [id]);
+    if (!rows.length)
+        return;
+    const notaAnterior = rows[0].notas;
+    const entrada = `[Revertido a borrador — ${new Date().toLocaleDateString('es-CO')} — ${razon}]`;
+    const nuevaNotas = notaAnterior ? `${notaAnterior}\n${entrada}` : entrada;
+    await prisma_js_1.pool.execute(`UPDATE liquidaciones
+     SET estado = 'CALCULADO', aprobado_por = NULL, aprobado_en = NULL,
+         notas = ?, updated_at = NOW()
+     WHERE id = ?`, [nuevaNotas, id]);
 }
 async function getLiquidacionesByPeriodo(fechaDesde, fechaHasta) {
     const [rows] = await prisma_js_1.pool.query(`${SELECT_LIQUIDACIONES}

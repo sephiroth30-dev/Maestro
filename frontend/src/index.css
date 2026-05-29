@@ -4802,7 +4802,8 @@ body,
 .liq-btn--aprov  { background: #3b82f6; color: #fff; }
 .liq-btn--pay    { background: #22c55e; color: #fff; }
 .liq-btn--pdf    { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.liq-btn--detail { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; padding: 4px 7px; }
+.liq-btn--detail  { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; padding: 4px 7px; }
+.liq-btn--revert  { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; padding: 4px 8px; }
 
 /* Checkbox */
 .liq-checkbox {

@@ -7,6 +7,7 @@ import {
   generarLiquidaciones,
   aprobarLiquidacion, aprobarLote,
   pagarLiquidacion,  pagarLote,
+  revertirLiquidacion,
   getLiquidacionesByPeriodo,
   generarPDFLiquidacion,
 } from '../services/liquidaciones.service.js';
@@ -532,6 +533,21 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const user = (request as FastifyRequest & { user: { sub: string } }).user;
       await pagarLote(parsed.data.ids, user.sub);
       return reply.send({ ok: true });
+    }
+  );
+
+  // POST /api/liquidaciones/:id/revertir  { razon: string }
+  fastify.post(
+    '/api/liquidaciones/:id/revertir',
+    { preHandler: [requireAuth, requireRole('ADMIN', 'GERENCIA', 'DIRECCION')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
+      const body = z.object({ razon: z.string().min(5, 'La razón es obligatoria (mín. 5 caracteres)') }).safeParse(request.body);
+      if (!body.success) return reply.status(400).send({ error: body.error.issues[0].message });
+      const liq = await revertirLiquidacion(id, user.sub, body.data.razon);
+      if (!liq) return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
+      return reply.send(liq);
     }
   );
 

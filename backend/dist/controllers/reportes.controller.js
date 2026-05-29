@@ -412,6 +412,18 @@ async function registerReportesController(fastify) {
         await (0, liquidaciones_service_js_1.pagarLote)(parsed.data.ids, user.sub);
         return reply.send({ ok: true });
     });
+    // POST /api/liquidaciones/:id/revertir  { razon: string }
+    fastify.post('/api/liquidaciones/:id/revertir', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        const body = zod_1.z.object({ razon: zod_1.z.string().min(5, 'La razón es obligatoria (mín. 5 caracteres)') }).safeParse(request.body);
+        if (!body.success)
+            return reply.status(400).send({ error: body.error.issues[0].message });
+        const liq = await (0, liquidaciones_service_js_1.revertirLiquidacion)(id, user.sub, body.data.razon);
+        if (!liq)
+            return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
+        return reply.send(liq);
+    });
     // GET /api/liquidaciones/:id/pdf
     fastify.get('/api/liquidaciones/:id/pdf', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
         const { id } = request.params;

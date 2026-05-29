@@ -9,6 +9,7 @@ exports.aprobarLiquidacion = aprobarLiquidacion;
 exports.aprobarLote = aprobarLote;
 exports.pagarLiquidacion = pagarLiquidacion;
 exports.pagarLote = pagarLote;
+exports.revertirLiquidacion = revertirLiquidacion;
 exports.generarPDFLiquidacion = generarPDFLiquidacion;
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const honorarios_service_js_1 = require("./honorarios.service.js");
@@ -52,6 +53,11 @@ async function pagarLiquidacion(id, usuarioId, notas) {
 }
 async function pagarLote(ids, usuarioId) {
     await (0, liquidaciones_repo_js_1.actualizarEstadoLote)(ids, 'PAGADO', usuarioId);
+}
+// ─── Revertir a borrador ──────────────────────────────────────────────────────
+async function revertirLiquidacion(id, usuarioId, razon) {
+    await (0, liquidaciones_repo_js_1.revertirEstado)(id, usuarioId, razon);
+    return (0, liquidaciones_repo_js_1.getLiquidacionById)(id);
 }
 // ─── Generación de PDF ────────────────────────────────────────────────────────
 const CATS = [
