@@ -49,6 +49,61 @@ function initials(nombre: string): string {
   return nombre.split(' ').slice(0, 2).map((n) => n[0]?.toUpperCase() ?? '').join('');
 }
 
+// ─── Module access map ────────────────────────────────────────────────────────
+
+interface ModuleAccess {
+  label: string;
+  color: string;
+  roles: Rol[];
+  note?: (rol: Rol) => string | undefined;
+}
+
+const MODULES: ModuleAccess[] = [
+  { label: 'Dashboard',    color: '#6366f1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'] },
+  { label: 'Reportes',     color: '#0891b2', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'],
+    note: (r) => r === 'ADMISIONES' ? 'solo mes actual' : undefined },
+  { label: 'Honorarios',   color: '#0369a1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+  { label: 'Capacidad',    color: '#065f46', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+  { label: 'Auditoría',    color: '#7c3aed', roles: ['ADMIN','FACTURACION'] },
+  { label: 'Admin',        color: '#9f1239', roles: ['ADMIN'] },
+];
+
+function AccessChips({ rol }: { rol: Rol }): React.ReactElement {
+  const chips = MODULES.filter((m) => m.roles.includes(rol));
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+      {chips.map((m) => {
+        const note = m.note?.(rol);
+        return (
+          <span
+            key={m.label}
+            title={note ? `${m.label} — ${note}` : m.label}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              padding: '2px 7px',
+              borderRadius: 999,
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              background: m.color + '14',
+              color: m.color,
+              border: `1px solid ${m.color}28`,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {m.label}
+            {note && <span style={{ opacity: 0.7, fontWeight: 400 }}>*</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+
+
 // ─── Create Modal ─────────────────────────────────────────────────────────────
 
 interface CreateModalProps { onClose: () => void }
@@ -426,6 +481,7 @@ export default function Usuarios(): React.ReactElement {
               <tr>
                 <th>Usuario</th>
                 <th>Rol</th>
+                <th>Acceso a módulos</th>
                 <th>Estado</th>
                 <th style={{ textAlign: 'right' }}>Acciones</th>
               </tr>
@@ -455,6 +511,7 @@ export default function Usuarios(): React.ReactElement {
                     </div>
                   </td>
                   <td>{rolBadge(u.rol)}</td>
+                  <td><AccessChips rol={u.rol} /></td>
                   <td>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -532,8 +589,11 @@ export default function Usuarios(): React.ReactElement {
                 { label: 'Honorarios (aprobar / pagar)',   perms: ['ADMIN','GERENCIA','DIRECCION'] },
                 { label: 'Ajustes manuales (crear)',       perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
                 { label: 'Ajustes manuales (autorizar)',   perms: ['ADMIN','GERENCIA','DIRECCION'] },
+                { label: 'Capacidad instalada',            perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+                { label: 'Auditoría del sistema',          perms: ['ADMIN','FACTURACION'] },
                 { label: 'Gestión de usuarios',            perms: ['ADMIN'] },
                 { label: 'Configuración del sistema',      perms: ['ADMIN'] },
+                { label: 'Cap. instalada (configurar)',    perms: ['ADMIN'] },
               ].map((row, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '7px 12px', color: '#334155', fontWeight: 500 }}>{row.label}</td>
