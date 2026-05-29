@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { AuthService } from '../services/auth.service.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { usuariosRepo } from '../repositories/usuarios.repo.js';
+import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -44,8 +45,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const { email, password } = parsed.data;
-    const result = await authService.login(email, password);
-    await reply.status(200).send(result);
+    try {
+      const result = await authService.login(email, password);
+      void auditoriaRepo.insert({ usuarioId: result.usuario.id, accion: ACCION.LOGIN, ip: request.ip, detalle: { rol: result.usuario.rol } }).catch(() => {});
+      await reply.status(200).send(result);
+    } catch (err) {
+      void auditoriaRepo.insert({ accion: ACCION.LOGIN_FALLIDO, ip: request.ip, detalle: { email } }).catch(() => {});
+      throw err;
+    }
     }
   );
 
@@ -79,7 +86,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const { refreshToken } = parsed.data;
-    await authService.logout(refreshToken);
+    const { usuarioId } = await authService.logout(refreshToken);
+    void auditoriaRepo.insert({ usuarioId, accion: ACCION.LOGOUT, ip: request.ip }).catch(() => {});
     await reply.status(200).send({ message: 'Logged out successfully' });
   });
 
@@ -131,6 +139,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       const newHash = await bcrypt.hash(parsed.data.newPassword, 12);
       await usuariosRepo.updatePassword(userId, newHash);
+      void auditoriaRepo.insert({ usuarioId: userId, accion: ACCION.CAMBIO_PASSWORD, ip: request.ip }).catch(() => {});
       await reply.status(200).send({ ok: true });
     }
   );

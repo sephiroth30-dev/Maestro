@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { usuariosRepo } from '../repositories/usuarios.repo.js';
+import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 
@@ -77,6 +78,8 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
       const usuario = await usuariosRepo.create({ nombre, email, passwordHash, rol });
 
+      void auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: ACCION.USUARIO_CREADO, entidadTipo: 'usuario', entidadId: usuario.id, ip: request.ip, detalle: { nombre, email, rol } }).catch(() => {});
+
       return reply.status(201).send({
         id: usuario.id,
         nombre: usuario.nombre,
@@ -115,6 +118,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await usuariosRepo.update(id, parsed.data);
+      void auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: ACCION.USUARIO_ACTUALIZADO, entidadTipo: 'usuario', entidadId: id, ip: request.ip, detalle: parsed.data as Record<string, unknown> }).catch(() => {});
       return reply.status(200).send({ ok: true });
     }
   );
@@ -136,6 +140,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await usuariosRepo.softDelete(id);
+      void auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: ACCION.USUARIO_ELIMINADO, entidadTipo: 'usuario', entidadId: id, ip: request.ip }).catch(() => {});
       return reply.status(200).send({ ok: true });
     }
   );
@@ -159,6 +164,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
       await usuariosRepo.updatePassword(id, passwordHash);
       // Revoke all sessions so the user must re-login with the new password
       await usuariosRepo.revokeAllUserRefreshTokens(id);
+      void auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: ACCION.RESET_PASSWORD, entidadTipo: 'usuario', entidadId: id, ip: request.ip }).catch(() => {});
       return reply.status(200).send({ ok: true });
     }
   );

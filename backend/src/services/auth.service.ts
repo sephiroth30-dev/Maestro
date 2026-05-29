@@ -149,10 +149,12 @@ export class AuthService {
     return { accessToken };
   }
 
-  async logout(rawRefreshToken: string): Promise<void> {
+  async logout(rawRefreshToken: string): Promise<{ usuarioId: string | null }> {
     const tokenHash = hashToken(rawRefreshToken);
+    const stored = await usuariosRepo.findRefreshToken(tokenHash);
     await usuariosRepo.revokeRefreshToken(tokenHash);
     logger.info('User logged out', { tokenHash: tokenHash.slice(0, 8) + '...' });
+    return { usuarioId: stored?.usuarioId ?? null };
   }
 
   async getMe(userId: string): Promise<UsuarioPublico> {

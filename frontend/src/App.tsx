@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
 import { Conectores, Configuracion, Usuarios } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
+import Auditoria from './pages/Auditoria.js';
 import Sidebar from './components/layout/Sidebar.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
@@ -71,6 +72,24 @@ function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
   }
 
   if (!user || !(REPORTES_ROLES as readonly string[]).includes(user.rol)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+// ─── Auditoria Route (ADMIN + FACTURACION) ────────────────────────────────────
+
+const AUDITORIA_ROLES = ['ADMIN', 'FACTURACION'] as const;
+
+function AuditoriaRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user || !(AUDITORIA_ROLES as readonly string[]).includes(user.rol)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -187,6 +206,18 @@ export default function App(): ReactElement {
                   <Usuarios />
                 </AppLayout>
               </AdminRoute>
+            }
+          />
+
+          {/* Auditoria route */}
+          <Route
+            path="/auditoria"
+            element={
+              <AuditoriaRoute>
+                <AppLayout>
+                  <Auditoria />
+                </AppLayout>
+              </AuditoriaRoute>
             }
           />
 

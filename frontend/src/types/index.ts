@@ -59,3 +59,25 @@ export const ROL_LABELS: Record<Rol, string> = {
   COORDINADORA: 'Coordinadora',
   ADMISIONES: 'Admisiones',
 };
+
+// ─── Auditoría ────────────────────────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string;
+  usuarioId: string | null;
+  usuarioNombre: string | null;
+  usuarioEmail: string | null;
+  accion: string;
+  entidadTipo: string | null;
+  entidadId: string | null;
+  detalle: Record<string, unknown> | null;
+  ip: string | null;
+  createdAt: string;
+}
+
+export interface AuditoriaResponse {
+  data: AuditLog[];
+  total: number;
+  page: number;
+  limit: number;
+}

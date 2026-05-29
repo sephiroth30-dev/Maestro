@@ -20,6 +20,7 @@ import {
 } from '../services/liquidaciones.service.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
+import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -501,7 +502,9 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     async (request: FastifyRequest, reply: FastifyReply) => {
       const parsed = rangoSchema.safeParse(request.body);
       if (!parsed.success) return reply.status(400).send({ error: 'Bad Request' });
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
       const rows = await generarLiquidaciones(parsed.data.fecha_desde, parsed.data.fecha_hasta);
+      void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.LIQUIDACION_GENERADA, ip: request.ip, detalle: { fecha_desde: parsed.data.fecha_desde, fecha_hasta: parsed.data.fecha_hasta, count: rows.length } }).catch(() => {});
       return reply.status(200).send(rows);
     }
   );
@@ -515,6 +518,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const user = (request as FastifyRequest & { user: { sub: string } }).user;
       const liq = await aprobarLiquidacion(id, user.sub);
       if (!liq) return reply.status(404).send({ error: 'No encontrada o ya aprobada' });
+      void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.LIQUIDACION_APROBADA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip }).catch(() => {});
       return reply.send(liq);
     }
   );
@@ -530,6 +534,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const notas = body.success ? body.data.notas : undefined;
       const liq = await pagarLiquidacion(id, user.sub, notas);
       if (!liq) return reply.status(404).send({ error: 'No encontrada o no está aprobada' });
+      void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.LIQUIDACION_PAGADA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip, detalle: notas ? { notas } : undefined }).catch(() => {});
       return reply.send(liq);
     }
   );
@@ -571,6 +576,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       if (!body.success) return reply.status(400).send({ error: body.error.issues[0].message });
       const liq = await revertirLiquidacion(id, user.sub, body.data.razon);
       if (!liq) return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
+      void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.LIQUIDACION_REVERTIDA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip, detalle: { razon: body.data.razon } }).catch(() => {});
       return reply.send(liq);
     }
   );
@@ -608,6 +614,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
       try {
         const ajuste = await crearAjusteLiquidacion(id, user.sub, parsed.data);
+        void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.AJUSTE_CREADO, entidadTipo: 'ajuste', entidadId: ajuste.id as string, ip: request.ip, detalle: { liquidacionId: id, categoria: parsed.data.categoria } }).catch(() => {});
         return reply.status(201).send(ajuste);
       } catch (e: unknown) {
         const err = e as { statusCode?: number; message?: string };
@@ -625,6 +632,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const user = (request as FastifyRequest & { user: { sub: string } }).user;
       try {
         const ajuste = await autorizarAjusteLiquidacion(id, user.sub);
+        void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.AJUSTE_AUTORIZADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip }).catch(() => {});
         return reply.send(ajuste);
       } catch (e: unknown) {
         const err = e as { statusCode?: number; message?: string };
@@ -644,6 +652,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       if (!body.success) return reply.status(400).send({ error: 'Motivo requerido' });
       try {
         const ajuste = await rechazarAjusteLiquidacion(id, user.sub, body.data.motivo);
+        void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.AJUSTE_RECHAZADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip, detalle: { motivo: body.data.motivo } }).catch(() => {});
         return reply.send(ajuste);
       } catch (e: unknown) {
         const err = e as { statusCode?: number; message?: string };
@@ -661,6 +670,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const user = (request as FastifyRequest & { user: { sub: string } }).user;
       try {
         await eliminarAjusteLiquidacion(id, user.sub);
+        void auditoriaRepo.insert({ usuarioId: user.sub, accion: ACCION.AJUSTE_ELIMINADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip }).catch(() => {});
         return reply.send({ ok: true });
       } catch (e: unknown) {
         const err = e as { statusCode?: number; message?: string };

@@ -61,7 +61,7 @@ const NAV_SECTIONS: NavSection[] = [
         to: '/auditoria',
         icon: <ClipboardList size={18} />,
         roles: ['ADMIN', 'FACTURACION'],
-        disabled: true,
+        disabled: false,
       },
       {
         label: 'Importaciones',
