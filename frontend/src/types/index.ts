@@ -81,3 +81,24 @@ export interface AuditoriaResponse {
   page: number;
   limit: number;
 }
+
+// ─── Capacidad Instalada ──────────────────────────────────────────────────────
+
+export interface CapacidadConfig {
+  id: string;
+  grupo: string;
+  nombre: string;
+  anio: number;
+  mesIdx: number;
+  capacidad: number;
+  recursos: string | null;
+}
+
+export interface UtilizacionGrupo {
+  grupo: string;
+  nombre: string;
+  capacidad: number | null;
+  sesiones: number;
+  pctOcupacion: number | null;
+  disponible: number | null;
+}

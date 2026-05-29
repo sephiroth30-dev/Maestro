@@ -276,3 +276,18 @@ model PresupuestoMensual {
   @@unique([anio, mes])
   @@map("presupuestos_mensuales")
 }
+
+model CapacidadInstalada {
+  id        String   @id @default(uuid())
+  grupo     String   @db.VarChar(50)
+  nombre    String   @db.VarChar(150)
+  anio      Int      @db.SmallInt
+  mesIdx    Int      @map("mes_idx") @db.TinyInt
+  capacidad Int      @db.UnsignedSmallInt
+  recursos  String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([grupo, anio, mesIdx])
+  @@map("capacidad_instalada")
+}

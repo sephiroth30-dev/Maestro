@@ -14,6 +14,7 @@ import { registerConnectorRoutes } from './routes/connectors.routes.js';
 import { registerReportesRoutes } from './routes/reportes.routes.js';
 import { registerUsuariosRoutes } from './routes/usuarios.routes.js';
 import { registerAuditoriaRoutes } from './routes/auditoria.routes.js';
+import { registerCapacidadRoutes } from './routes/capacidad.routes.js';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const APP_VERSION: string = (require('../../package.json') as { version: string }).version;
@@ -95,6 +96,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerReportesRoutes(fastify);
   await registerUsuariosRoutes(fastify);
   await registerAuditoriaRoutes(fastify);
+  await registerCapacidadRoutes(fastify);
 
   // ─── Static frontend (production) / JSON 404 (development) ───────────────
   const frontendReady = env.NODE_ENV === 'production' && fs.existsSync(path.join(FRONTEND_DIST, 'index.html'));
