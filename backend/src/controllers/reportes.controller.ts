@@ -4,6 +4,13 @@ import { reportesService } from '../services/reportes.service.js';
 import * as repo from '../repositories/reportes.repo.js';
 import { calcularHonorarios } from '../services/honorarios.service.js';
 import {
+  crearAjusteLiquidacion,
+  autorizarAjusteLiquidacion,
+  rechazarAjusteLiquidacion,
+  eliminarAjusteLiquidacion,
+  getAjustesByLiquidacion,
+} from '../services/ajustes.service.js';
+import {
   generarLiquidaciones,
   aprobarLiquidacion, aprobarLote,
   pagarLiquidacion,  pagarLote,
@@ -548,6 +555,100 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const liq = await revertirLiquidacion(id, user.sub, body.data.razon);
       if (!liq) return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
       return reply.send(liq);
+    }
+  );
+
+  // ─── Ajustes manuales ────────────────────────────────────────────────────
+
+  const ajusteBodySchema = z.object({
+    categoria:      z.string().min(2),
+    descripcion:    z.string().min(3).max(255),
+    cantidad:       z.number().int().min(1).max(999),
+    valor_unitario: z.number().min(1),
+    justificacion:  z.string().min(10, 'Justificación mínimo 10 caracteres'),
+    referencia_doc: z.string().max(255).optional(),
+  });
+
+  // GET /api/liquidaciones/:id/ajustes
+  fastify.get(
+    '/api/liquidaciones/:id/ajustes',
+    { preHandler: [requireAuth, requireRole(...HON_ROLES)] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const ajustes = await getAjustesByLiquidacion(id);
+      return reply.send(ajustes);
+    }
+  );
+
+  // POST /api/liquidaciones/:id/ajustes  — crear ajuste
+  fastify.post(
+    '/api/liquidaciones/:id/ajustes',
+    { preHandler: [requireAuth, requireRole(...HON_ROLES)] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
+      const parsed = ajusteBodySchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+      try {
+        const ajuste = await crearAjusteLiquidacion(id, user.sub, parsed.data);
+        return reply.status(201).send(ajuste);
+      } catch (e: unknown) {
+        const err = e as { statusCode?: number; message?: string };
+        return reply.status(err.statusCode ?? 500).send({ error: err.message });
+      }
+    }
+  );
+
+  // POST /api/ajustes/:id/autorizar
+  fastify.post(
+    '/api/ajustes/:id/autorizar',
+    { preHandler: [requireAuth, requireRole('ADMIN', 'GERENCIA', 'DIRECCION')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
+      try {
+        const ajuste = await autorizarAjusteLiquidacion(id, user.sub);
+        return reply.send(ajuste);
+      } catch (e: unknown) {
+        const err = e as { statusCode?: number; message?: string };
+        return reply.status(err.statusCode ?? 500).send({ error: err.message });
+      }
+    }
+  );
+
+  // POST /api/ajustes/:id/rechazar  { motivo }
+  fastify.post(
+    '/api/ajustes/:id/rechazar',
+    { preHandler: [requireAuth, requireRole('ADMIN', 'GERENCIA', 'DIRECCION')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
+      const body = z.object({ motivo: z.string().min(5) }).safeParse(request.body);
+      if (!body.success) return reply.status(400).send({ error: 'Motivo requerido' });
+      try {
+        const ajuste = await rechazarAjusteLiquidacion(id, user.sub, body.data.motivo);
+        return reply.send(ajuste);
+      } catch (e: unknown) {
+        const err = e as { statusCode?: number; message?: string };
+        return reply.status(err.statusCode ?? 500).send({ error: err.message });
+      }
+    }
+  );
+
+  // DELETE /api/ajustes/:id
+  fastify.delete(
+    '/api/ajustes/:id',
+    { preHandler: [requireAuth, requireRole(...HON_ROLES)] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const user = (request as FastifyRequest & { user: { sub: string } }).user;
+      try {
+        await eliminarAjusteLiquidacion(id, user.sub);
+        return reply.send({ ok: true });
+      } catch (e: unknown) {
+        const err = e as { statusCode?: number; message?: string };
+        return reply.status(err.statusCode ?? 500).send({ error: err.message });
+      }
     }
   );
 

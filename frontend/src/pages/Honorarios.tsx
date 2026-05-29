@@ -12,6 +12,11 @@ import {
   descargarPDF,
   type LiquidacionRow, type EstadoLiquidacion,
 } from '../api/liquidaciones.js';
+import {
+  useAjustes, useCrearAjuste, useAutorizarAjuste, useRechazarAjuste, useEliminarAjuste,
+  type AjusteRow,
+} from '../api/ajustes.js';
+import { useAuth } from '../hooks/useAuth.js';
 import type { HonorariosCeldas, HonorariosProfesionalRow } from '../api/honorarios.js';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -145,6 +150,224 @@ function ModalRevertir({
   );
 }
 
+// ─── Sección de ajustes manuales ─────────────────────────────────────────────
+
+const CAT_OPTIONS = [
+  { value: 'consulta',       label: 'Consulta' },
+  { value: 'emg_vcn',        label: 'EMG / VCN' },
+  { value: 'infiltracion',   label: 'Infiltración' },
+  { value: 'ecografia',      label: 'Ecografía' },
+  { value: 'terapia_choque', label: 'Ondas de Choque' },
+  { value: 'junta',          label: 'Junta Médica' },
+  { value: 'eeg',            label: 'EEG' },
+  { value: 'psg_lms',        label: 'PSG / MSLT' },
+  { value: 'tlm',            label: 'Telemetría' },
+  { value: 'pe',             label: 'Potenciales Evocados' },
+];
+
+const ESTADO_AJ: Record<AjusteRow['estado'], { label: string; cls: string }> = {
+  PENDIENTE:  { label: '⏳ Pendiente auth.',  cls: 'aj-badge aj-badge--pend' },
+  AUTORIZADO: { label: '✓ Autorizado',        cls: 'aj-badge aj-badge--auth' },
+  RECHAZADO:  { label: '✗ Rechazado',         cls: 'aj-badge aj-badge--rech' },
+};
+
+function AjustesSection({
+  liquidacion,
+  usuarioId,
+  canAutorizar,
+}: {
+  liquidacion: LiquidacionRow;
+  usuarioId: string;
+  canAutorizar: boolean;
+}) {
+  const isPagado = liquidacion.estado === 'PAGADO';
+  const { data: ajustes = [], isLoading } = useAjustes(liquidacion.id);
+  const crear    = useCrearAjuste(liquidacion.id);
+  const autorizar = useAutorizarAjuste();
+  const rechazar  = useRechazarAjuste();
+  const eliminar  = useEliminarAjuste();
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    categoria: 'junta', descripcion: '', cantidad: 1,
+    valor_unitario: 0, justificacion: '', referencia_doc: '',
+  });
+  const [rechazarModal, setRechazarModal] = useState<{ id: string } | null>(null);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+
+  const handleCrear = () => {
+    crear.mutate(
+      { ...form, valor_unitario: Number(form.valor_unitario) },
+      {
+        onSuccess: () => {
+          setShowForm(false);
+          setForm({ categoria: 'junta', descripcion: '', cantidad: 1, valor_unitario: 0, justificacion: '', referencia_doc: '' });
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="aj-section">
+      <div className="aj-header">
+        <span className="aj-title">Ajustes manuales</span>
+        {!isPagado && (
+          <button type="button" className="aj-btn-add" onClick={() => setShowForm(v => !v)}>
+            {showForm ? '✕ Cancelar' : '+ Agregar ajuste'}
+          </button>
+        )}
+      </div>
+
+      {isLoading && <p className="aj-empty">Cargando…</p>}
+
+      {ajustes.length === 0 && !showForm && (
+        <p className="aj-empty">Sin ajustes para esta liquidación.</p>
+      )}
+
+      {ajustes.map((aj) => (
+        <div key={aj.id} className={`aj-item ${aj.estado === 'RECHAZADO' ? 'aj-item--rech' : ''}`}>
+          <div className="aj-item-top">
+            <span className="aj-item-desc">
+              <strong>{CAT_OPTIONS.find(c => c.value === aj.categoria)?.label ?? aj.categoria}</strong>
+              {' · '}{aj.descripcion}
+              {' · '}{fmtNum(aj.cantidad)} × {fmtCOP(aj.valor_unitario)}
+              {' = '}<strong>{fmtCOP(aj.valor_total)}</strong>
+            </span>
+            <span className={ESTADO_AJ[aj.estado].cls}>{ESTADO_AJ[aj.estado].label}</span>
+          </div>
+          <p className="aj-item-just">
+            "{aj.justificacion}"
+            {aj.referencia_doc && <> · Ref: <em>{aj.referencia_doc}</em></>}
+          </p>
+          <div className="aj-item-meta">
+            Registrado por <strong>{aj.creado_por_nombre ?? '—'}</strong>
+            {aj.autorizado_por_nombre && <> · Autorizado por <strong>{aj.autorizado_por_nombre}</strong></>}
+            {aj.motivo_rechazo && <> · Motivo: <em>{aj.motivo_rechazo}</em></>}
+          </div>
+          {aj.estado === 'PENDIENTE' && (
+            <div className="aj-item-actions">
+              {canAutorizar && aj.creado_por !== usuarioId && (
+                <>
+                  <button type="button" className="aj-btn aj-btn--auth"
+                    onClick={() => autorizar.mutate(aj.id)}>
+                    ✓ Autorizar
+                  </button>
+                  <button type="button" className="aj-btn aj-btn--rech"
+                    onClick={() => setRechazarModal({ id: aj.id })}>
+                    ✗ Rechazar
+                  </button>
+                </>
+              )}
+              {aj.creado_por === usuarioId && (
+                <button type="button" className="aj-btn aj-btn--del"
+                  onClick={() => eliminar.mutate({ id: aj.id, liquidacionId: liquidacion.id })}>
+                  Eliminar
+                </button>
+              )}
+              {canAutorizar && aj.creado_por === usuarioId && (
+                <span className="aj-self-note">Registrado por ti — requiere autorización de otro usuario</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Formulario nuevo ajuste */}
+      {showForm && (
+        <div className="aj-form">
+          <div className="aj-form-row">
+            <div className="aj-form-field">
+              <label>Categoría</label>
+              <select className="aj-select" value={form.categoria}
+                onChange={(e) => setForm(f => ({ ...f, categoria: e.target.value }))}>
+                {CAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="aj-form-field aj-form-field--grow">
+              <label>Descripción del servicio</label>
+              <input className="aj-input" type="text" placeholder="Ej: Junta 15 abr — paciente Juan Pérez"
+                value={form.descripcion}
+                onChange={(e) => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+            </div>
+          </div>
+          <div className="aj-form-row">
+            <div className="aj-form-field">
+              <label>Cantidad</label>
+              <input className="aj-input" type="number" min={1} max={999}
+                value={form.cantidad}
+                onChange={(e) => setForm(f => ({ ...f, cantidad: parseInt(e.target.value) || 1 }))} />
+            </div>
+            <div className="aj-form-field">
+              <label>Valor unitario (COP)</label>
+              <input className="aj-input" type="number" min={1} placeholder="60000"
+                value={form.valor_unitario || ''}
+                onChange={(e) => setForm(f => ({ ...f, valor_unitario: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="aj-form-field aj-form-field--total">
+              <label>Total</label>
+              <span className="aj-total-preview">{fmtCOP(form.cantidad * form.valor_unitario)}</span>
+            </div>
+          </div>
+          <div className="aj-form-row">
+            <div className="aj-form-field aj-form-field--grow">
+              <label>Justificación <span style={{ color: '#ef4444' }}>*</span></label>
+              <input className="aj-input" type="text"
+                placeholder="Mín. 10 caracteres — razón del ajuste manual"
+                value={form.justificacion}
+                onChange={(e) => setForm(f => ({ ...f, justificacion: e.target.value }))} />
+            </div>
+            <div className="aj-form-field">
+              <label>Referencia / N° acta</label>
+              <input className="aj-input" type="text" placeholder="Acta #23"
+                value={form.referencia_doc}
+                onChange={(e) => setForm(f => ({ ...f, referencia_doc: e.target.value }))} />
+            </div>
+          </div>
+          {crear.error && (
+            <p style={{ color: '#ef4444', fontSize: '12px' }}>
+              {(crear.error as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Error al guardar'}
+            </p>
+          )}
+          <div className="aj-form-actions">
+            <span className="aj-form-note">
+              ⚠ Este ajuste requerirá autorización de Gerencia o Dirección antes de sumarse al total.
+            </span>
+            <button type="button" className="btn btn--primary" disabled={crear.isPending ||
+              form.descripcion.length < 3 || form.justificacion.length < 10 || form.valor_unitario <= 0}
+              onClick={handleCrear}>
+              {crear.isPending ? <><Loader2 size={13} className="spin" /> Guardando…</> : 'Guardar ajuste'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal rechazar */}
+      {rechazarModal && (
+        <div className="liq-modal-overlay" onClick={() => setRechazarModal(null)}>
+          <div className="liq-modal" onClick={e => e.stopPropagation()}>
+            <h3 className="liq-modal-title">Rechazar ajuste</h3>
+            <label className="liq-modal-label">Motivo del rechazo <span style={{ color: '#ef4444' }}>*</span></label>
+            <textarea className="liq-modal-textarea" rows={3} value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Explica por qué se rechaza este ajuste…" />
+            <div className="liq-modal-actions">
+              <button type="button" className="btn btn--ghost" onClick={() => setRechazarModal(null)}>Cancelar</button>
+              <button type="button" className="btn" style={{ background: '#ef4444', color: '#fff' }}
+                disabled={motivoRechazo.trim().length < 5}
+                onClick={() => {
+                  rechazar.mutate({ id: rechazarModal.id, motivo: motivoRechazo },
+                    { onSuccess: () => { setRechazarModal(null); setMotivoRechazo(''); } });
+                }}>
+                Confirmar rechazo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Fila expandible ──────────────────────────────────────────────────────────
 
 function FilaLiquidacion({
@@ -155,6 +378,8 @@ function FilaLiquidacion({
   onPagar,
   onRevertir,
   onPDF,
+  usuarioId,
+  canAutorizar,
 }: {
   liq: LiquidacionRow;
   checked: boolean;
@@ -163,6 +388,8 @@ function FilaLiquidacion({
   onPagar: (liq: LiquidacionRow) => void;
   onRevertir: (liq: LiquidacionRow) => void;
   onPDF: (liq: LiquidacionRow) => void;
+  usuarioId: string;
+  canAutorizar: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const snap = liq.datos_snapshot;
@@ -264,6 +491,11 @@ function FilaLiquidacion({
                   {liq.notas && <> · <em>{liq.notas}</em></>}
                 </p>
               )}
+              <AjustesSection
+                liquidacion={liq}
+                usuarioId={usuarioId}
+                canAutorizar={canAutorizar}
+              />
             </div>
           </td>
         </tr>
@@ -284,6 +516,10 @@ function ultimoDelMes(anio: number, mes: number) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function Honorarios(): React.ReactElement {
+  const { user } = useAuth();
+  const usuarioId   = user?.id ?? '';
+  const canAutorizar = ['ADMIN', 'GERENCIA', 'DIRECCION'].includes(user?.rol ?? '');
+
   const now = new Date();
   const [mes, setMes]   = useState(now.getMonth() + 1);
   const [anio, setAnio] = useState(now.getFullYear());
@@ -521,6 +757,8 @@ export default function Honorarios(): React.ReactElement {
                     onPagar={(l) => setPagarModal(l)}
                     onRevertir={(l) => setRevertirModal(l)}
                     onPDF={(l) => void descargarPDF(l.id, l.profesional_display)}
+                    usuarioId={usuarioId}
+                    canAutorizar={canAutorizar}
                   />
                 ))}
               </tbody>
