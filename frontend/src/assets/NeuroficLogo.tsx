@@ -1,18 +1,17 @@
 /**
  * NeuroficLogo — Logosímbolo corporativo de Neurofic.
  *
- * Construido a partir del Manual de Identidad Visual Corporativa Neurofic.
- * Representa las pulsaciones del cerebro humano mediante una cuadrícula
- * de tonos grises con un cuadrado rojo de impacto.
- *
- * Paleta oficial (CMYK → HEX):
- *   K:60% #666666 · K:50% #808080 · K:20% #CCCCCC
- *   K:10% #E6E6E6 · Rojo C:0 M:100 Y:75 K:0 → #D4162A
+ * Reconstruido desde el Manual de Identidad Visual Corporativa Neurofic (PDF).
+ * Colores extraídos directamente de los vectores del PDF:
+ *   49% → #7D7C7E · 58% → #969696 · 66% → #AAAAAC
+ *   75% → #C0BFC1 · 83% → #D5D4D5 · 92% → #EAEAEA
+ *   Rojo corporativo rgb(93.72%, 7.84%, 25.10%) → #EF1440
+ *   Fondo cerebro K:10% → #E6E6E6
  *
  * Vista: lateral izquierda del cerebro.
  *   - Lóbulo frontal (izquierda): el más alto.
  *   - Surco central: dip sutil en la parte superior.
- *   - Lóbulo parietal/occipital (derecha): ligeramente más bajo.
+ *   - Lóbulo parietal (derecha): ligeramente más bajo.
  *   - Extensión temporal: parte inferior izquierda prominente.
  */
 
@@ -52,43 +51,41 @@ const BRAIN =
 // Columnas x: 20, 54, 88, 122, 156
 // Filas    y: 16, 50, 84, 118, 152
 //
-// Gradiente cromático:
-//   Centro-arriba: más oscuro (K 55-60%)
-//   Bordes-abajo:  más claro  (K 10-20%)
-// Cuadrado rojo corporativo en columna 3, fila 2
+// Colores y posiciones extraídos del PDF vectorial del manual de identidad.
+// Cuadrado rojo corporativo en columna 3 (x=122), fila 3 (y=118).
 
 const SQ = 30;
 const GRID: { x: number; y: number; fill: string }[] = [
-  // — Fila 0 (y=16) · oscuro · parte superior, cols 1-3 visibles ————————
-  { x:  54, y: 16, fill: '#6A6A6A' },
-  { x:  88, y: 16, fill: '#5D5D5D' },
-  { x: 122, y: 16, fill: '#696969' },
+  // — Fila 0 (y=16) · parcial superior · cols 1-3 ————————————————————
+  { x:  54, y: 16, fill: '#D5D4D5' },  // 83%
+  { x:  88, y: 16, fill: '#AAAAAC' },  // 66%
+  { x: 122, y: 16, fill: '#7D7C7E' },  // 49%
 
-  // — Fila 1 (y=50) · oscuro medio · K 50-55% ——————————————————————————
-  { x:  20, y: 50, fill: '#7C7C7C' },
-  { x:  54, y: 50, fill: '#636363' },
-  { x:  88, y: 50, fill: '#5A5A5A' },
-  { x: 122, y: 50, fill: '#656565' },
-  { x: 156, y: 50, fill: '#8A8A8A' },
+  // — Fila 1 (y=50) · 5 columnas ——————————————————————————————————————
+  { x:  20, y: 50, fill: '#969696' },  // 58%
+  { x:  54, y: 50, fill: '#7D7C7E' },  // 49%
+  { x:  88, y: 50, fill: '#D5D4D5' },  // 83%
+  { x: 122, y: 50, fill: '#969696' },  // 58%
+  { x: 156, y: 50, fill: '#C0BFC1' },  // 75%
 
-  // — Fila 2 (y=84) · medio + ROJO corporativo en col 3 ————————————————
-  { x:  20, y: 84, fill: '#7E7E7E' },
-  { x:  54, y: 84, fill: '#6A6A6A' },
-  { x:  88, y: 84, fill: '#6F6F6F' },
-  { x: 122, y: 84, fill: '#D4162A' },   // ← Rojo corporativo
-  { x: 156, y: 84, fill: '#939393' },
+  // — Fila 2 (y=84) · 5 columnas ——————————————————————————————————————
+  { x:  20, y: 84, fill: '#D5D4D5' },  // 83%
+  { x:  54, y: 84, fill: '#EAEAEA' },  // 92%
+  { x:  88, y: 84, fill: '#7D7C7E' },  // 49%
+  { x: 122, y: 84, fill: '#C0BFC1' },  // 75%
+  { x: 156, y: 84, fill: '#AAAAAC' },  // 66%
 
-  // — Fila 3 (y=118) · gris claro · K 20-30% ——————————————————————————
-  { x:  20, y: 118, fill: '#9A9A9A' },
-  { x:  54, y: 118, fill: '#939393' },
-  { x:  88, y: 118, fill: '#969696' },
-  { x: 122, y: 118, fill: '#9E9E9E' },
-  { x: 156, y: 118, fill: '#ABABAB' },
+  // — Fila 3 (y=118) · ROJO corporativo en col 3 ——————————————————————
+  { x:  20, y: 118, fill: '#7D7C7E' }, // 49%
+  { x:  54, y: 118, fill: '#C0BFC1' }, // 75%
+  { x:  88, y: 118, fill: '#969696' }, // 58%
+  { x: 122, y: 118, fill: '#EF1440' }, // ← Rojo corporativo
+  { x: 156, y: 118, fill: '#EAEAEA' }, // 92%
 
-  // — Fila 4 (y=152) · muy claro · K 10% · parcialmente recortada ——————
-  { x:  54, y: 152, fill: '#BABABA' },
-  { x:  88, y: 152, fill: '#B7B7B7' },
-  { x: 122, y: 152, fill: '#BEBEBE' },
+  // — Fila 4 (y=152) · parcial inferior · cols 1, 3, 4 ————————————————
+  { x:  54, y: 152, fill: '#D5D4D5' }, // 83%
+  { x: 122, y: 152, fill: '#C0BFC1' }, // 75%
+  { x: 156, y: 152, fill: '#969696' }, // 58%
 ];
 
 export default function NeuroficLogo({ size = 80, className }: Props): React.ReactElement {
