@@ -19,6 +19,14 @@ const SELECT_LIQUIDACIONES = `
     DATE_FORMAT(l.fecha_hasta, '%Y-%m-%d') AS fecha_hasta,
     l.estado,
     CAST(l.monto_total AS DECIMAL(15,2)) AS monto_total,
+    COALESCE((
+      SELECT SUM(a.valor_total) FROM liquidacion_ajustes a
+      WHERE a.liquidacion_id = l.id AND a.estado = 'AUTORIZADO'
+    ), 0) AS monto_ajustes,
+    (
+      SELECT COUNT(*) FROM liquidacion_ajustes a
+      WHERE a.liquidacion_id = l.id AND a.estado = 'PENDIENTE'
+    ) AS ajustes_pendientes,
     l.datos_snapshot,
     l.aprobado_por,
     ua.nombre         AS aprobado_por_nombre,
@@ -45,6 +53,8 @@ function mapRow(r) {
         fecha_hasta: r.fecha_hasta,
         estado: r.estado,
         monto_total: Number(r.monto_total),
+        monto_ajustes: Number(r.monto_ajustes ?? 0),
+        ajustes_pendientes: Number(r.ajustes_pendientes ?? 0),
         datos_snapshot: typeof r.datos_snapshot === 'string'
             ? JSON.parse(r.datos_snapshot)
             : r.datos_snapshot,

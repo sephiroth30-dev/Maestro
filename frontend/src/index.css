@@ -4869,6 +4869,20 @@ body,
 .btn--primary { background: #3b82f6; color: #fff; }
 .btn--ghost   { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
+/* Admisiones locked period badge */
+.reportes-period-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 5px 12px;
+}
+
 /* ─── Ajustes manuales ──────────────────────────────────────────────────────── */
 .aj-section {
   margin-top: 16px;

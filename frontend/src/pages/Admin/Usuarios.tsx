@@ -506,6 +506,51 @@ export default function Usuarios(): React.ReactElement {
         </div>
       )}
 
+      {/* ── Tabla de permisos por rol ────────────────────────────────────── */}
+      <div style={{ marginTop: '2.5rem' }}>
+        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#334155', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <ShieldCheck size={16} style={{ color: '#6366f1' }} /> Permisos por rol
+        </h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>Función</th>
+                {(['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'] as Rol[]).map(r => (
+                  <th key={r} style={{ textAlign: 'center', padding: '8px 10px', borderBottom: '2px solid #e2e8f0' }}>
+                    {rolBadge(r)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: 'Dashboard / KPIs',              perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'] },
+                { label: 'Reportes (todos los períodos)',  perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA'] },
+                { label: 'Reportes (solo mes actual)',     perms: ['ADMISIONES'] },
+                { label: 'Honorarios (ver / generar)',     perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+                { label: 'Honorarios (aprobar / pagar)',   perms: ['ADMIN','GERENCIA','DIRECCION'] },
+                { label: 'Ajustes manuales (crear)',       perms: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+                { label: 'Ajustes manuales (autorizar)',   perms: ['ADMIN','GERENCIA','DIRECCION'] },
+                { label: 'Gestión de usuarios',            perms: ['ADMIN'] },
+                { label: 'Configuración del sistema',      perms: ['ADMIN'] },
+              ].map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ padding: '7px 12px', color: '#334155', fontWeight: 500 }}>{row.label}</td>
+                  {(['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'] as Rol[]).map(r => (
+                    <td key={r} style={{ textAlign: 'center', padding: '7px 10px' }}>
+                      {row.perms.includes(r)
+                        ? <span style={{ color: '#16a34a', fontSize: '1rem' }}>✓</span>
+                        : <span style={{ color: '#e2e8f0', fontSize: '0.9rem' }}>—</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {modal?.type === 'create' && <CreateModal onClose={closeModal} />}
       {modal?.type === 'edit' && (
         <EditModal usuario={modal.usuario} selfId={self?.id ?? ''} onClose={closeModal} />

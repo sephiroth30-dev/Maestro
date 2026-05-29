@@ -47,7 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Reportes',
         to: '/reportes',
         icon: <BarChart2 size={18} />,
-        roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA'],
+        roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'],
       },
       {
         label: 'Honorarios',

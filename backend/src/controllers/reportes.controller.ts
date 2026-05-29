@@ -23,7 +23,14 @@ import { requireRole } from '../middlewares/rbac.middleware.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'] as const;
+const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'] as const;
+
+// ADMISIONES can only see current month — override any period params
+function enforceAdmisionesPeriod(rol: string, params: { mes_idx: number; anio: number }) {
+  if (rol !== 'ADMISIONES') return params;
+  const now = new Date();
+  return { mes_idx: now.getMonth() + 1, anio: now.getFullYear() };
+}
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -104,7 +111,9 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, entidad_id, start_date, end_date, dia_semana } = parsed.data;
+      const userRol = (request as FastifyRequest & { user: { rol: string } }).user?.rol ?? '';
+      const { mes_idx, anio } = enforceAdmisionesPeriod(userRol, parsed.data);
+      const { entidad_id, start_date, end_date, dia_semana } = parsed.data;
       const result = await reportesService.getKpis({
         mesIdx: mes_idx,
         anio,
@@ -131,10 +140,12 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date, dia_semana } = parsed.data;
+      const userRol2 = (request as FastifyRequest & { user: { rol: string } }).user?.rol ?? '';
+      const { mes_idx: mes_idx2, anio: anio2 } = enforceAdmisionesPeriod(userRol2, parsed.data);
+      const { start_date, end_date, dia_semana } = parsed.data;
       const result = await reportesService.getEntidades({
-        mesIdx: mes_idx,
-        anio,
+        mesIdx: mes_idx2,
+        anio: anio2,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate: end_date ? new Date(end_date) : undefined,
         diaSemana: dia_semana,
@@ -157,10 +168,12 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const userRol3 = (request as FastifyRequest & { user: { rol: string } }).user?.rol ?? '';
+      const { mes_idx: mes_idx3, anio: anio3 } = enforceAdmisionesPeriod(userRol3, parsed.data);
+      const { start_date, end_date } = parsed.data;
       const result = await reportesService.getCumplimientoSemanal({
-        mesIdx: mes_idx,
-        anio,
+        mesIdx: mes_idx3,
+        anio: anio3,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate: end_date ? new Date(end_date) : undefined,
       });
@@ -182,12 +195,14 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const userRol4 = (request as FastifyRequest & { user: { rol: string } }).user?.rol ?? '';
+      const { mes_idx: mes_idx4, anio: anio4 } = enforceAdmisionesPeriod(userRol4, parsed.data);
+      const { start_date: sd4, end_date: ed4 } = parsed.data;
       const result = await reportesService.getDiasSemana({
-        mesIdx: mes_idx,
-        anio,
-        startDate: start_date ? new Date(start_date) : undefined,
-        endDate:   end_date   ? new Date(end_date)   : undefined,
+        mesIdx: mes_idx4,
+        anio: anio4,
+        startDate: sd4 ? new Date(sd4) : undefined,
+        endDate:   ed4 ? new Date(ed4) : undefined,
       });
       return reply.send(result);
     }
@@ -229,10 +244,12 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const { mes_idx, anio, start_date, end_date, entidad_id, dia_semana } = parsed.data;
+      const userRol5 = (request as FastifyRequest & { user: { rol: string } }).user?.rol ?? '';
+      const { mes_idx: mes_idx5, anio: anio5 } = enforceAdmisionesPeriod(userRol5, parsed.data);
+      const { start_date, end_date, entidad_id, dia_semana } = parsed.data;
       const result = await reportesService.getServicios({
-        mesIdx: mes_idx,
-        anio,
+        mesIdx: mes_idx5,
+        anio: anio5,
         startDate: start_date ? new Date(start_date) : undefined,
         endDate:   end_date   ? new Date(end_date)   : undefined,
         entidadId: entidad_id,

@@ -10,6 +10,8 @@ export interface LiquidacionDB {
     fecha_hasta: string;
     estado: EstadoLiquidacion;
     monto_total: number;
+    monto_ajustes: number;
+    ajustes_pendientes: number;
     datos_snapshot: HonorariosProfesionalRow;
     aprobado_por: string | null;
     aprobado_por_nombre: string | null;

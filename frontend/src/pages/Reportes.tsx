@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X } from 'lucide-react';
+import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth.js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell, ReferenceLine,
@@ -324,9 +325,14 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Reportes(): React.ReactElement {
+  const { user } = useAuth();
+  const isAdmisiones = user?.rol === 'ADMISIONES';
+
   const meses = getLast6Months();
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const selected = meses[selectedIdx]!;
+  // ADMISIONES is locked to current month (index 0 = most recent in getLast6Months)
+  const effectiveIdx = isAdmisiones ? 0 : selectedIdx;
+  const selected = meses[effectiveIdx]!;
 
   const [filterMode, setFilterMode] = useState<FilterMode>('mes');
   const [rangeStart, setRangeStart] = useState<string>('');
@@ -488,45 +494,53 @@ export default function Reportes(): React.ReactElement {
           <p className="page-subtitle">Clínica Neurofic — Indicadores del período seleccionado</p>
         </div>
         <div className="reportes-header-controls">
-          <div className="filter-mode-tabs">
-            <button type="button"
-              className={`filter-mode-tab${filterMode === 'mes' ? ' filter-mode-tab--active' : ''}`}
-              onClick={() => handleModeSwitch('mes')}>Mes</button>
-            <button type="button"
-              className={`filter-mode-tab${filterMode === 'rango' ? ' filter-mode-tab--active' : ''}`}
-              onClick={() => handleModeSwitch('rango')}>Rango</button>
-          </div>
-
-          {filterMode === 'mes' && (
-            <select className="reportes-month-select" value={selectedIdx}
-              onChange={(e) => { setSelectedIdx(Number(e.target.value)); setSelectedDia(null); }}>
-              {meses.map((m, i) => <option key={i} value={i}>{m.label}</option>)}
-            </select>
-          )}
-
-          {filterMode === 'rango' && (
-            <div className="filter-bar">
-              <div className="preset-btns">
-                <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>Hoy</button>
-                <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
-                <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
-                <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
-                <button
-                  type="button"
-                  className={`preset-btn preset-btn--accent${activePreset === 'anio' ? ' preset-btn--active' : ''}`}
-                  onClick={() => applyPreset('anio')}
-                >
-                  Año
-                </button>
+          {isAdmisiones ? (
+            <span className="reportes-period-locked">
+              <Lock size={13} /> Solo mes actual
+            </span>
+          ) : (
+            <>
+              <div className="filter-mode-tabs">
+                <button type="button"
+                  className={`filter-mode-tab${filterMode === 'mes' ? ' filter-mode-tab--active' : ''}`}
+                  onClick={() => handleModeSwitch('mes')}>Mes</button>
+                <button type="button"
+                  className={`filter-mode-tab${filterMode === 'rango' ? ' filter-mode-tab--active' : ''}`}
+                  onClick={() => handleModeSwitch('rango')}>Rango</button>
               </div>
-              <div className="date-range-group">
-                <input type="date" className="date-input" value={rangeStart}
-                  onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha inicio" />
-                <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
-                <input type="date" className="date-input" value={rangeEnd}
-                  onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha fin" />
-              </div>
-            </div>
+
+              {filterMode === 'mes' && (
+                <select className="reportes-month-select" value={selectedIdx}
+                  onChange={(e) => { setSelectedIdx(Number(e.target.value)); setSelectedDia(null); }}>
+                  {meses.map((m, i) => <option key={i} value={i}>{m.label}</option>)}
+                </select>
+              )}
+
+              {filterMode === 'rango' && (
+                <div className="filter-bar">
+                  <div className="preset-btns">
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>Hoy</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
+                    <button
+                      type="button"
+                      className={`preset-btn preset-btn--accent${activePreset === 'anio' ? ' preset-btn--active' : ''}`}
+                      onClick={() => applyPreset('anio')}
+                    >
+                      Año
+                    </button>
+                  </div>
+                  <div className="date-range-group">
+                    <input type="date" className="date-input" value={rangeStart}
+                      onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha inicio" />
+                    <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
+                    <input type="date" className="date-input" value={rangeEnd}
+                      onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha fin" />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <button type="button" className="btn btn--secondary btn--icon"

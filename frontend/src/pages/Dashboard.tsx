@@ -179,7 +179,7 @@ export default function Dashboard(): React.ReactElement {
     return <Navigate to="/login" replace />;
   }
 
-  const canViewReportes = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'].includes(user.rol);
+  const canViewReportes = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'].includes(user.rol);
 
   const now = new Date();
   const mesActual  = now.getMonth() + 1;

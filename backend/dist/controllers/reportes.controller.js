@@ -38,11 +38,19 @@ const zod_1 = require("zod");
 const reportes_service_js_1 = require("../services/reportes.service.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
 const honorarios_service_js_1 = require("../services/honorarios.service.js");
+const ajustes_service_js_1 = require("../services/ajustes.service.js");
 const liquidaciones_service_js_1 = require("../services/liquidaciones.service.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
-const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'];
+const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
+// ADMISIONES can only see current month — override any period params
+function enforceAdmisionesPeriod(rol, params) {
+    if (rol !== 'ADMISIONES')
+        return params;
+    const now = new Date();
+    return { mes_idx: now.getMonth() + 1, anio: now.getFullYear() };
+}
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const now = new Date();
 const DEFAULT_MES = now.getMonth() + 1;
@@ -108,7 +116,9 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, entidad_id, start_date, end_date, dia_semana } = parsed.data;
+        const userRol = request.user?.rol ?? '';
+        const { mes_idx, anio } = enforceAdmisionesPeriod(userRol, parsed.data);
+        const { entidad_id, start_date, end_date, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getKpis({
             mesIdx: mes_idx,
             anio,
@@ -129,10 +139,12 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date, dia_semana } = parsed.data;
+        const userRol2 = request.user?.rol ?? '';
+        const { mes_idx: mes_idx2, anio: anio2 } = enforceAdmisionesPeriod(userRol2, parsed.data);
+        const { start_date, end_date, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getEntidades({
-            mesIdx: mes_idx,
-            anio,
+            mesIdx: mes_idx2,
+            anio: anio2,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
             diaSemana: dia_semana,
@@ -149,10 +161,12 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const userRol3 = request.user?.rol ?? '';
+        const { mes_idx: mes_idx3, anio: anio3 } = enforceAdmisionesPeriod(userRol3, parsed.data);
+        const { start_date, end_date } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getCumplimientoSemanal({
-            mesIdx: mes_idx,
-            anio,
+            mesIdx: mes_idx3,
+            anio: anio3,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
         });
@@ -168,12 +182,14 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const userRol4 = request.user?.rol ?? '';
+        const { mes_idx: mes_idx4, anio: anio4 } = enforceAdmisionesPeriod(userRol4, parsed.data);
+        const { start_date: sd4, end_date: ed4 } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getDiasSemana({
-            mesIdx: mes_idx,
-            anio,
-            startDate: start_date ? new Date(start_date) : undefined,
-            endDate: end_date ? new Date(end_date) : undefined,
+            mesIdx: mes_idx4,
+            anio: anio4,
+            startDate: sd4 ? new Date(sd4) : undefined,
+            endDate: ed4 ? new Date(ed4) : undefined,
         });
         return reply.send(result);
     });
@@ -203,10 +219,12 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio, start_date, end_date, entidad_id, dia_semana } = parsed.data;
+        const userRol5 = request.user?.rol ?? '';
+        const { mes_idx: mes_idx5, anio: anio5 } = enforceAdmisionesPeriod(userRol5, parsed.data);
+        const { start_date, end_date, entidad_id, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getServicios({
-            mesIdx: mes_idx,
-            anio,
+            mesIdx: mes_idx5,
+            anio: anio5,
             startDate: start_date ? new Date(start_date) : undefined,
             endDate: end_date ? new Date(end_date) : undefined,
             entidadId: entidad_id,
@@ -423,6 +441,79 @@ async function registerReportesController(fastify) {
         if (!liq)
             return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
         return reply.send(liq);
+    });
+    // ─── Ajustes manuales ────────────────────────────────────────────────────
+    const ajusteBodySchema = zod_1.z.object({
+        categoria: zod_1.z.string().min(2),
+        descripcion: zod_1.z.string().min(3).max(255),
+        cantidad: zod_1.z.number().int().min(1).max(999),
+        valor_unitario: zod_1.z.number().min(1),
+        justificacion: zod_1.z.string().min(10, 'Justificación mínimo 10 caracteres'),
+        referencia_doc: zod_1.z.string().max(255).optional(),
+    });
+    // GET /api/liquidaciones/:id/ajustes
+    fastify.get('/api/liquidaciones/:id/ajustes', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const { id } = request.params;
+        const ajustes = await (0, ajustes_service_js_1.getAjustesByLiquidacion)(id);
+        return reply.send(ajustes);
+    });
+    // POST /api/liquidaciones/:id/ajustes  — crear ajuste
+    fastify.post('/api/liquidaciones/:id/ajustes', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        const parsed = ajusteBodySchema.safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: parsed.error.issues[0].message });
+        try {
+            const ajuste = await (0, ajustes_service_js_1.crearAjusteLiquidacion)(id, user.sub, parsed.data);
+            return reply.status(201).send(ajuste);
+        }
+        catch (e) {
+            const err = e;
+            return reply.status(err.statusCode ?? 500).send({ error: err.message });
+        }
+    });
+    // POST /api/ajustes/:id/autorizar
+    fastify.post('/api/ajustes/:id/autorizar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        try {
+            const ajuste = await (0, ajustes_service_js_1.autorizarAjusteLiquidacion)(id, user.sub);
+            return reply.send(ajuste);
+        }
+        catch (e) {
+            const err = e;
+            return reply.status(err.statusCode ?? 500).send({ error: err.message });
+        }
+    });
+    // POST /api/ajustes/:id/rechazar  { motivo }
+    fastify.post('/api/ajustes/:id/rechazar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'GERENCIA', 'DIRECCION')] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        const body = zod_1.z.object({ motivo: zod_1.z.string().min(5) }).safeParse(request.body);
+        if (!body.success)
+            return reply.status(400).send({ error: 'Motivo requerido' });
+        try {
+            const ajuste = await (0, ajustes_service_js_1.rechazarAjusteLiquidacion)(id, user.sub, body.data.motivo);
+            return reply.send(ajuste);
+        }
+        catch (e) {
+            const err = e;
+            return reply.status(err.statusCode ?? 500).send({ error: err.message });
+        }
+    });
+    // DELETE /api/ajustes/:id
+    fastify.delete('/api/ajustes/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
+        const { id } = request.params;
+        const user = request.user;
+        try {
+            await (0, ajustes_service_js_1.eliminarAjusteLiquidacion)(id, user.sub);
+            return reply.send({ ok: true });
+        }
+        catch (e) {
+            const err = e;
+            return reply.status(err.statusCode ?? 500).send({ error: err.message });
+        }
     });
     // GET /api/liquidaciones/:id/pdf
     fastify.get('/api/liquidaciones/:id/pdf', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
