@@ -6,6 +6,7 @@ import { initCron, stopCron } from './services/cron.service.js';
 import { disconnectRedis } from './config/redis.js';
 import { autoSeedEntidades } from './services/entity-seed.service.js';
 import { autoSeedServicios } from './services/servicios-seed.service.js';
+import { autoSeedCapacidad } from './services/capacidad-seed.service.js';
 import { runSchemaMigrations } from './services/schema-migrations.service.js';
 
 // Earliest possible log — antes de cualquier inicialización
@@ -143,6 +144,14 @@ async function connectInBackground(): Promise<void> {
         await autoSeedServicios();
       } catch (seedErr) {
         logger.warn('Servicios seed failed (non-fatal)', {
+          error: seedErr instanceof Error ? seedErr.message : String(seedErr),
+        });
+      }
+      // Seed capacidad instalada 2026 on first startup
+      try {
+        await autoSeedCapacidad();
+      } catch (seedErr) {
+        logger.warn('Capacidad seed failed (non-fatal)', {
           error: seedErr instanceof Error ? seedErr.message : String(seedErr),
         });
       }
