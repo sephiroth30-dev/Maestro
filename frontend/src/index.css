@@ -92,7 +92,8 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #3b82f6 100%);
+  /* Paleta corporativa Neurofic — K:60% → K:30% (Manual de Identidad Visual) */
+  background: linear-gradient(155deg, #383838 0%, #5A5A5A 45%, #7A7A7A 100%);
   padding: var(--space-4);
 }
 
@@ -114,19 +115,13 @@ body,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  width: 88px;
+  height: 88px;
+  border-radius: 16px;
+  background: #ffffff;
   margin-bottom: var(--space-4);
-  box-shadow: var(--shadow-md);
-}
-
-.login-logo-text {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--color-white);
-  letter-spacing: -0.025em;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 6px;
 }
 
 .login-title {
@@ -676,12 +671,11 @@ body,
   width: 40px;
   height: 40px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  color: white;
+  background: #ffffff;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+  padding: 3px;
+  overflow: hidden;
 }
 
 .sidebar-logo-text {

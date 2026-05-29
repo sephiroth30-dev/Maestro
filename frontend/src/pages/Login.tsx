@@ -2,6 +2,7 @@ import React, { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, AlertCircle, KeyRound, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
+import NeuroficLogo from '../assets/NeuroficLogo.js';
 
 export default function Login(): React.ReactElement {
   const { isAuthenticated, isLoading, error, login, clearError } = useAuth();
@@ -46,7 +47,7 @@ export default function Login(): React.ReactElement {
         {/* Logo / Brand */}
         <div className="login-header">
           <div className="login-logo">
-            <span className="login-logo-text">N</span>
+            <NeuroficLogo size={72} />
           </div>
           <h1 className="login-title">Neurofic Admin</h1>
           <p className="login-subtitle">Panel de administración clínica</p>

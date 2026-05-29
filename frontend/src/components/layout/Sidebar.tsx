@@ -18,6 +18,7 @@ import { useAuth } from '../../hooks/useAuth.js';
 import type { Rol } from '../../types/index.js';
 import { ROL_LABELS } from '../../types/index.js';
 import ChangePasswordModal from '../ChangePasswordModal.js';
+import NeuroficLogo from '../../assets/NeuroficLogo.js';
 
 // ─── Nav item config ──────────────────────────────────────────────────────────
 
@@ -119,7 +120,9 @@ export default function Sidebar(): React.ReactElement {
     <div className="sidebar-inner">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">N</div>
+        <div className="sidebar-logo-icon">
+          <NeuroficLogo size={32} />
+        </div>
         <div className="sidebar-logo-text">
           <span className="sidebar-brand">Neurofic</span>
           <span className="sidebar-brand-sub">Admin Dashboard</span>
