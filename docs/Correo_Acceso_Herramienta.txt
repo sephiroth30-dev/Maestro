@@ -1,0 +1,79 @@
+Para: [CORREO DEL USUARIO]
+Asunto: Acceso al sistema Neurofic Admin Dashboard — tus credenciales de ingreso
+
+---
+
+Hola [NOMBRE],
+
+Con mucho gusto te informamos que ya tienes acceso al sistema Neurofic Admin Dashboard,
+la plataforma de gestión y análisis que centraliza la información de facturación,
+honorarios y capacidad de la clínica.
+
+A continuación encontrarás tus datos de acceso:
+
+
+DATOS DE ACCESO
+───────────────────────────────────────────────────────────────────
+Dirección del sistema:  https://neurofic.easystem.co
+Usuario (correo):       [CORREO DEL USUARIO]
+Contraseña inicial:     [CONTRASEÑA]
+───────────────────────────────────────────────────────────────────
+
+Al ingresar por primera vez te recomendamos cambiar la contraseña:
+en la barra lateral izquierda (parte inferior), haz clic en el ícono
+de llave, ingresa la contraseña actual y define una nueva de mínimo
+8 caracteres.
+
+
+¿QUÉ PUEDES HACER EN EL SISTEMA?
+
+El sistema está organizado en módulos. Según los accesos que tienes
+asignados, podrás usar las siguientes secciones:
+
+    Dashboard       — Resumen ejecutivo del mes: facturación, meta,
+                      proyección de cierre, tendencia histórica y
+                      mix de pagadores.
+
+    Reportes        — Facturación detallada con filtros por fecha,
+                      entidad, tipo de servicio y día de la semana.
+                      Incluye exportación de atenciones.
+
+    Honorarios      — Liquidación de honorarios de los profesionales:
+                      genera, revisa, aprueba y registra pagos.
+                      Incluye ajustes manuales y comprobantes en PDF.
+
+    Capacidad       — Comparativo de sesiones realizadas vs. capacidad
+                      instalada por grupo de servicio.
+
+    Auditoría       — Registro de todas las acciones del sistema.
+
+(Solo verás en el menú las secciones habilitadas para tu perfil.)
+
+
+PRIMEROS PASOS RECOMENDADOS
+
+  1. Ingresa a https://neurofic.easystem.co con los datos anteriores.
+  2. Cambia tu contraseña antes de cerrar la primera sesión.
+  3. Explora el Dashboard para ver los indicadores del mes en curso.
+  4. Si necesitas acceder a una sección que no ves en el menú,
+     comunícalo al administrador del sistema.
+
+
+SOPORTE
+
+Si tienes dudas, inconvenientes técnicos o necesitas ajustes en tus
+accesos, escríbenos a:
+
+    resultados@neurofic.com
+
+El manual completo de usuario (versión 2.2) está adjunto a este correo.
+
+
+Bienvenido/a al equipo,
+
+Equipo de Tecnología — Neurofic
+resultados@neurofic.com
+
+---
+Este mensaje contiene información confidencial de uso interno de Neurofic.
+No reenviar fuera de la organización.
