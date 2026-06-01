@@ -43,16 +43,22 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Normalize a datetime string that may lack timezone info (MySQL returns naive strings).
+// We treat all naive datetimes as UTC to match the server storage convention.
+function parseServerDate(dateStr: string): Date {
+  // Already has timezone info (Z or +HH:MM or -HH:MM)
+  if (/[Z+\-]\d{2}:?\d{2}$/.test(dateStr) || dateStr.endsWith('Z')) {
+    return new Date(dateStr);
+  }
+  // Naive string — normalize space to T and append Z to treat as UTC
+  return new Date(dateStr.replace(' ', 'T') + 'Z');
+}
+
 function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return 'Nunca';
-  // The server (Hostinger) may store timestamps in its local timezone without
-  // an offset suffix. We parse them and compare against Colombia time (UTC-5).
-  const serverDate = new Date(dateStr);
-  // If the string has no timezone info (no Z, no +00:00) mysql2 returns it as
-  // a local Date in the server's timezone — we treat it as UTC for diffing.
+  const serverDate = parseServerDate(dateStr);
   const diff = Date.now() - serverDate.getTime();
   const mins = Math.floor(Math.abs(diff) / 60000);
-  // If diff is very negative it means server clock is ahead — cap at 0
   if (diff < -30_000) return 'Ahora';
   if (mins < 1) return 'Hace un momento';
   if (mins < 60) return `Hace ${mins} min`;
@@ -60,6 +66,16 @@ function formatRelativeTime(dateStr: string | null): string {
   if (hours < 24) return `Hace ${hours} h`;
   const days = Math.floor(hours / 24);
   return `Hace ${days} día${days > 1 ? 's' : ''}`;
+}
+
+function formatAbsoluteTime(dateStr: string | null): string {
+  if (!dateStr) return '—';
+  const d = parseServerDate(dateStr);
+  return d.toLocaleString('es-CO', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/Bogota',
+  });
 }
 
 const FRECUENCIA_LABELS: Record<FrecuenciaSync, string> = {
@@ -229,11 +245,14 @@ function ConnectorCard({
       </div>
 
       <div className="connector-card-info">
-        <div className="connector-info-row">
+        <div className="connector-info-row" title={`Fecha exacta (COT): ${formatAbsoluteTime(conector.ultimaSync)}`}>
           <Clock size={14} className="connector-info-icon" />
           <span className="connector-info-label">Última sync:</span>
-          <span className="connector-info-value">
-            {formatRelativeTime(conector.ultimaSync)}
+          <span className="connector-info-value" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span>{formatRelativeTime(conector.ultimaSync)}</span>
+            {conector.ultimaSync && (
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>{formatAbsoluteTime(conector.ultimaSync)}</span>
+            )}
           </span>
         </div>
         <div className="connector-info-row">

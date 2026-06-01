@@ -11,7 +11,7 @@ import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
-import { Conectores, Configuracion, Usuarios, CapacidadConfig, ReglaHonorarios } from './pages/Admin/index.js';
+import { Configuracion } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
 import Capacidad from './pages/Capacidad.js';
@@ -212,18 +212,7 @@ export default function App(): ReactElement {
             }
           />
 
-          {/* Admin routes */}
-          <Route
-            path="/admin/conectores"
-            element={
-              <AdminRoute>
-                <AppLayout>
-                  <Conectores />
-                </AppLayout>
-              </AdminRoute>
-            }
-          />
-
+          {/* Admin — Configuración (contains Usuarios, Capacidad, Honorarios, Fuentes) */}
           <Route
             path="/admin/configuracion"
             element={
@@ -235,16 +224,11 @@ export default function App(): ReactElement {
             }
           />
 
-          <Route
-            path="/admin/usuarios"
-            element={
-              <AdminRoute>
-                <AppLayout>
-                  <Usuarios />
-                </AppLayout>
-              </AdminRoute>
-            }
-          />
+          {/* Legacy admin routes → redirect to Configuración */}
+          <Route path="/admin/conectores"          element={<Navigate to="/admin/configuracion" replace />} />
+          <Route path="/admin/usuarios"            element={<Navigate to="/admin/configuracion" replace />} />
+          <Route path="/admin/capacidad"           element={<Navigate to="/admin/configuracion" replace />} />
+          <Route path="/admin/reglas-honorarios"   element={<Navigate to="/admin/configuracion" replace />} />
 
           {/* Capacidad route */}
           <Route
@@ -255,30 +239,6 @@ export default function App(): ReactElement {
                   <Capacidad />
                 </AppLayout>
               </CapacidadRoute>
-            }
-          />
-
-          {/* Admin — Capacidad config */}
-          <Route
-            path="/admin/capacidad"
-            element={
-              <AdminRoute>
-                <AppLayout>
-                  <CapacidadConfig />
-                </AppLayout>
-              </AdminRoute>
-            }
-          />
-
-          {/* Admin — Reglas de honorarios */}
-          <Route
-            path="/admin/reglas-honorarios"
-            element={
-              <AdminRoute>
-                <AppLayout>
-                  <ReglaHonorarios />
-                </AppLayout>
-              </AdminRoute>
             }
           />
 

@@ -3020,6 +3020,82 @@ body,
   min-height: 200px;
 }
 
+/* ─── Config vertical nav (new layout) ─────────────────────────────────────── */
+
+.config-layout {
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
+}
+
+.config-nav {
+  width: 188px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-gray-200);
+  padding: 0 8px 24px 0;
+  position: sticky;
+  top: 24px;
+}
+
+.config-nav-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-gray-400);
+  padding: 14px 8px 4px;
+}
+
+.config-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-gray-600);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  margin: 1px 0;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.config-nav-item:hover {
+  background: var(--color-gray-100);
+  color: var(--color-gray-800);
+}
+
+.config-nav-item--active {
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.config-nav-item--danger {
+  color: var(--color-gray-400);
+}
+
+.config-nav-item--danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.config-nav-item--danger.config-nav-item--active {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.config-main {
+  flex: 1;
+  min-width: 0;
+  padding-left: 28px;
+}
+
 /* ─── Entity tipo select ────────────────────────────────────────────────────── */
 
 .entidad-tipo-wrapper {

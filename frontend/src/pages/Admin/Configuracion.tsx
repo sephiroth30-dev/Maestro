@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope, UserCog } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Settings, Database, Building2, BarChart3, ShieldCheck, Stethoscope, UserCog, Users, Settings2, Sliders } from 'lucide-react';
 import { usePresupuestos, useUpsertPresupuesto, useSinEntidadDiagnostico } from '../../api/reportes.js';
 import type { Presupuesto } from '../../api/reportes.js';
 import TabEntidades from './TabEntidades.js';
@@ -8,10 +8,17 @@ import TabSinEntidad from './TabSinEntidad.js';
 import TabServicios from './TabServicios.js';
 import TabProfesionales from './TabProfesionales.js';
 import Conectores from './Conectores.js';
+import Usuarios from './Usuarios.js';
+import CapacidadConfig from './CapacidadConfig.js';
+import ReglaHonorarios from './ReglaHonorarios.js';
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type ConfigTab = 'fuentes' | 'entidades' | 'profesionales' | 'servicios' | 'presupuestos' | 'diagnostico' | 'sin-entidad';
+type ConfigTab =
+  | 'entidades' | 'profesionales' | 'servicios' | 'presupuestos'
+  | 'diagnostico' | 'sin-entidad'
+  | 'usuarios' | 'honorarios'
+  | 'capacidad' | 'fuentes';
 
 // ─── Presupuestos helpers ─────────────────────────────────────────────────────
 
@@ -208,66 +215,119 @@ function TabPresupuestos(): React.ReactElement {
   );
 }
 
+// ─── Nav section structure ────────────────────────────────────────────────────
+
+interface NavSection {
+  label: string;
+  items: Array<{
+    id: ConfigTab;
+    label: string;
+    icon: React.ReactNode;
+    badge?: React.ReactNode;
+    danger?: boolean;
+  }>;
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Configuracion(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<ConfigTab>('fuentes');
+  const [activeTab, setActiveTab] = useState<ConfigTab>('entidades');
 
-  // Used to show a red icon on the Sin Entidad tab when there are unmatched records
   const now = new Date();
   const { data: sinEntidadData } = useSinEntidadDiagnostico(now.getMonth() + 1, now.getFullYear());
   const hasSinEntidad = (sinEntidadData?.length ?? 0) > 0;
 
-  const TABS: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'fuentes',        label: 'Fuentes de datos', icon: <Database size={15} /> },
-    { id: 'entidades',      label: 'Entidades',         icon: <Building2 size={15} /> },
-    { id: 'profesionales',  label: 'Profesionales',     icon: <UserCog size={15} /> },
-    { id: 'servicios',      label: 'Procedimientos',    icon: <Stethoscope size={15} /> },
-    { id: 'presupuestos',   label: 'Presupuestos',      icon: <BarChart3 size={15} /> },
-    { id: 'diagnostico',    label: 'Diagnóstico',       icon: <ShieldCheck size={15} /> },
+  const NAV_SECTIONS: NavSection[] = [
     {
-      id: 'sin-entidad',
-      label: 'Sin Entidad',
-      icon: <AlertCircle size={15} style={{ color: hasSinEntidad ? '#dc2626' : '#94a3b8' }} />,
+      label: 'Datos',
+      items: [
+        { id: 'entidades',     label: 'Entidades',       icon: <Building2 size={14} /> },
+        { id: 'profesionales', label: 'Profesionales',    icon: <UserCog size={14} /> },
+        { id: 'servicios',     label: 'Procedimientos',   icon: <Stethoscope size={14} /> },
+        { id: 'presupuestos',  label: 'Presupuestos',     icon: <BarChart3 size={14} /> },
+      ],
+    },
+    {
+      label: 'Calidad',
+      items: [
+        { id: 'diagnostico',  label: 'Diagnóstico',  icon: <ShieldCheck size={14} /> },
+        {
+          id: 'sin-entidad',
+          label: 'Sin Entidad',
+          icon: <AlertCircle size={14} />,
+          badge: hasSinEntidad ? (
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626', display: 'inline-block', marginLeft: 2 }} />
+          ) : undefined,
+        },
+      ],
+    },
+    {
+      label: 'Administración',
+      items: [
+        { id: 'usuarios',   label: 'Usuarios',           icon: <Users size={14} /> },
+        { id: 'honorarios', label: 'Reglas Honorarios',  icon: <Sliders size={14} /> },
+      ],
+    },
+    {
+      label: 'Sistema',
+      items: [
+        { id: 'capacidad', label: 'Cap. Instalada', icon: <Settings2 size={14} /> },
+        { id: 'fuentes',   label: 'Fuentes de datos', icon: <Database size={14} />, danger: true },
+      ],
     },
   ];
 
   return (
     <div className="page">
-      <div className="page-header" style={{ marginBottom: '1.25rem' }}>
+      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
         <div>
           <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Settings size={24} />
+            <Settings size={22} />
             Configuración
           </h1>
-          <p className="page-subtitle">Parámetros del sistema · Fuentes de datos · Entidades · Presupuestos</p>
+          <p className="page-subtitle">Parámetros del sistema · Datos · Usuarios · Fuentes</p>
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="config-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`config-tab ${activeTab === tab.id ? 'config-tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="config-layout">
+        {/* ── Left navigation ─────────────────────────────────────────────── */}
+        <nav className="config-nav">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.label}>
+              <div className="config-nav-section-label">{section.label}</div>
+              {section.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={[
+                    'config-nav-item',
+                    activeTab === item.id ? 'config-nav-item--active' : '',
+                    item.danger ? 'config-nav-item--danger' : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  {item.icon}
+                  {item.label}
+                  {item.badge}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      {/* Tab content */}
-      <div className="config-tab-content">
-        {activeTab === 'fuentes'       && <Conectores />}
-        {activeTab === 'entidades'     && <TabEntidades />}
-        {activeTab === 'profesionales' && <TabProfesionales />}
-        {activeTab === 'servicios'     && <TabServicios />}
-        {activeTab === 'presupuestos'  && <TabPresupuestos />}
-        {activeTab === 'diagnostico'   && <TabDiagnostico />}
-        {activeTab === 'sin-entidad'   && <TabSinEntidad />}
+        {/* ── Content ──────────────────────────────────────────────────────── */}
+        <div className="config-main">
+          {activeTab === 'entidades'     && <TabEntidades />}
+          {activeTab === 'profesionales' && <TabProfesionales />}
+          {activeTab === 'servicios'     && <TabServicios />}
+          {activeTab === 'presupuestos'  && <TabPresupuestos />}
+          {activeTab === 'diagnostico'   && <TabDiagnostico />}
+          {activeTab === 'sin-entidad'   && <TabSinEntidad />}
+          {activeTab === 'usuarios'      && <Usuarios />}
+          {activeTab === 'honorarios'    && <ReglaHonorarios />}
+          {activeTab === 'capacidad'     && <CapacidadConfig />}
+          {activeTab === 'fuentes'       && <Conectores />}
+        </div>
       </div>
     </div>
   );

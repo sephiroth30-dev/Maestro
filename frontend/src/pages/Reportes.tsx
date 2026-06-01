@@ -544,7 +544,8 @@ export default function Reportes(): React.ReactElement {
           )}
 
           <button type="button" className="btn btn--secondary btn--icon"
-            onClick={handleRefresh} disabled={isLoading} title="Actualizar datos">
+            onClick={handleRefresh} disabled={isLoading}
+            title="Actualizar vista desde la base de datos local (no importa datos nuevos desde las fuentes — para eso ve a Configuración → Fuentes)">
             <RefreshCw size={15} className={isLoading ? 'spin' : ''} />
           </button>
         </div>
