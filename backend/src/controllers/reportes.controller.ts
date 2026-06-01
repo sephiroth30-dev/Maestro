@@ -497,14 +497,16 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
 
       const [rows] = await pool.query<ContribRow[]>(
         `SELECT
-          profesional_nombre,
-          SUM(CASE WHEN entidad_tipo = 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_particular,
-          SUM(CASE WHEN entidad_tipo != 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_entidad,
-          SUM(COALESCE(valor_bruto, 0)) AS total_bruto
-        FROM atenciones
-        WHERE fecha_atencion BETWEEN ? AND ?
-          AND profesional_nombre IS NOT NULL
-        GROUP BY profesional_nombre
+          COALESCE(p.nombre_completo, p.nombre)                                                          AS profesional_nombre,
+          SUM(CASE WHEN e.tipo = 'PARTICULAR' THEN COALESCE(a.valor_bruto, 0) ELSE 0 END)               AS total_particular,
+          SUM(CASE WHEN COALESCE(e.tipo,'') != 'PARTICULAR' THEN COALESCE(a.valor_bruto, 0) ELSE 0 END) AS total_entidad,
+          SUM(COALESCE(a.valor_bruto, 0))                                                                AS total_bruto
+        FROM atenciones a
+        INNER JOIN profesionales p ON p.id = a.profesional_id
+        LEFT  JOIN entidades     e ON e.id = a.entidad_id
+        WHERE DATE(a.fecha_dia) BETWEEN ? AND ?
+          AND a.profesional_id IS NOT NULL
+        GROUP BY p.id, COALESCE(p.nombre_completo, p.nombre)
         ORDER BY total_bruto DESC`,
         [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]
       );
@@ -632,7 +634,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
   const ajusteBodySchema = z.object({
     categoria:      z.string().min(2),
     descripcion:    z.string().min(3).max(255),
-    cantidad:       z.number().int().min(1).max(999),
+    cantidad:       z.number().int().min(-999).max(999).refine(n => n !== 0, 'La cantidad no puede ser cero'),
     valor_unitario: z.number().min(1),
     justificacion:  z.string().min(10, 'Justificación mínimo 10 caracteres'),
     referencia_doc: z.string().max(255).optional(),
