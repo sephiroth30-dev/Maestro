@@ -6,7 +6,8 @@ export type Rol =
   | 'DIRECCION'
   | 'FACTURACION'
   | 'COORDINADORA'
-  | 'ADMISIONES';
+  | 'ADMISIONES'
+  | 'RECURSOS_HUMANOS';
 
 export interface User {
   id: string;
@@ -58,6 +59,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   FACTURACION: 'Facturación',
   COORDINADORA: 'Coordinadora',
   ADMISIONES: 'Admisiones',
+  RECURSOS_HUMANOS: 'Recursos Humanos',
 };
 
 // ─── Auditoría ────────────────────────────────────────────────────────────────

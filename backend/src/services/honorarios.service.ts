@@ -7,6 +7,7 @@
  */
 
 import { getLineasHonorarios, getLineasHonorariosRango } from '../repositories/honorarios.repo.js';
+import { findAllReglas, findAllReglasEspeciales } from '../repositories/reglas-honorarios.repo.js';
 
 // ─── Categorías de honorarios ─────────────────────────────────────────────────
 // Coinciden con las columnas del Informe de Honorarios del Excel de la clínica.
@@ -68,7 +69,68 @@ interface Tasa {
 const PSG_FIJO = 80_000;
 const LMS_FIJO = 75_000;
 
-const REGLAS: Record<string, Partial<Record<HonCat, Tasa>>> = {
+// ─── Reglas desde BD (cargadas dinámicamente) ────────────────────────────────
+
+async function cargarReglas(): Promise<{
+  reglas: Record<string, Partial<Record<HonCat, Tasa>>>;
+  especiales: { consulta_reducida: { profs: Set<string>; entidades: Set<string>; valor: number };
+                 override_global: Array<{ prof: string; entidad: string; pct: number }>;
+                 psg_fijo: number; lms_fijo: number };
+}> {
+  try {
+    const dbReglas    = await findAllReglas();
+    const dbEspeciales = await findAllReglasEspeciales();
+
+    if (dbReglas.length > 0) {
+      const reglas: Record<string, Partial<Record<HonCat, Tasa>>> = {};
+      for (const r of dbReglas) {
+        if (!reglas[r.profesional_nombre]) reglas[r.profesional_nombre] = {};
+        reglas[r.profesional_nombre][r.categoria as HonCat] = {
+          tipo: r.tipo,
+          entidad: r.valor_entidad,
+          particular: r.valor_particular,
+        };
+      }
+
+      const consulta_reducida = { profs: new Set<string>(), entidades: new Set<string>(), valor: 36_000 };
+      const override_global: Array<{ prof: string; entidad: string; pct: number }> = [];
+      let psg_fijo = PSG_FIJO;
+      let lms_fijo = LMS_FIJO;
+
+      for (const e of dbEspeciales) {
+        if (e.tipo_regla === 'consulta_reducida') {
+          consulta_reducida.profs.add(e.profesional_nombre);
+          consulta_reducida.valor = e.valor;
+          (e.condicion ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+            .forEach((ent) => consulta_reducida.entidades.add(ent));
+        } else if (e.tipo_regla === 'override_global_pct') {
+          override_global.push({ prof: e.profesional_nombre, entidad: e.condicion ?? '', pct: e.valor });
+        } else if (e.tipo_regla === 'psg_diferenciado') {
+          psg_fijo = e.valor;
+        } else if (e.tipo_regla === 'lms_diferenciado') {
+          lms_fijo = e.valor;
+        }
+      }
+
+      return { reglas, especiales: { consulta_reducida, override_global, psg_fijo, lms_fijo } };
+    }
+  } catch {
+    // fallback to hardcoded if DB unavailable
+  }
+
+  // ── Fallback: reglas hardcoded ─────────────────────────────────────────────
+  return {
+    reglas: REGLAS_HARDCODED,
+    especiales: {
+      consulta_reducida: { profs: PROFESIONALES_CONSULTA_REDUCIDA, entidades: ENTIDADES_CONSULTA_REDUCIDA, valor: 36_000 },
+      override_global: [{ prof: 'LAVERDE', entidad: 'DALELA', pct: 0.80 }],
+      psg_fijo: PSG_FIJO,
+      lms_fijo: LMS_FIJO,
+    },
+  };
+}
+
+const REGLAS_HARDCODED: Record<string, Partial<Record<HonCat, Tasa>>> = {
   PERLAZA: {
     consulta:    { tipo: 'fijo', entidad: 38_000, particular: 106_000 },
     infiltracion:{ tipo: 'pct',  entidad: 0.70,   particular: 0.70 },
@@ -121,8 +183,7 @@ const REGLAS: Record<string, Partial<Record<HonCat, Tasa>>> = {
   },
 };
 
-// Entidades con tarifa de consulta reducida ($36.000 en lugar de $38.000)
-// Aplica a PERLAZA, LAVERDE, ESCOBAR, TERAN (acuerdo contractual Nueva EPS / Viva 1A)
+// Fallback hardcoded — se usa cuando la BD no tiene reglas cargadas aún
 const ENTIDADES_CONSULTA_REDUCIDA = new Set(['NUEVA EPS', 'VIVA 1A']);
 const PROFESIONALES_CONSULTA_REDUCIDA = new Set(['PERLAZA', 'LAVERDE', 'ESCOBAR', 'TERAN']);
 
@@ -202,12 +263,14 @@ export async function calcularHonorarios(
   mesIdx: number,
   anio: number,
 ): Promise<HonorariosResult> {
-  const lineas = await getLineasHonorarios(mesIdx, anio);
+  const [lineas, { reglas: REGLAS, especiales }] = await Promise.all([
+    getLineasHonorarios(mesIdx, anio),
+    cargarReglas(),
+  ]);
 
   const mapaFilas = new Map<string, HonorariosProfesionalRow>();
 
   for (const l of lineas) {
-    // Obtener o crear la fila del profesional
     let fila = mapaFilas.get(l.profesional_id);
     if (!fila) {
       fila = nuevaFila(l.profesional_id, l.profesional_display);
@@ -216,10 +279,8 @@ export async function calcularHonorarios(
 
     const cat: HonCat = l.servicio_nombre ? (SERVICIO_CAT[l.servicio_nombre] ?? 'sin_regla') : 'sin_regla';
 
-    // ── Servicios excluidos (aguja monopolar, derechos de sala) ──
     if (cat === 'excluido') continue;
 
-    // ── Sin categoría → diagnóstico ──
     if (cat === 'sin_regla') {
       acumular(fila, 'sin_regla', l.total_valor, l.cnt);
       continue;
@@ -228,15 +289,15 @@ export async function calcularHonorarios(
     const isParticular = l.entidad_tipo === 'PARTICULAR';
     const isSesion     = l.servicio_tipo_conteo === 'sesion';
 
-    // ── Override DALELA para LAVERDE (80% en todo) ──
-    if (l.profesional_nombre === 'LAVERDE' && l.entidad_nombre === 'DALELA') {
-      const monto = l.total_valor * 0.80;
-      const cnt   = isSesion ? l.cnt_sesiones : l.cnt;
-      acumular(fila, cat, monto, cnt);
+    // ── Override global (ej. LAVERDE + DALELA → 80%) ──
+    const override = especiales.override_global.find(
+      (o) => o.prof === l.profesional_nombre && l.entidad_nombre === o.entidad
+    );
+    if (override) {
+      acumular(fila, cat, l.total_valor * override.pct, isSesion ? l.cnt_sesiones : l.cnt);
       continue;
     }
 
-    // ── Lookup de la regla estándar ──
     const regla = REGLAS[l.profesional_nombre]?.[cat];
     if (!regla) {
       acumular(fila, 'sin_regla', l.total_valor, l.cnt);
@@ -244,32 +305,26 @@ export async function calcularHonorarios(
     }
 
     let monto = 0;
-    let cnt   = isSesion ? l.cnt_sesiones : l.cnt;
+    const cnt = isSesion ? l.cnt_sesiones : l.cnt;
 
     if (regla.tipo === 'fijo') {
-      // PSG vs LMS tienen montos fijos distintos dentro de la misma categoría psg_lms
       let valorFijo: number;
       if (cat === 'psg_lms') {
-        valorFijo = l.servicio_nombre === 'PRUEBA DE LATENCIA MULTIPLE' ? LMS_FIJO : PSG_FIJO;
+        valorFijo = l.servicio_nombre === 'PRUEBA DE LATENCIA MULTIPLE'
+          ? especiales.lms_fijo : especiales.psg_fijo;
       } else if (
-        cat === 'consulta' &&
-        !isParticular &&
-        PROFESIONALES_CONSULTA_REDUCIDA.has(l.profesional_nombre) &&
+        cat === 'consulta' && !isParticular &&
+        especiales.consulta_reducida.profs.has(l.profesional_nombre) &&
         l.entidad_nombre !== null &&
-        ENTIDADES_CONSULTA_REDUCIDA.has(l.entidad_nombre)
+        especiales.consulta_reducida.entidades.has(l.entidad_nombre)
       ) {
-        // Tarifa reducida Nueva EPS / Viva 1A
-        valorFijo = 36_000;
+        valorFijo = especiales.consulta_reducida.valor;
       } else {
         valorFijo = isParticular ? regla.particular : regla.entidad;
       }
       monto = cnt * valorFijo;
     } else {
-      // tipo === 'pct'
-      const pct = isParticular ? regla.particular : regla.entidad;
-      monto = l.total_valor * pct;
-      // Para servicios porcentuales en modo sesión, cnt_display = sesiones
-      // (ya calculado arriba con isSesion)
+      monto = l.total_valor * (isParticular ? regla.particular : regla.entidad);
     }
 
     acumular(fila, cat, monto, cnt);
@@ -302,7 +357,11 @@ export async function calcularHonorarios(
 
 // ─── Motor compartido (acepta líneas ya cargadas) ─────────────────────────────
 
-function aplicarReglas(lineas: import('../repositories/honorarios.repo.js').HonorariosLineaDB[]): Map<string, HonorariosProfesionalRow> {
+function aplicarReglasSync(
+  lineas: import('../repositories/honorarios.repo.js').HonorariosLineaDB[],
+  REGLAS: Record<string, Partial<Record<HonCat, Tasa>>>,
+  especiales: Awaited<ReturnType<typeof cargarReglas>>['especiales'],
+): Map<string, HonorariosProfesionalRow> {
   const mapaFilas = new Map<string, HonorariosProfesionalRow>();
 
   for (const l of lineas) {
@@ -319,8 +378,11 @@ function aplicarReglas(lineas: import('../repositories/honorarios.repo.js').Hono
     const isParticular = l.entidad_tipo === 'PARTICULAR';
     const isSesion     = l.servicio_tipo_conteo === 'sesion';
 
-    if (l.profesional_nombre === 'LAVERDE' && l.entidad_nombre === 'DALELA') {
-      acumular(fila, cat, l.total_valor * 0.80, isSesion ? l.cnt_sesiones : l.cnt);
+    const override = especiales.override_global.find(
+      (o) => o.prof === l.profesional_nombre && l.entidad_nombre === o.entidad
+    );
+    if (override) {
+      acumular(fila, cat, l.total_valor * override.pct, isSesion ? l.cnt_sesiones : l.cnt);
       continue;
     }
 
@@ -333,13 +395,14 @@ function aplicarReglas(lineas: import('../repositories/honorarios.repo.js').Hono
     if (regla.tipo === 'fijo') {
       let valorFijo: number;
       if (cat === 'psg_lms') {
-        valorFijo = l.servicio_nombre === 'PRUEBA DE LATENCIA MULTIPLE' ? LMS_FIJO : PSG_FIJO;
+        valorFijo = l.servicio_nombre === 'PRUEBA DE LATENCIA MULTIPLE'
+          ? especiales.lms_fijo : especiales.psg_fijo;
       } else if (
         cat === 'consulta' && !isParticular &&
-        PROFESIONALES_CONSULTA_REDUCIDA.has(l.profesional_nombre) &&
-        l.entidad_nombre !== null && ENTIDADES_CONSULTA_REDUCIDA.has(l.entidad_nombre)
+        especiales.consulta_reducida.profs.has(l.profesional_nombre) &&
+        l.entidad_nombre !== null && especiales.consulta_reducida.entidades.has(l.entidad_nombre)
       ) {
-        valorFijo = 36_000;
+        valorFijo = especiales.consulta_reducida.valor;
       } else {
         valorFijo = isParticular ? regla.particular : regla.entidad;
       }
@@ -357,8 +420,11 @@ export async function calcularHonorariosRango(
   fechaDesde: string,
   fechaHasta: string,
 ): Promise<HonorariosResult> {
-  const lineas = await getLineasHonorariosRango(fechaDesde, fechaHasta);
-  const mapaFilas = aplicarReglas(lineas);
+  const [lineas, { reglas: REGLAS, especiales }] = await Promise.all([
+    getLineasHonorariosRango(fechaDesde, fechaHasta),
+    cargarReglas(),
+  ]);
+  const mapaFilas = aplicarReglasSync(lineas, REGLAS, especiales);
 
   const rows = [...mapaFilas.values()].sort((a, b) => b.total - a.total);
 

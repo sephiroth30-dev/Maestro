@@ -3,3 +3,4 @@ export { default as Configuracion } from './Configuracion.js';
 export { default as TabEntidades } from './TabEntidades.js';
 export { default as Usuarios } from './Usuarios.js';
 export { default as CapacidadConfig } from './CapacidadConfig.js';
+export { default as ReglaHonorarios } from './ReglaHonorarios.js';

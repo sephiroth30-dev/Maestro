@@ -54,6 +54,7 @@ export const Permissions = {
     'FACTURACION',
     'COORDINADORA',
     'ADMISIONES',
+    'RECURSOS_HUMANOS',
   ] as Rol[],
 
   // Coordination roles
@@ -61,4 +62,7 @@ export const Permissions = {
 
   // Admissions access
   ADMISSIONS: ['ADMIN', 'GERENCIA', 'DIRECCION', 'ADMISIONES'] as Rol[],
+
+  // Honorarios / liquidaciones (RRHH manages payroll)
+  HONORARIOS: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'RECURSOS_HUMANOS'] as Rol[],
 } as const;

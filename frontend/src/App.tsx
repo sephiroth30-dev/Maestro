@@ -11,7 +11,7 @@ import { useAuth } from './hooks/useAuth.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
-import { Conectores, Configuracion, Usuarios, CapacidadConfig } from './pages/Admin/index.js';
+import { Conectores, Configuracion, Usuarios, CapacidadConfig, ReglaHonorarios } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
 import Capacidad from './pages/Capacidad.js';
@@ -73,6 +73,24 @@ function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
   }
 
   if (!user || !(REPORTES_ROLES as readonly string[]).includes(user.rol)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+// ─── Honorarios Route (includes RECURSOS_HUMANOS) ────────────────────────────
+
+const HONORARIOS_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'RECURSOS_HUMANOS'] as const;
+
+function HonorariosRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user || !(HONORARIOS_ROLES as readonly string[]).includes(user.rol)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -186,11 +204,11 @@ export default function App(): ReactElement {
           <Route
             path="/honorarios"
             element={
-              <ReportesRoute>
+              <HonorariosRoute>
                 <AppLayout>
                   <Honorarios />
                 </AppLayout>
-              </ReportesRoute>
+              </HonorariosRoute>
             }
           />
 
@@ -247,6 +265,18 @@ export default function App(): ReactElement {
               <AdminRoute>
                 <AppLayout>
                   <CapacidadConfig />
+                </AppLayout>
+              </AdminRoute>
+            }
+          />
+
+          {/* Admin — Reglas de honorarios */}
+          <Route
+            path="/admin/reglas-honorarios"
+            element={
+              <AdminRoute>
+                <AppLayout>
+                  <ReglaHonorarios />
                 </AppLayout>
               </AdminRoute>
             }

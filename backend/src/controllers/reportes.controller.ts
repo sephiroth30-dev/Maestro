@@ -481,7 +481,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     fecha_hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   });
 
-  const HON_ROLES = ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION'] as const;
+  const HON_ROLES = ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION', 'RECURSOS_HUMANOS'] as const;
 
   // GET /api/liquidaciones?fecha_desde=2026-05-01&fecha_hasta=2026-05-31
   fastify.get(

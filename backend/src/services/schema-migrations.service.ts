@@ -30,6 +30,42 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     id: 'm07_atenciones_servicio_id_idx',
     sql: 'CREATE INDEX IF NOT EXISTS atenciones_servicio_id_idx ON atenciones (servicio_id)',
   },
+  {
+    id: 'm08_usuarios_rol_recursos_humanos',
+    sql: "ALTER TABLE usuarios MODIFY COLUMN rol ENUM('ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES','RECURSOS_HUMANOS') NOT NULL",
+  },
+  {
+    id: 'm09_reglas_honorarios',
+    sql: `CREATE TABLE IF NOT EXISTS reglas_honorarios (
+      id VARCHAR(36) NOT NULL,
+      profesional_nombre VARCHAR(100) NOT NULL,
+      categoria VARCHAR(30) NOT NULL,
+      tipo ENUM('fijo','pct') NOT NULL,
+      valor_entidad DECIMAL(15,4) NOT NULL,
+      valor_particular DECIMAL(15,4) NOT NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      notas VARCHAR(255) NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (id),
+      UNIQUE KEY uk_prof_cat (profesional_nombre, categoria)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  },
+  {
+    id: 'm10_reglas_especiales_honorarios',
+    sql: `CREATE TABLE IF NOT EXISTS reglas_especiales_honorarios (
+      id VARCHAR(36) NOT NULL,
+      tipo_regla VARCHAR(50) NOT NULL,
+      profesional_nombre VARCHAR(100) NOT NULL,
+      condicion VARCHAR(200) NULL,
+      valor DECIMAL(15,4) NOT NULL,
+      descripcion VARCHAR(255) NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  },
 ];
 
 export async function runSchemaMigrations(): Promise<void> {

@@ -14,15 +14,16 @@ import { useAuth } from '../../hooks/useAuth.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ROLES: Rol[] = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
+const ROLES: Rol[] = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'];
 
 const ROL_COLORS: Record<Rol, string> = {
-  ADMIN:        '#7c3aed',
-  GERENCIA:     '#0369a1',
-  DIRECCION:    '#0891b2',
-  FACTURACION:  '#065f46',
-  COORDINADORA: '#92400e',
-  ADMISIONES:   '#475569',
+  ADMIN:            '#7c3aed',
+  GERENCIA:         '#0369a1',
+  DIRECCION:        '#0891b2',
+  FACTURACION:      '#065f46',
+  COORDINADORA:     '#92400e',
+  ADMISIONES:       '#475569',
+  RECURSOS_HUMANOS: '#b45309',
 };
 
 function rolBadge(rol: Rol): React.ReactElement {
@@ -59,10 +60,10 @@ interface ModuleAccess {
 }
 
 const MODULES: ModuleAccess[] = [
-  { label: 'Dashboard',    color: '#6366f1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'] },
+  { label: 'Dashboard',    color: '#6366f1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES','RECURSOS_HUMANOS'] },
   { label: 'Reportes',     color: '#0891b2', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'],
     note: (r) => r === 'ADMISIONES' ? 'solo mes actual' : undefined },
-  { label: 'Honorarios',   color: '#0369a1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
+  { label: 'Honorarios',   color: '#0369a1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','RECURSOS_HUMANOS'] },
   { label: 'Capacidad',    color: '#065f46', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
   { label: 'Auditoría',    color: '#7c3aed', roles: ['ADMIN','FACTURACION'] },
   { label: 'Admin',        color: '#9f1239', roles: ['ADMIN'] },
