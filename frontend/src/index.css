@@ -915,6 +915,14 @@ body,
   max-width: 1200px;
 }
 
+/* When a .page is embedded inside the config vertical-nav layout,
+   remove double left padding and top gap (config-main already handles both) */
+.config-main .page {
+  padding-top: 0;
+  padding-left: 0;
+  max-width: none;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;

@@ -159,6 +159,7 @@ export function useConnectors(): UseQueryResult<Conector[]> {
   return useQuery({
     queryKey: connectorKeys.lists(),
     queryFn: fetchConnectors,
+    refetchInterval: 60_000, // keep last-sync timestamps current after auto-syncs
   });
 }
 

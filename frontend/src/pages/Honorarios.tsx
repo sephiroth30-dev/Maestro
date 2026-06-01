@@ -26,9 +26,20 @@ const fmtCOP = (n: number) =>
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 
+function parseHonDate(iso: string): Date {
+  // Date-only YYYY-MM-DD → treat as local so day doesn't shift on UTC offset
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number) as [number, number, number];
+    return new Date(y, m - 1, d);
+  }
+  // Datetime: if no tz info, treat as UTC (MySQL stores naive UTC timestamps)
+  if (/[Z+\-]\d{2}:?\d{2}$/.test(iso) || iso.endsWith('Z')) return new Date(iso);
+  return new Date(iso.replace(' ', 'T') + 'Z');
+}
+
 const fmtFecha = (iso: string | null | undefined): string => {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseHonDate(iso);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
 };
