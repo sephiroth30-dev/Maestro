@@ -5,12 +5,19 @@ const node_crypto_1 = require("node:crypto");
 const prisma_js_1 = require("../config/prisma.js");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function mapUsuario(row) {
+    let modulos = [];
+    try {
+        if (row.modulos)
+            modulos = JSON.parse(row.modulos);
+    }
+    catch { /* ignore malformed JSON */ }
     return {
         id: row.id,
         email: row.email,
         nombre: row.nombre,
         passwordHash: row.password_hash,
         rol: row.rol,
+        modulos,
         activo: Boolean(row.activo),
         deletedAt: row.deleted_at,
         createdAt: row.created_at,
@@ -78,7 +85,8 @@ class UsuariosRepository {
     }
     async create(data) {
         const id = (0, node_crypto_1.randomUUID)();
-        await prisma_js_1.pool.execute('INSERT INTO usuarios (id, email, nombre, password_hash, rol, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())', [id, data.email, data.nombre, data.passwordHash, data.rol]);
+        const modulosJson = data.modulos ? JSON.stringify(data.modulos) : null;
+        await prisma_js_1.pool.execute('INSERT INTO usuarios (id, email, nombre, password_hash, rol, modulos, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())', [id, data.email, data.nombre, data.passwordHash, data.rol, modulosJson]);
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM usuarios WHERE id = ? LIMIT 1', [id]);
         return mapUsuario(rows[0]);
     }
@@ -96,6 +104,10 @@ class UsuariosRepository {
         if (data.rol !== undefined) {
             sets.push('rol = ?');
             params.push(data.rol);
+        }
+        if (data.modulos !== undefined) {
+            sets.push('modulos = ?');
+            params.push(JSON.stringify(data.modulos));
         }
         if (data.activo !== undefined) {
             sets.push('activo = ?');

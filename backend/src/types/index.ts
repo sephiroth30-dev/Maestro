@@ -15,6 +15,7 @@ export interface UsuarioPublico {
   nombre: string;
   email: string;
   rol: Rol;
+  modulos: string[];
 }
 
 export interface LoginRequest {

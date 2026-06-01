@@ -7,14 +7,13 @@ import {
   useUsuarios, useCreateUsuario, useUpdateUsuario,
   useDeleteUsuario, useResetPassword,
 } from '../../api/usuarios.js';
-import type { UsuarioRow, CreateUsuarioPayload, UpdateUsuarioPayload } from '../../api/usuarios.js';
-import type { Rol } from '../../types/index.js';
-import { ROL_LABELS } from '../../types/index.js';
+import type { UsuarioRow } from '../../api/usuarios.js';
+import type { Rol, Modulo } from '../../types/index.js';
+import { ROL_LABELS, MODULO_LABELS } from '../../types/index.js';
 import { useAuth } from '../../hooks/useAuth.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ROLES: Rol[] = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'];
 
 const ROL_COLORS: Record<Rol, string> = {
   ADMIN:            '#7c3aed',
@@ -103,6 +102,123 @@ function AccessChips({ rol }: { rol: Rol }): React.ReactElement {
   );
 }
 
+// ─── Module helpers ───────────────────────────────────────────────────────────
+
+const ALL_MODULOS: Modulo[] = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
+
+const MODULO_COLORS: Record<Modulo, string> = {
+  dashboard:    '#6366f1',
+  reportes:     '#0891b2',
+  honorarios:   '#0369a1',
+  capacidad:    '#065f46',
+  auditoria:    '#7c3aed',
+  configuracion:'#9f1239',
+  aprobar:      '#b45309',
+};
+
+function deriveRolFromModulos(mods: Modulo[]): Rol {
+  const has = (m: Modulo) => mods.includes(m);
+  if (has('configuracion')) return 'ADMIN';
+  if (has('aprobar')) return 'GERENCIA';
+  if (has('honorarios') && has('reportes')) return 'FACTURACION';
+  if (has('honorarios')) return 'RECURSOS_HUMANOS';
+  if (has('reportes') || has('capacidad') || has('auditoria')) return 'COORDINADORA';
+  return 'ADMISIONES';
+}
+
+function ModulosChips({ modulos }: { modulos: string[] }): React.ReactElement {
+  const visible = modulos.filter((m) => m !== 'dashboard') as Modulo[];
+  if (visible.length === 0) return <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Solo dashboard</span>;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+      {visible.map((m) => {
+        const color = MODULO_COLORS[m] ?? '#64748b';
+        return (
+          <span key={m} style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 999,
+            fontSize: '0.68rem',
+            fontWeight: 600,
+            background: color + '14',
+            color,
+            border: `1px solid ${color}28`,
+            whiteSpace: 'nowrap',
+          }}>
+            {MODULO_LABELS[m] ?? m}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Modules selector (used in create/edit forms) ─────────────────────────────
+
+function ModulosSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Modulo[];
+  onChange: (mods: Modulo[]) => void;
+  disabled?: boolean;
+}): React.ReactElement {
+  const toggle = (m: Modulo) => {
+    if (m === 'dashboard') return; // always on
+    const next = value.includes(m) ? value.filter((x) => x !== m) : [...value, m];
+    if (!next.includes('dashboard')) next.unshift('dashboard');
+    onChange(next);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {ALL_MODULOS.map((m) => {
+        const checked = value.includes(m);
+        const isAlways = m === 'dashboard';
+        const color = MODULO_COLORS[m];
+        return (
+          <label key={m} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '6px 10px',
+            borderRadius: '6px',
+            background: checked ? color + '0e' : 'transparent',
+            border: `1px solid ${checked ? color + '30' : '#e2e8f0'}`,
+            cursor: (disabled || isAlways) ? 'default' : 'pointer',
+            opacity: (disabled && !isAlways) ? 0.5 : 1,
+          }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={disabled || isAlways}
+              onChange={() => toggle(m)}
+              style={{ accentColor: color }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: checked ? color : '#374151' }}>
+                {MODULO_LABELS[m]}
+              </div>
+              {m === 'aprobar' && (
+                <div style={{ fontSize: '0.72rem', color: '#92400e' }}>
+                  Puede aprobar y pagar liquidaciones de honorarios
+                </div>
+              )}
+              {m === 'configuracion' && (
+                <div style={{ fontSize: '0.72rem', color: '#9f1239' }}>
+                  Acceso completo — gestión de usuarios, reglas y fuentes de datos
+                </div>
+              )}
+            </div>
+            {isAlways && <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>siempre</span>}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 
 
 // ─── Create Modal ─────────────────────────────────────────────────────────────
@@ -110,13 +226,14 @@ function AccessChips({ rol }: { rol: Rol }): React.ReactElement {
 interface CreateModalProps { onClose: () => void }
 
 function CreateModal({ onClose }: CreateModalProps): React.ReactElement {
-  const [form, setForm] = useState<CreateUsuarioPayload>({
-    nombre: '', email: '', rol: 'FACTURACION', password: '',
-  });
+  const [modulos, setModulos] = useState<Modulo[]>(['dashboard']);
+  const [form, setForm] = useState({ nombre: '', email: '', password: '' });
   const [confirmPwd, setConfirmPwd] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const mutation = useCreateUsuario();
+
+  const derivedRol = deriveRolFromModulos(modulos);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -124,7 +241,7 @@ function CreateModal({ onClose }: CreateModalProps): React.ReactElement {
     if (form.password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return; }
     if (form.password !== confirmPwd) { setError('Las contraseñas no coinciden'); return; }
     try {
-      await mutation.mutateAsync(form);
+      await mutation.mutateAsync({ ...form, rol: derivedRol, modulos });
       onClose();
     } catch (err: unknown) {
       setError(
@@ -158,13 +275,11 @@ function CreateModal({ onClose }: CreateModalProps): React.ReactElement {
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
               </div>
               <div className="form-group">
-                <label className="form-label">Rol</label>
-                <select className="form-input" value={form.rol}
-                  onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value as Rol }))}>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{ROL_LABELS[r] ?? r}</option>
-                  ))}
-                </select>
+                <label className="form-label">Acceso a módulos</label>
+                <ModulosSelector value={modulos} onChange={setModulos} />
+                <span className="form-hint" style={{ marginTop: 6, display: 'block' }}>
+                  Rol asignado automáticamente: <strong>{ROL_LABELS[derivedRol]}</strong>
+                </span>
               </div>
               <div className="form-group">
                 <label className="form-label">Contraseña inicial</label>
@@ -206,20 +321,27 @@ function CreateModal({ onClose }: CreateModalProps): React.ReactElement {
 interface EditModalProps { usuario: UsuarioRow; selfId: string; onClose: () => void }
 
 function EditModal({ usuario, selfId, onClose }: EditModalProps): React.ReactElement {
-  const [form, setForm] = useState<UpdateUsuarioPayload>({
-    nombre: usuario.nombre,
-    email: usuario.email,
-    rol: usuario.rol,
-    activo: usuario.activo,
-  });
+  const initialModulos: Modulo[] = (usuario.modulos && usuario.modulos.length > 0)
+    ? usuario.modulos as Modulo[]
+    : ['dashboard'];
+  const [modulos, setModulos] = useState<Modulo[]>(initialModulos);
+  const [nombre, setNombre] = useState(usuario.nombre);
+  const [email, setEmail] = useState(usuario.email);
+  const [activo, setActivo] = useState(usuario.activo);
   const [error, setError] = useState('');
   const mutation = useUpdateUsuario();
+
+  const isSelf = usuario.id === selfId;
+  const derivedRol = deriveRolFromModulos(modulos);
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setError('');
     try {
-      await mutation.mutateAsync({ id: usuario.id, payload: form });
+      await mutation.mutateAsync({
+        id: usuario.id,
+        payload: { nombre, email, activo, modulos, rol: derivedRol },
+      });
       onClose();
     } catch (err: unknown) {
       setError(
@@ -228,8 +350,6 @@ function EditModal({ usuario, selfId, onClose }: EditModalProps): React.ReactEle
       );
     }
   }
-
-  const isSelf = usuario.id === selfId;
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -246,30 +366,27 @@ function EditModal({ usuario, selfId, onClose }: EditModalProps): React.ReactEle
             <div className="form-stack">
               <div className="form-group">
                 <label className="form-label">Nombre completo</label>
-                <input className="form-input" required value={form.nombre ?? ''}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
+                <input className="form-input" required value={nombre}
+                  onChange={(e) => setNombre(e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Correo electrónico</label>
-                <input className="form-input" type="email" required value={form.email ?? ''}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+                <input className="form-input" type="email" required value={email}
+                  onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="form-label">Rol</label>
-                <select className="form-input" value={form.rol}
-                  disabled={isSelf}
-                  onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value as Rol }))}>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{ROL_LABELS[r] ?? r}</option>
-                  ))}
-                </select>
-                {isSelf && <span className="form-hint">No puedes cambiar tu propio rol</span>}
+                <label className="form-label">Acceso a módulos</label>
+                <ModulosSelector value={modulos} onChange={setModulos} disabled={isSelf} />
+                <span className="form-hint" style={{ marginTop: 6, display: 'block' }}>
+                  Rol asignado: <strong>{ROL_LABELS[derivedRol]}</strong>
+                  {isSelf && ' — No puedes editar tus propios módulos'}
+                </span>
               </div>
               <div className="form-group">
                 <label className="form-label">Estado</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: isSelf ? 'not-allowed' : 'pointer' }}>
-                  <input type="checkbox" checked={form.activo ?? true} disabled={isSelf}
-                    onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />
+                  <input type="checkbox" checked={activo} disabled={isSelf}
+                    onChange={(e) => setActivo(e.target.checked)} />
                   <span style={{ fontSize: '0.85rem' }}>Usuario activo</span>
                 </label>
                 {isSelf && <span className="form-hint">No puedes desactivar tu propia cuenta</span>}
@@ -512,7 +629,11 @@ export default function Usuarios(): React.ReactElement {
                     </div>
                   </td>
                   <td>{rolBadge(u.rol)}</td>
-                  <td><AccessChips rol={u.rol} /></td>
+                  <td>
+                    {u.modulos && u.modulos.length > 0
+                      ? <ModulosChips modulos={u.modulos} />
+                      : <AccessChips rol={u.rol} />}
+                  </td>
                   <td>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,

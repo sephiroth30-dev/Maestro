@@ -9,6 +9,7 @@ export interface UsuarioRow {
   nombre: string;
   email: string;
   rol: Rol;
+  modulos: string[];
   activo: boolean;
   createdAt: string;
 }
@@ -18,12 +19,14 @@ export interface CreateUsuarioPayload {
   email: string;
   rol: Rol;
   password: string;
+  modulos?: string[];
 }
 
 export interface UpdateUsuarioPayload {
   nombre?: string;
   email?: string;
   rol?: Rol;
+  modulos?: string[];
   activo?: boolean;
 }
 

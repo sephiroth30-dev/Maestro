@@ -9,6 +9,7 @@ const sync_service_js_1 = require("../services/sync.service.js");
 const logger_js_1 = require("../config/logger.js");
 const prisma_js_1 = require("../config/prisma.js");
 const redis_js_1 = require("../config/redis.js");
+const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 // ─── Request schemas ──────────────────────────────────────────────────────────
 const CreateConnectorSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(1, 'nombre es requerido').max(100),
@@ -52,6 +53,7 @@ async function connectorRoutes(fastify) {
             tipo: parsed.data.tipo,
             config: parsed.data.config,
         });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_CREADO, entidadTipo: 'conector', entidadId: conector.id, ip: req.ip, detalle: { nombre: parsed.data.nombre, tipo: parsed.data.tipo } }).catch(() => { });
         await reply.status(201).send(conector);
     });
     // POST /api/connectors/test  (test NEW config before saving — must be BEFORE /:id routes)
@@ -94,6 +96,7 @@ async function connectorRoutes(fastify) {
             ...parsed.data,
             config: parsed.data.config,
         });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ACTUALIZADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.send(conector);
     });
     // DELETE /api/connectors/:id
@@ -101,6 +104,7 @@ async function connectorRoutes(fastify) {
         const { id } = req.params;
         await connector_service_js_1.connectorService.delete(id);
         (0, redis_js_1.flushReportesCache)();
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ELIMINADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.status(204).send();
     });
     // POST /api/connectors/:id/test  (test existing connector)
@@ -125,6 +129,7 @@ async function connectorRoutes(fastify) {
             const msg = err instanceof Error ? err.message : String(err);
             logger_js_1.logger.error('Background sync failed', { conectorId: id, error: msg });
         });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.SYNC_INICIADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.status(202).send({ conectorId: id, status: 'EN_PROCESO' });
     });
     // DELETE /api/connectors/:id/data  (wipe atenciones for this connector — ADMIN only)
@@ -136,6 +141,7 @@ async function connectorRoutes(fastify) {
         const result = { count: deleteResult.affectedRows };
         (0, redis_js_1.flushReportesCache)();
         logger_js_1.logger.info('Connector data wiped', { conectorId: id, deleted: result.count });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.DATOS_ELIMINADOS, entidadTipo: 'conector', entidadId: id, ip: req.ip, detalle: { deleted: result.count } }).catch(() => { });
         await reply.send({ conectorId: id, deleted: result.count });
     });
     // GET /api/connectors/:id/sync/history

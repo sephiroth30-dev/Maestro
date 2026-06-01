@@ -8,19 +8,23 @@ import { requireRole } from '../middlewares/rbac.middleware.js';
 
 const BCRYPT_ROUNDS = 12;
 
-const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'] as const;
+const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'] as const;
+
+const MODULOS_VALIDOS = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'] as const;
 
 const createSchema = z.object({
   nombre: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   email: z.string().email('Email inválido').max(191),
   rol: z.enum(ROLES_VALIDOS),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  modulos: z.array(z.enum(MODULOS_VALIDOS)).optional(),
 });
 
 const updateSchema = z.object({
   nombre: z.string().min(2).max(100).optional(),
   email: z.string().email('Email inválido').max(191).optional(),
   rol: z.enum(ROLES_VALIDOS).optional(),
+  modulos: z.array(z.enum(MODULOS_VALIDOS)).optional(),
   activo: z.boolean().optional(),
 }).refine((d) => Object.values(d).some((v) => v !== undefined), {
   message: 'Se requiere al menos un campo para actualizar',
@@ -43,6 +47,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
           nombre: u.nombre,
           email: u.email,
           rol: u.rol,
+          modulos: u.modulos,
           activo: u.activo,
           createdAt: u.createdAt,
         }))
@@ -64,7 +69,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const { nombre, email, rol, password } = parsed.data;
+      const { nombre, email, rol, password, modulos } = parsed.data;
 
       const existing = await usuariosRepo.findByEmail(email);
       if (existing) {
@@ -76,7 +81,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-      const usuario = await usuariosRepo.create({ nombre, email, passwordHash, rol });
+      const usuario = await usuariosRepo.create({ nombre, email, passwordHash, rol, modulos });
 
       void auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: ACCION.USUARIO_CREADO, entidadTipo: 'usuario', entidadId: usuario.id, ip: request.ip, detalle: { nombre, email, rol } }).catch(() => {});
 
@@ -85,6 +90,7 @@ export async function usuariosRoutes(fastify: FastifyInstance): Promise<void> {
         nombre: usuario.nombre,
         email: usuario.email,
         rol: usuario.rol,
+        modulos: usuario.modulos,
         activo: usuario.activo,
         createdAt: usuario.createdAt,
       });

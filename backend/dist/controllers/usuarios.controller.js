@@ -7,20 +7,24 @@ exports.usuariosRoutes = usuariosRoutes;
 const zod_1 = require("zod");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const usuarios_repo_js_1 = require("../repositories/usuarios.repo.js");
+const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const BCRYPT_ROUNDS = 12;
-const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
+const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'];
+const MODULOS_VALIDOS = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
 const createSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
     email: zod_1.z.string().email('Email inválido').max(191),
     rol: zod_1.z.enum(ROLES_VALIDOS),
     password: zod_1.z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+    modulos: zod_1.z.array(zod_1.z.enum(MODULOS_VALIDOS)).optional(),
 });
 const updateSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(2).max(100).optional(),
     email: zod_1.z.string().email('Email inválido').max(191).optional(),
     rol: zod_1.z.enum(ROLES_VALIDOS).optional(),
+    modulos: zod_1.z.array(zod_1.z.enum(MODULOS_VALIDOS)).optional(),
     activo: zod_1.z.boolean().optional(),
 }).refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'Se requiere al menos un campo para actualizar',
@@ -37,6 +41,7 @@ async function usuariosRoutes(fastify) {
             nombre: u.nombre,
             email: u.email,
             rol: u.rol,
+            modulos: u.modulos,
             activo: u.activo,
             createdAt: u.createdAt,
         })));
@@ -51,7 +56,7 @@ async function usuariosRoutes(fastify) {
                 statusCode: 400,
             });
         }
-        const { nombre, email, rol, password } = parsed.data;
+        const { nombre, email, rol, password, modulos } = parsed.data;
         const existing = await usuarios_repo_js_1.usuariosRepo.findByEmail(email);
         if (existing) {
             return reply.status(409).send({
@@ -61,12 +66,14 @@ async function usuariosRoutes(fastify) {
             });
         }
         const passwordHash = await bcryptjs_1.default.hash(password, BCRYPT_ROUNDS);
-        const usuario = await usuarios_repo_js_1.usuariosRepo.create({ nombre, email, passwordHash, rol });
+        const usuario = await usuarios_repo_js_1.usuariosRepo.create({ nombre, email, passwordHash, rol, modulos });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.USUARIO_CREADO, entidadTipo: 'usuario', entidadId: usuario.id, ip: request.ip, detalle: { nombre, email, rol } }).catch(() => { });
         return reply.status(201).send({
             id: usuario.id,
             nombre: usuario.nombre,
             email: usuario.email,
             rol: usuario.rol,
+            modulos: usuario.modulos,
             activo: usuario.activo,
             createdAt: usuario.createdAt,
         });
@@ -93,6 +100,7 @@ async function usuariosRoutes(fastify) {
             }
         }
         await usuarios_repo_js_1.usuariosRepo.update(id, parsed.data);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.USUARIO_ACTUALIZADO, entidadTipo: 'usuario', entidadId: id, ip: request.ip, detalle: parsed.data }).catch(() => { });
         return reply.status(200).send({ ok: true });
     });
     // DELETE /api/usuarios/:id — soft delete (ADMIN only, cannot delete self)
@@ -107,6 +115,7 @@ async function usuariosRoutes(fastify) {
             });
         }
         await usuarios_repo_js_1.usuariosRepo.softDelete(id);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.USUARIO_ELIMINADO, entidadTipo: 'usuario', entidadId: id, ip: request.ip }).catch(() => { });
         return reply.status(200).send({ ok: true });
     });
     // POST /api/usuarios/:id/reset-password — admin resets any user's password
@@ -124,6 +133,7 @@ async function usuariosRoutes(fastify) {
         await usuarios_repo_js_1.usuariosRepo.updatePassword(id, passwordHash);
         // Revoke all sessions so the user must re-login with the new password
         await usuarios_repo_js_1.usuariosRepo.revokeAllUserRefreshTokens(id);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: request.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.RESET_PASSWORD, entidadTipo: 'usuario', entidadId: id, ip: request.ip }).catch(() => { });
         return reply.status(200).send({ ok: true });
     });
 }

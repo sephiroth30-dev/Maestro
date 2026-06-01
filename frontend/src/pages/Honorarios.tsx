@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Loader2, AlertCircle, ChevronLeft, ChevronRight, Info,
   RefreshCw, Check, Banknote, FileText, ChevronDown, ChevronUp,
-  Calendar, RotateCcw,
+  Calendar, RotateCcw, TrendingUp, Pencil,
 } from 'lucide-react';
 import {
   useLiquidaciones, useGenerarLiquidaciones,
@@ -18,6 +18,7 @@ import {
 } from '../api/ajustes.js';
 import { useAuth } from '../hooks/useAuth.js';
 import type { HonorariosCeldas, HonorariosProfesionalRow } from '../api/honorarios.js';
+import { useContribucion } from '../api/honorarios.js';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -154,6 +155,81 @@ function ModalRevertir({
             onClick={() => onConfirm(razon.trim())}
           >
             <RotateCcw size={14} /> Revertir a borrador
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal ajuste ondas de choque ────────────────────────────────────────────
+
+function ModalChaqueAjuste({
+  liq,
+  celda,
+  onClose,
+}: {
+  liq: LiquidacionRow;
+  celda: HonorariosCeldas;
+  onClose: () => void;
+}) {
+  const [sesionesToPay, setSesionesToPay] = useState(celda.cnt);
+  const crear = useCrearAjuste(liq.id);
+  const valorUnit = celda.cnt > 0 ? Math.round(celda.monto / celda.cnt) : 0;
+  const diff = celda.cnt - sesionesToPay;
+  const ajusteTotal = -(diff * valorUnit);
+
+  const handleConfirm = () => {
+    if (diff === 0) { onClose(); return; }
+    crear.mutate(
+      {
+        categoria: 'terapia_choque',
+        descripcion: `Ajuste ondas de choque — se pagan ${sesionesToPay} de ${celda.cnt} sesiones este mes`,
+        cantidad: -diff,
+        valor_unitario: valorUnit,
+        justificacion: `Sesiones aplazadas al siguiente período (${diff} de ${celda.cnt} total)`,
+        referencia_doc: '',
+      },
+      { onSuccess: onClose }
+    );
+  };
+
+  return (
+    <div className="liq-modal-overlay" onClick={onClose}>
+      <div className="liq-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="liq-modal-title">Ajustar ondas de choque</h3>
+        <p className="liq-modal-sub">
+          <strong>{liq.profesional_display}</strong> — {celda.cnt} sesiones registradas ({fmtCOP(celda.monto)} total)
+        </p>
+        <label className="liq-modal-label">
+          Sesiones a pagar este mes <span style={{ color: '#ef4444' }}>*</span>
+        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '8px 0 12px' }}>
+          <input
+            type="number"
+            className="liq-date-input"
+            min={0}
+            max={celda.cnt}
+            value={sesionesToPay}
+            onChange={(e) => setSesionesToPay(Math.min(celda.cnt, Math.max(0, parseInt(e.target.value) || 0)))}
+            style={{ width: '80px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}
+            autoFocus
+          />
+          <span style={{ color: '#64748b', fontSize: '0.875rem' }}>de {celda.cnt} sesiones</span>
+        </div>
+        {diff > 0 && (
+          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '8px', padding: '8px 12px', fontSize: '0.8rem', color: '#92400e', marginBottom: '12px' }}>
+            Se creará un ajuste de <strong>{fmtCOP(ajusteTotal)}</strong> ({diff} sesión{diff > 1 ? 'es' : ''} aplazada{diff > 1 ? 's' : ''}).
+            Requiere autorización de Gerencia o Dirección.
+          </div>
+        )}
+        {diff === 0 && <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '12px' }}>Sin cambios — se pagará el total de {celda.cnt} sesiones.</p>}
+        <div className="liq-modal-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancelar</button>
+          <button type="button" className="btn btn--primary"
+            disabled={crear.isPending || sesionesToPay < 0}
+            onClick={handleConfirm}>
+            {crear.isPending ? <><Loader2 size={13} className="spin" /> Guardando…</> : 'Confirmar ajuste'}
           </button>
         </div>
       </div>
@@ -403,6 +479,7 @@ function FilaLiquidacion({
   canAutorizar: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [chaqueModal, setChaqueModal] = useState(false);
   const snap = liq.datos_snapshot;
 
   const cats = CATS.filter((c) => (snap[c.key] as HonorariosCeldas).monto > 0);
@@ -430,10 +507,15 @@ function FilaLiquidacion({
         <td className="liq-td liq-td--estado"><EstadoBadge estado={liq.estado} /></td>
         <td className="liq-td liq-td--acciones">
           <div className="liq-acciones">
-            {liq.estado === 'CALCULADO' && (
+            {liq.estado === 'CALCULADO' && canAutorizar && (
               <button type="button" className="liq-btn liq-btn--aprov" onClick={() => onAprobar(liq)} title="Aprobar">
                 <Check size={13} /> Aprobar
               </button>
+            )}
+            {liq.estado === 'CALCULADO' && !canAutorizar && (
+              <span className="liq-badge liq-badge--calc" title="Requiere aprobación de Gerencia o Dirección" style={{ cursor: 'help' }}>
+                Pendiente aprobación
+              </span>
             )}
             {liq.estado === 'APROBADO' && (
               <>
@@ -469,9 +551,22 @@ function FilaLiquidacion({
                 <tbody>
                   {cats.map((c) => {
                     const celda = snap[c.key] as HonorariosCeldas;
+                    const isChaqueEditable = c.key === 'terapia_choque' && liq.estado === 'CALCULADO';
                     return (
                       <tr key={c.key}>
-                        <td className="liq-detail-cat">{c.label}</td>
+                        <td className="liq-detail-cat">
+                          {c.label}
+                          {isChaqueEditable && (
+                            <button
+                              type="button"
+                              title="Ajustar sesiones a pagar este mes"
+                              onClick={() => setChaqueModal(true)}
+                              style={{ marginLeft: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', padding: '0 2px', verticalAlign: 'middle' }}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                        </td>
                         <td className="liq-detail-cnt">{fmtNum(celda.cnt)}</td>
                         <td className="liq-detail-monto">{fmtCOP(celda.monto)}</td>
                       </tr>
@@ -511,7 +606,136 @@ function FilaLiquidacion({
           </td>
         </tr>
       )}
+      {chaqueModal && (
+        <ModalChaqueAjuste
+          liq={liq}
+          celda={snap.terapia_choque as HonorariosCeldas}
+          onClose={() => setChaqueModal(false)}
+        />
+      )}
     </>
+  );
+}
+
+// ─── Sección contribución por médico ─────────────────────────────────────────
+
+function ContribucionSection({
+  fechaDesde,
+  fechaHasta,
+  honorariosRows,
+}: {
+  fechaDesde: string;
+  fechaHasta: string;
+  honorariosRows: LiquidacionRow[];
+}) {
+  const [open, setOpen] = useState(false);
+  const { data = [], isLoading } = useContribucion(fechaDesde, fechaHasta, open);
+
+  const fmtCOP2 = (n: number) =>
+    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+
+  // Build honorarios lookup by profesional_nombre (from liquidaciones snapshot)
+  const honMap = new Map<string, number>();
+  for (const r of honorariosRows) {
+    honMap.set(r.profesional_display, (honMap.get(r.profesional_display) ?? 0) + r.monto_total);
+  }
+
+  return (
+    <div style={{ marginTop: '24px' }}>
+      <button
+        type="button"
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#334155', fontWeight: 700, fontSize: '0.9rem', padding: '0 0 8px',
+        }}
+        onClick={() => setOpen(v => !v)}
+      >
+        <TrendingUp size={16} style={{ color: '#0369a1' }} />
+        Facturación generada por médico
+        {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+      </button>
+      {open && (
+        <>
+          {isLoading ? (
+            <div style={{ display: 'flex', gap: 8, color: '#64748b', padding: '12px 0' }}>
+              <Loader2 size={16} className="spin" /> Cargando…
+            </div>
+          ) : (
+            <div className="liq-table-wrap">
+              <table className="liq-table">
+                <thead>
+                  <tr>
+                    <th className="liq-th">Médico</th>
+                    <th className="liq-th liq-th--r">Facturado EPS/ARL</th>
+                    <th className="liq-th liq-th--r">Facturado Particular</th>
+                    <th className="liq-th liq-th--r">Total Facturado</th>
+                    <th className="liq-th liq-th--r">Honorarios a pagar</th>
+                    <th className="liq-th liq-th--r">Margen clínica</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row) => {
+                    const hon = honMap.get(row.profesional_nombre) ?? 0;
+                    const margen = row.total_bruto - hon;
+                    const pct = row.total_bruto > 0 ? (margen / row.total_bruto) * 100 : 0;
+                    return (
+                      <tr key={row.profesional_nombre} className="liq-tr">
+                        <td className="liq-td liq-td--nombre">
+                          <div className="liq-nombre">{row.profesional_nombre}</div>
+                        </td>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtCOP2(row.total_entidad)}
+                        </td>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtCOP2(row.total_particular)}
+                        </td>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                          {fmtCOP2(row.total_bruto)}
+                        </td>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#b45309' }}>
+                          {hon > 0 ? fmtCOP2(hon) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        </td>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: margen >= 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>
+                          {hon > 0 ? (
+                            <>{fmtCOP2(margen)} <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({pct.toFixed(1)}%)</span></>
+                          ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {data.length > 0 && (() => {
+                    const totFact = data.reduce((s, r) => s + r.total_bruto, 0);
+                    const totHon = [...honMap.values()].reduce((s, v) => s + v, 0);
+                    const totMargen = totFact - totHon;
+                    const totPct = totFact > 0 ? (totMargen / totFact) * 100 : 0;
+                    return (
+                      <tr className="liq-detail-total" style={{ background: '#f8fafc' }}>
+                        <td className="liq-detail-cat"><strong>Total</strong></td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {fmtCOP2(data.reduce((s, r) => s + r.total_entidad, 0))}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {fmtCOP2(data.reduce((s, r) => s + r.total_particular, 0))}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtCOP2(totFact)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#b45309' }}>{fmtCOP2(totHon)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: totMargen >= 0 ? '#15803d' : '#dc2626' }}>
+                          {fmtCOP2(totMargen)} <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({totPct.toFixed(1)}%)</span>
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+            Facturación bruta registrada en atenciones del período. El margen excluye otros costos operativos.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -632,6 +856,26 @@ export default function Honorarios(): React.ReactElement {
             <Calendar size={13} /> {modoRango ? 'Usar mes completo' : 'Período parcial'}
           </button>
         </div>
+      </div>
+
+      {/* ── Workflow steps banner ──────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.78rem', color: '#1d4ed8', fontWeight: 600 }}>
+          <RefreshCw size={13} /> 1. Generar
+        </div>
+        <span style={{ color: '#cbd5e1' }}>→</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '20px', background: canAutorizar ? '#f0fdf4' : '#f8fafc', border: `1px solid ${canAutorizar ? '#bbf7d0' : '#e2e8f0'}`, fontSize: '0.78rem', color: canAutorizar ? '#15803d' : '#94a3b8', fontWeight: 600 }}>
+          <Check size={13} /> 2. Aprobar {!canAutorizar && <span style={{ fontSize: '0.7rem', fontWeight: 400 }}>(Gerencia / Dirección)</span>}
+        </div>
+        <span style={{ color: '#cbd5e1' }}>→</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '20px', background: '#fff7ed', border: '1px solid #fed7aa', fontSize: '0.78rem', color: '#c2410c', fontWeight: 600 }}>
+          <Banknote size={13} /> 3. Pagar
+        </div>
+        {!canAutorizar && (
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginLeft: '4px' }}>
+            — Tu rol puede generar y registrar ajustes, pero la aprobación la realiza Gerencia o Dirección.
+          </span>
+        )}
       </div>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────────── */}
@@ -796,6 +1040,13 @@ export default function Honorarios(): React.ReactElement {
           onClose={() => setPagarModal(null)}
         />
       )}
+
+      {/* ── Contribución por médico ────────────────────────────────────────── */}
+      <ContribucionSection
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        honorariosRows={rows}
+      />
 
       {/* ── Nota al pie ────────────────────────────────────────────────────── */}
       <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '16px' }}>

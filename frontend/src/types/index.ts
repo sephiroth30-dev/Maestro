@@ -14,7 +14,20 @@ export interface User {
   nombre: string;
   email: string;
   rol: Rol;
+  modulos?: string[];
 }
+
+export type Modulo = 'dashboard' | 'reportes' | 'honorarios' | 'capacidad' | 'auditoria' | 'configuracion' | 'aprobar';
+
+export const MODULO_LABELS: Record<Modulo, string> = {
+  dashboard: 'Dashboard',
+  reportes: 'Reportes',
+  honorarios: 'Honorarios',
+  capacidad: 'Capacidad instalada',
+  auditoria: 'Auditoría',
+  configuracion: 'Configuración',
+  aprobar: 'Autorizar liquidaciones',
+};
 
 // ─── API Request/Response Types ───────────────────────────────────────────────
 

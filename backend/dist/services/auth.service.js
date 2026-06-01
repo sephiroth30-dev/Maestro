@@ -72,6 +72,7 @@ class AuthService {
             nombre: usuario.nombre,
             email: usuario.email,
             rol: usuario.rol,
+            modulos: usuario.modulos,
         };
         return {
             accessToken,
@@ -120,8 +121,10 @@ class AuthService {
     }
     async logout(rawRefreshToken) {
         const tokenHash = hashToken(rawRefreshToken);
+        const stored = await usuarios_repo_js_1.usuariosRepo.findRefreshToken(tokenHash);
         await usuarios_repo_js_1.usuariosRepo.revokeRefreshToken(tokenHash);
         logger_js_1.logger.info('User logged out', { tokenHash: tokenHash.slice(0, 8) + '...' });
+        return { usuarioId: stored?.usuarioId ?? null };
     }
     async getMe(userId) {
         const usuario = await usuarios_repo_js_1.usuariosRepo.findById(userId);
@@ -133,6 +136,7 @@ class AuthService {
             nombre: usuario.nombre,
             email: usuario.email,
             rol: usuario.rol,
+            modulos: usuario.modulos,
         };
     }
 }

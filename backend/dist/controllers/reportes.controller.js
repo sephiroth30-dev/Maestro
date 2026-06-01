@@ -38,10 +38,12 @@ const zod_1 = require("zod");
 const reportes_service_js_1 = require("../services/reportes.service.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
 const honorarios_service_js_1 = require("../services/honorarios.service.js");
+const prisma_js_1 = require("../config/prisma.js");
 const ajustes_service_js_1 = require("../services/ajustes.service.js");
 const liquidaciones_service_js_1 = require("../services/liquidaciones.service.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
+const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
 const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
 // ADMISIONES can only see current month — override any period params
@@ -370,12 +372,38 @@ async function registerReportesController(fastify) {
         const result = await (0, honorarios_service_js_1.calcularHonorarios)(mes_idx, anio);
         return reply.send(result);
     });
+    // GET /api/honorarios/contribucion?fecha_desde=2026-05-01&fecha_hasta=2026-05-31
+    // Returns factured value per doctor (EPS vs Particular) for the given period
+    fastify.get('/api/honorarios/contribucion', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION', 'RECURSOS_HUMANOS')] }, async (request, reply) => {
+        const rangoQ = zod_1.z.object({
+            fecha_desde: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+            fecha_hasta: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        }).safeParse(request.query);
+        if (!rangoQ.success)
+            return reply.status(400).send({ error: 'Bad Request' });
+        const [rows] = await prisma_js_1.pool.query(`SELECT
+          profesional_nombre,
+          SUM(CASE WHEN entidad_tipo = 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_particular,
+          SUM(CASE WHEN entidad_tipo != 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_entidad,
+          SUM(COALESCE(valor_bruto, 0)) AS total_bruto
+        FROM atenciones
+        WHERE fecha_atencion BETWEEN ? AND ?
+          AND profesional_nombre IS NOT NULL
+        GROUP BY profesional_nombre
+        ORDER BY total_bruto DESC`, [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]);
+        return reply.send(rows.map((r) => ({
+            profesional_nombre: r.profesional_nombre,
+            total_particular: Number(r.total_particular),
+            total_entidad: Number(r.total_entidad),
+            total_bruto: Number(r.total_bruto),
+        })));
+    });
     // ─── Liquidaciones ────────────────────────────────────────────────────────
     const rangoSchema = zod_1.z.object({
         fecha_desde: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         fecha_hasta: zod_1.z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     });
-    const HON_ROLES = ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION'];
+    const HON_ROLES = ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION', 'RECURSOS_HUMANOS'];
     // GET /api/liquidaciones?fecha_desde=2026-05-01&fecha_hasta=2026-05-31
     fastify.get('/api/liquidaciones', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...HON_ROLES)] }, async (request, reply) => {
         const parsed = rangoSchema.safeParse(request.query);
@@ -389,7 +417,9 @@ async function registerReportesController(fastify) {
         const parsed = rangoSchema.safeParse(request.body);
         if (!parsed.success)
             return reply.status(400).send({ error: 'Bad Request' });
+        const user = request.user;
         const rows = await (0, liquidaciones_service_js_1.generarLiquidaciones)(parsed.data.fecha_desde, parsed.data.fecha_hasta);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.LIQUIDACION_GENERADA, ip: request.ip, detalle: { fecha_desde: parsed.data.fecha_desde, fecha_hasta: parsed.data.fecha_hasta, count: rows.length } }).catch(() => { });
         return reply.status(200).send(rows);
     });
     // POST /api/liquidaciones/:id/aprobar
@@ -399,6 +429,7 @@ async function registerReportesController(fastify) {
         const liq = await (0, liquidaciones_service_js_1.aprobarLiquidacion)(id, user.sub);
         if (!liq)
             return reply.status(404).send({ error: 'No encontrada o ya aprobada' });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.LIQUIDACION_APROBADA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip }).catch(() => { });
         return reply.send(liq);
     });
     // POST /api/liquidaciones/:id/pagar   { notas?: string }
@@ -410,6 +441,7 @@ async function registerReportesController(fastify) {
         const liq = await (0, liquidaciones_service_js_1.pagarLiquidacion)(id, user.sub, notas);
         if (!liq)
             return reply.status(404).send({ error: 'No encontrada o no está aprobada' });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.LIQUIDACION_PAGADA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip, detalle: notas ? { notas } : undefined }).catch(() => { });
         return reply.send(liq);
     });
     // POST /api/liquidaciones/aprobar-lote  { ids: string[] }
@@ -440,6 +472,7 @@ async function registerReportesController(fastify) {
         const liq = await (0, liquidaciones_service_js_1.revertirLiquidacion)(id, user.sub, body.data.razon);
         if (!liq)
             return reply.status(404).send({ error: 'No encontrada o ya está en estado PAGADO' });
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.LIQUIDACION_REVERTIDA, entidadTipo: 'liquidacion', entidadId: id, ip: request.ip, detalle: { razon: body.data.razon } }).catch(() => { });
         return reply.send(liq);
     });
     // ─── Ajustes manuales ────────────────────────────────────────────────────
@@ -466,6 +499,7 @@ async function registerReportesController(fastify) {
             return reply.status(400).send({ error: parsed.error.issues[0].message });
         try {
             const ajuste = await (0, ajustes_service_js_1.crearAjusteLiquidacion)(id, user.sub, parsed.data);
+            void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.AJUSTE_CREADO, entidadTipo: 'ajuste', entidadId: ajuste.id, ip: request.ip, detalle: { liquidacionId: id, categoria: parsed.data.categoria } }).catch(() => { });
             return reply.status(201).send(ajuste);
         }
         catch (e) {
@@ -479,6 +513,7 @@ async function registerReportesController(fastify) {
         const user = request.user;
         try {
             const ajuste = await (0, ajustes_service_js_1.autorizarAjusteLiquidacion)(id, user.sub);
+            void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.AJUSTE_AUTORIZADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip }).catch(() => { });
             return reply.send(ajuste);
         }
         catch (e) {
@@ -495,6 +530,7 @@ async function registerReportesController(fastify) {
             return reply.status(400).send({ error: 'Motivo requerido' });
         try {
             const ajuste = await (0, ajustes_service_js_1.rechazarAjusteLiquidacion)(id, user.sub, body.data.motivo);
+            void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.AJUSTE_RECHAZADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip, detalle: { motivo: body.data.motivo } }).catch(() => { });
             return reply.send(ajuste);
         }
         catch (e) {
@@ -508,6 +544,7 @@ async function registerReportesController(fastify) {
         const user = request.user;
         try {
             await (0, ajustes_service_js_1.eliminarAjusteLiquidacion)(id, user.sub);
+            void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: user.sub, accion: auditoria_repo_js_1.ACCION.AJUSTE_ELIMINADO, entidadTipo: 'ajuste', entidadId: id, ip: request.ip }).catch(() => { });
             return reply.send({ ok: true });
         }
         catch (e) {

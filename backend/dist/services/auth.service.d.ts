@@ -5,7 +5,9 @@ export declare class AuthService {
     constructor(fastify: FastifyInstance);
     login(email: string, password: string): Promise<LoginResponse>;
     refresh(rawRefreshToken: string): Promise<RefreshResponse>;
-    logout(rawRefreshToken: string): Promise<void>;
+    logout(rawRefreshToken: string): Promise<{
+        usuarioId: string | null;
+    }>;
     getMe(userId: string): Promise<UsuarioPublico>;
 }
 //# sourceMappingURL=auth.service.d.ts.map

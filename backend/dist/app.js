@@ -19,6 +19,9 @@ const auth_routes_js_1 = require("./routes/auth.routes.js");
 const connectors_routes_js_1 = require("./routes/connectors.routes.js");
 const reportes_routes_js_1 = require("./routes/reportes.routes.js");
 const usuarios_routes_js_1 = require("./routes/usuarios.routes.js");
+const auditoria_routes_js_1 = require("./routes/auditoria.routes.js");
+const capacidad_routes_js_1 = require("./routes/capacidad.routes.js");
+const reglas_honorarios_controller_js_1 = require("./controllers/reglas-honorarios.controller.js");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const APP_VERSION = require('../../package.json').version;
 // __dirname is reliable in CommonJS output regardless of cwd
@@ -87,6 +90,9 @@ async function buildApp() {
     await (0, connectors_routes_js_1.registerConnectorRoutes)(fastify);
     await (0, reportes_routes_js_1.registerReportesRoutes)(fastify);
     await (0, usuarios_routes_js_1.registerUsuariosRoutes)(fastify);
+    await (0, auditoria_routes_js_1.registerAuditoriaRoutes)(fastify);
+    await (0, capacidad_routes_js_1.registerCapacidadRoutes)(fastify);
+    await (0, reglas_honorarios_controller_js_1.registerReglasHonorariosRoutes)(fastify);
     // ─── Static frontend (production) / JSON 404 (development) ───────────────
     const frontendReady = env_js_1.env.NODE_ENV === 'production' && fs_1.default.existsSync(path_1.default.join(FRONTEND_DIST, 'index.html'));
     console.log(`[BOOT] NODE_ENV=${env_js_1.env.NODE_ENV} | frontend dist: ${FRONTEND_DIST} | ready=${frontendReady}`);

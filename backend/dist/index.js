@@ -8,6 +8,8 @@ const cron_service_js_1 = require("./services/cron.service.js");
 const redis_js_1 = require("./config/redis.js");
 const entity_seed_service_js_1 = require("./services/entity-seed.service.js");
 const servicios_seed_service_js_1 = require("./services/servicios-seed.service.js");
+const capacidad_seed_service_js_1 = require("./services/capacidad-seed.service.js");
+const reglas_honorarios_seed_service_js_1 = require("./services/reglas-honorarios-seed.service.js");
 const schema_migrations_service_js_1 = require("./services/schema-migrations.service.js");
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
@@ -138,6 +140,24 @@ async function connectInBackground() {
             }
             catch (seedErr) {
                 logger_js_1.logger.warn('Servicios seed failed (non-fatal)', {
+                    error: seedErr instanceof Error ? seedErr.message : String(seedErr),
+                });
+            }
+            // Seed reglas de honorarios (pre-carga del Excel de liquidación)
+            try {
+                await (0, reglas_honorarios_seed_service_js_1.autoSeedReglasHonorarios)();
+            }
+            catch (seedErr) {
+                logger_js_1.logger.warn('Reglas honorarios seed failed (non-fatal)', {
+                    error: seedErr instanceof Error ? seedErr.message : String(seedErr),
+                });
+            }
+            // Seed capacidad instalada 2026 on first startup
+            try {
+                await (0, capacidad_seed_service_js_1.autoSeedCapacidad)();
+            }
+            catch (seedErr) {
+                logger_js_1.logger.warn('Capacidad seed failed (non-fatal)', {
                     error: seedErr instanceof Error ? seedErr.message : String(seedErr),
                 });
             }

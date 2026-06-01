@@ -9,6 +9,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const auth_service_js_1 = require("../services/auth.service.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const usuarios_repo_js_1 = require("../repositories/usuarios.repo.js");
+const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 const loginSchema = zod_1.z.object({
     email: zod_1.z.string().email('Invalid email format'),
     password: zod_1.z.string().min(1, 'Password is required'),
@@ -40,8 +41,15 @@ async function authRoutes(fastify) {
             return;
         }
         const { email, password } = parsed.data;
-        const result = await authService.login(email, password);
-        await reply.status(200).send(result);
+        try {
+            const result = await authService.login(email, password);
+            void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: result.usuario.id, accion: auditoria_repo_js_1.ACCION.LOGIN, ip: request.ip, detalle: { rol: result.usuario.rol } }).catch(() => { });
+            await reply.status(200).send(result);
+        }
+        catch (err) {
+            void auditoria_repo_js_1.auditoriaRepo.insert({ accion: auditoria_repo_js_1.ACCION.LOGIN_FALLIDO, ip: request.ip, detalle: { email } }).catch(() => { });
+            throw err;
+        }
     });
     // POST /api/auth/refresh
     fastify.post('/auth/refresh', async (request, reply) => {
@@ -70,7 +78,8 @@ async function authRoutes(fastify) {
             return;
         }
         const { refreshToken } = parsed.data;
-        await authService.logout(refreshToken);
+        const { usuarioId } = await authService.logout(refreshToken);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId, accion: auditoria_repo_js_1.ACCION.LOGOUT, ip: request.ip }).catch(() => { });
         await reply.status(200).send({ message: 'Logged out successfully' });
     });
     // GET /api/auth/me
@@ -109,6 +118,7 @@ async function authRoutes(fastify) {
         }
         const newHash = await bcryptjs_1.default.hash(parsed.data.newPassword, 12);
         await usuarios_repo_js_1.usuariosRepo.updatePassword(userId, newHash);
+        void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: userId, accion: auditoria_repo_js_1.ACCION.CAMBIO_PASSWORD, ip: request.ip }).catch(() => { });
         await reply.status(200).send({ ok: true });
     });
 }

@@ -66,6 +66,10 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
       PRIMARY KEY (id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   },
+  {
+    id: 'm11_usuarios_modulos',
+    sql: 'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS modulos TEXT NULL',
+  },
 ];
 
 export async function runSchemaMigrations(): Promise<void> {

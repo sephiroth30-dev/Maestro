@@ -26,6 +26,7 @@ interface NavItem {
   to: string;
   icon: React.ReactNode;
   roles?: Rol[];
+  modulo?: string;
   disabled?: boolean;
 }
 
@@ -42,23 +43,27 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Dashboard',
         to: '/dashboard',
         icon: <LayoutDashboard size={18} />,
+        modulo: 'dashboard',
       },
       {
         label: 'Reportes',
         to: '/reportes',
         icon: <BarChart2 size={18} />,
+        modulo: 'reportes',
         roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'],
       },
       {
         label: 'Honorarios',
         to: '/honorarios',
         icon: <DollarSign size={18} />,
+        modulo: 'honorarios',
         roles: ['ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION', 'RECURSOS_HUMANOS'],
       },
       {
         label: 'Capacidad',
         to: '/capacidad',
         icon: <BarChart2 size={18} />,
+        modulo: 'capacidad',
         roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'],
         disabled: false,
       },
@@ -66,6 +71,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Auditoría',
         to: '/auditoria',
         icon: <ClipboardList size={18} />,
+        modulo: 'auditoria',
         roles: ['ADMIN', 'FACTURACION'],
         disabled: false,
       },
@@ -86,6 +92,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Configuración',
         to: '/admin/configuracion',
         icon: <Settings size={18} />,
+        modulo: 'configuracion',
         roles: ['ADMIN'],
       },
     ],
@@ -109,9 +116,14 @@ export default function Sidebar(): React.ReactElement {
     .map((n) => n.charAt(0).toUpperCase())
     .join('');
 
-  const hasRole = (roles?: Rol[]): boolean => {
-    if (!roles || roles.length === 0) return true;
-    return roles.includes(userRol);
+  const hasAccess = (item: NavItem): boolean => {
+    if (item.disabled) return true; // disabled items always shown (greyed out)
+    const mods = user.modulos;
+    if (mods && mods.length > 0 && item.modulo) {
+      return mods.includes(item.modulo) || mods.includes('configuracion');
+    }
+    if (!item.roles || item.roles.length === 0) return true;
+    return item.roles.includes(userRol);
   };
 
   const isActive = (to: string): boolean => location.pathname === to;
@@ -132,9 +144,9 @@ export default function Sidebar(): React.ReactElement {
       {/* Navigation */}
       <nav className="sidebar-nav">
         {NAV_SECTIONS.map((section, si) => {
-          if (section.adminOnly && userRol !== 'ADMIN') return null;
+          if (section.adminOnly && userRol !== 'ADMIN' && !user.modulos?.includes('configuracion')) return null;
 
-          const visibleItems = section.items.filter((item) => hasRole(item.roles));
+          const visibleItems = section.items.filter((item) => hasAccess(item));
           if (visibleItems.length === 0) return null;
 
           return (
@@ -176,7 +188,11 @@ export default function Sidebar(): React.ReactElement {
           <div className="sidebar-user-avatar">{avatarInitials}</div>
           <div className="sidebar-user-info">
             <span className="sidebar-user-name">{user.nombre}</span>
-            <span className="sidebar-user-rol">{ROL_LABELS[userRol] ?? userRol}</span>
+            <span className="sidebar-user-rol">
+              {user.modulos && user.modulos.length > 0
+                ? user.modulos.filter(m => m !== 'dashboard' && m !== 'aprobar').join(' · ')
+                : (ROL_LABELS[userRol] ?? userRol)}
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '2px' }}>

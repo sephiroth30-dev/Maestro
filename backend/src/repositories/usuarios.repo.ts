@@ -11,6 +11,7 @@ interface UsuarioRow extends RowDataPacket {
   nombre: string;
   password_hash: string;
   rol: Rol;
+  modulos: string | null;
   activo: number;
   deleted_at: Date | null;
   created_at: Date;
@@ -34,6 +35,7 @@ export interface UsuarioMapped {
   nombre: string;
   passwordHash: string;
   rol: Rol;
+  modulos: string[];
   activo: boolean;
   deletedAt: Date | null;
   createdAt: Date;
@@ -60,24 +62,31 @@ export interface CreateUsuarioData {
   email: string;
   passwordHash: string;
   rol: Rol;
+  modulos?: string[];
 }
 
 export interface UpdateUsuarioData {
   nombre?: string;
   email?: string;
   rol?: Rol;
+  modulos?: string[];
   activo?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function mapUsuario(row: UsuarioRow): UsuarioMapped {
+  let modulos: string[] = [];
+  try {
+    if (row.modulos) modulos = JSON.parse(row.modulos) as string[];
+  } catch { /* ignore malformed JSON */ }
   return {
     id: row.id,
     email: row.email,
     nombre: row.nombre,
     passwordHash: row.password_hash,
     rol: row.rol,
+    modulos,
     activo: Boolean(row.activo),
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
@@ -191,9 +200,10 @@ export class UsuariosRepository {
 
   async create(data: CreateUsuarioData): Promise<UsuarioMapped> {
     const id = randomUUID();
+    const modulosJson = data.modulos ? JSON.stringify(data.modulos) : null;
     await pool.execute<ResultSetHeader>(
-      'INSERT INTO usuarios (id, email, nombre, password_hash, rol, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())',
-      [id, data.email, data.nombre, data.passwordHash, data.rol]
+      'INSERT INTO usuarios (id, email, nombre, password_hash, rol, modulos, activo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
+      [id, data.email, data.nombre, data.passwordHash, data.rol, modulosJson]
     );
     const [rows] = await pool.query<UsuarioRow[]>('SELECT * FROM usuarios WHERE id = ? LIMIT 1', [id]);
     return mapUsuario(rows[0]!);
@@ -201,10 +211,11 @@ export class UsuariosRepository {
 
   async update(id: string, data: UpdateUsuarioData): Promise<void> {
     const sets: string[] = [];
-    const params: (string | number)[] = [];
+    const params: (string | number | null)[] = [];
     if (data.nombre !== undefined) { sets.push('nombre = ?'); params.push(data.nombre); }
     if (data.email !== undefined) { sets.push('email = ?'); params.push(data.email); }
     if (data.rol !== undefined) { sets.push('rol = ?'); params.push(data.rol); }
+    if (data.modulos !== undefined) { sets.push('modulos = ?'); params.push(JSON.stringify(data.modulos)); }
     if (data.activo !== undefined) { sets.push('activo = ?'); params.push(data.activo ? 1 : 0); }
     if (sets.length === 0) return;
     sets.push('updated_at = NOW()');

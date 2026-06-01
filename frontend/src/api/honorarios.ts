@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient as api } from './client.js';
 
+export interface ContribucionRow {
+  profesional_nombre: string;
+  total_particular: number;
+  total_entidad: number;
+  total_bruto: number;
+}
+
 export interface HonorariosCeldas {
   monto: number;
   cnt: number;
@@ -38,6 +45,18 @@ export function useHonorarios(mesIdx: number, anio: number) {
         .get<HonorariosResult>('/honorarios', { params: { mes_idx: mesIdx, anio } })
         .then((r) => r.data),
     enabled: mesIdx >= 1 && mesIdx <= 12 && anio >= 2020,
+    staleTime: 60_000,
+  });
+}
+
+export function useContribucion(fechaDesde: string, fechaHasta: string, enabled = true) {
+  return useQuery<ContribucionRow[]>({
+    queryKey: ['contribucion', fechaDesde, fechaHasta],
+    queryFn: () =>
+      api
+        .get<ContribucionRow[]>('/honorarios/contribucion', { params: { fecha_desde: fechaDesde, fecha_hasta: fechaHasta } })
+        .then((r) => r.data),
+    enabled: enabled && Boolean(fechaDesde) && Boolean(fechaHasta),
     staleTime: 60_000,
   });
 }

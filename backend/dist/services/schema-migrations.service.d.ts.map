@@ -1,1 +1,1 @@
-{"version":3,"file":"schema-migrations.service.d.ts","sourceRoot":"","sources":["../../src/services/schema-migrations.service.ts"],"names":[],"mappings":"AAkCA,wBAAsB,mBAAmB,IAAI,OAAO,CAAC,IAAI,CAAC,CAWzD"}
+{"version":3,"file":"schema-migrations.service.d.ts","sourceRoot":"","sources":["../../src/services/schema-migrations.service.ts"],"names":[],"mappings":"AA0EA,wBAAsB,mBAAmB,IAAI,OAAO,CAAC,IAAI,CAAC,CAWzD"}

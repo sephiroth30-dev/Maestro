@@ -88,6 +88,7 @@ export class AuthService {
       nombre: usuario.nombre,
       email: usuario.email,
       rol: usuario.rol,
+      modulos: usuario.modulos,
     };
 
     return {
@@ -168,6 +169,7 @@ export class AuthService {
       nombre: usuario.nombre,
       email: usuario.email,
       rol: usuario.rol,
+      modulos: usuario.modulos,
     };
   }
 }

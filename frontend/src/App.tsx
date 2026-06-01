@@ -45,6 +45,16 @@ function ProtectedRoute({
   return children;
 }
 
+// ─── Module-aware route guard helper ─────────────────────────────────────────
+
+function hasModuleAccess(user: { rol: string; modulos?: string[] } | null, modulo: string, fallbackRoles: readonly string[]): boolean {
+  if (!user) return false;
+  if (user.modulos && user.modulos.length > 0) {
+    return user.modulos.includes(modulo) || user.modulos.includes('configuracion');
+  }
+  return fallbackRoles.includes(user.rol);
+}
+
 // ─── Admin Route (ADMIN role only) ───────────────────────────────────────────
 
 function AdminRoute({ children }: { children: ReactElement }): ReactElement {
@@ -54,16 +64,16 @@ function AdminRoute({ children }: { children: ReactElement }): ReactElement {
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.rol !== 'ADMIN') {
+  if (!hasModuleAccess(user, 'configuracion', ['ADMIN'])) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 }
 
-// ─── Reportes Route (all roles except ADMISIONES) ────────────────────────────
+// ─── Reportes Route ───────────────────────────────────────────────────────────
 
-const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA'] as const;
+const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'] as const;
 
 function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
   const { user, isAuthenticated } = useAuth();
@@ -72,7 +82,7 @@ function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
     return <Navigate to="/login" replace />;
   }
 
-  if (!user || !(REPORTES_ROLES as readonly string[]).includes(user.rol)) {
+  if (!hasModuleAccess(user, 'reportes', REPORTES_ROLES)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -90,14 +100,14 @@ function HonorariosRoute({ children }: { children: ReactElement }): ReactElement
     return <Navigate to="/login" replace />;
   }
 
-  if (!user || !(HONORARIOS_ROLES as readonly string[]).includes(user.rol)) {
+  if (!hasModuleAccess(user, 'honorarios', HONORARIOS_ROLES)) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 }
 
-// ─── Capacidad Route (ADMIN + GERENCIA + DIRECCION + FACTURACION) ────────────
+// ─── Capacidad Route ──────────────────────────────────────────────────────────
 
 const CAPACIDAD_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION'] as const;
 
@@ -108,14 +118,14 @@ function CapacidadRoute({ children }: { children: ReactElement }): ReactElement 
     return <Navigate to="/login" replace />;
   }
 
-  if (!user || !(CAPACIDAD_ROLES as readonly string[]).includes(user.rol)) {
+  if (!hasModuleAccess(user, 'capacidad', CAPACIDAD_ROLES)) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return children;
 }
 
-// ─── Auditoria Route (ADMIN + FACTURACION) ────────────────────────────────────
+// ─── Auditoria Route ──────────────────────────────────────────────────────────
 
 const AUDITORIA_ROLES = ['ADMIN', 'FACTURACION'] as const;
 
@@ -126,7 +136,7 @@ function AuditoriaRoute({ children }: { children: ReactElement }): ReactElement 
     return <Navigate to="/login" replace />;
   }
 
-  if (!user || !(AUDITORIA_ROLES as readonly string[]).includes(user.rol)) {
+  if (!hasModuleAccess(user, 'auditoria', AUDITORIA_ROLES)) {
     return <Navigate to="/dashboard" replace />;
   }
 

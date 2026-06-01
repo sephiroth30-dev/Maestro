@@ -16,5 +16,6 @@ export declare const Permissions: {
     readonly VIEW_DASHBOARD: Rol[];
     readonly COORDINATION: Rol[];
     readonly ADMISSIONS: Rol[];
+    readonly HONORARIOS: Rol[];
 };
 //# sourceMappingURL=rbac.middleware.d.ts.map

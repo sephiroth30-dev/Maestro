@@ -46,10 +46,13 @@ exports.Permissions = {
         'FACTURACION',
         'COORDINADORA',
         'ADMISIONES',
+        'RECURSOS_HUMANOS',
     ],
     // Coordination roles
     COORDINATION: ['ADMIN', 'GERENCIA', 'DIRECCION', 'COORDINADORA'],
     // Admissions access
     ADMISSIONS: ['ADMIN', 'GERENCIA', 'DIRECCION', 'ADMISIONES'],
+    // Honorarios / liquidaciones (RRHH manages payroll)
+    HONORARIOS: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'RECURSOS_HUMANOS'],
 };
 //# sourceMappingURL=rbac.middleware.js.map

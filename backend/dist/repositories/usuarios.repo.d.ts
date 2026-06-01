@@ -5,6 +5,7 @@ export interface UsuarioMapped {
     nombre: string;
     passwordHash: string;
     rol: Rol;
+    modulos: string[];
     activo: boolean;
     deletedAt: Date | null;
     createdAt: Date;
@@ -28,11 +29,13 @@ export interface CreateUsuarioData {
     email: string;
     passwordHash: string;
     rol: Rol;
+    modulos?: string[];
 }
 export interface UpdateUsuarioData {
     nombre?: string;
     email?: string;
     rol?: Rol;
+    modulos?: string[];
     activo?: boolean;
 }
 export declare class UsuariosRepository {

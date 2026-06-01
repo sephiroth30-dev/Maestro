@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { reportesService } from '../services/reportes.service.js';
 import * as repo from '../repositories/reportes.repo.js';
 import { calcularHonorarios } from '../services/honorarios.service.js';
+import { pool } from '../config/prisma.js';
+import type { RowDataPacket } from 'mysql2';
 import {
   crearAjusteLiquidacion,
   autorizarAjusteLiquidacion,
@@ -471,6 +473,50 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const { mes_idx, anio } = parsed.data;
       const result = await calcularHonorarios(mes_idx, anio);
       return reply.send(result);
+    }
+  );
+
+  // GET /api/honorarios/contribucion?fecha_desde=2026-05-01&fecha_hasta=2026-05-31
+  // Returns factured value per doctor (EPS vs Particular) for the given period
+  fastify.get(
+    '/api/honorarios/contribucion',
+    { preHandler: [requireAuth, requireRole('ADMIN', 'FACTURACION', 'GERENCIA', 'DIRECCION', 'RECURSOS_HUMANOS')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const rangoQ = z.object({
+        fecha_desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        fecha_hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }).safeParse(request.query);
+      if (!rangoQ.success) return reply.status(400).send({ error: 'Bad Request' });
+
+      interface ContribRow extends RowDataPacket {
+        profesional_nombre: string;
+        total_particular: string;
+        total_entidad: string;
+        total_bruto: string;
+      }
+
+      const [rows] = await pool.query<ContribRow[]>(
+        `SELECT
+          profesional_nombre,
+          SUM(CASE WHEN entidad_tipo = 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_particular,
+          SUM(CASE WHEN entidad_tipo != 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_entidad,
+          SUM(COALESCE(valor_bruto, 0)) AS total_bruto
+        FROM atenciones
+        WHERE fecha_atencion BETWEEN ? AND ?
+          AND profesional_nombre IS NOT NULL
+        GROUP BY profesional_nombre
+        ORDER BY total_bruto DESC`,
+        [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]
+      );
+
+      return reply.send(
+        rows.map((r) => ({
+          profesional_nombre: r.profesional_nombre,
+          total_particular: Number(r.total_particular),
+          total_entidad: Number(r.total_entidad),
+          total_bruto: Number(r.total_bruto),
+        }))
+      );
     }
   );
 
