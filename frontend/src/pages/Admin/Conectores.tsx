@@ -523,18 +523,17 @@ function SyncHistoryDrawer({
               </thead>
               <tbody>
                 {history.map((s: Sincronizacion) => {
+                  const startDate = parseServerDate(s.iniciadaAt);
                   const duration =
                     s.finalizadaAt
                       ? `${Math.round(
-                          (new Date(s.finalizadaAt).getTime() -
-                            new Date(s.iniciadaAt).getTime()) /
-                            1000
+                          (parseServerDate(s.finalizadaAt).getTime() - startDate.getTime()) / 1000
                         )}s`
                       : '—';
                   return (
                     <tr key={s.id}>
                       <td>
-                        {new Date(s.iniciadaAt).toLocaleString('es-CO', {
+                        {parseServerDate(s.iniciadaAt).toLocaleString('es-CO', {
                           dateStyle: 'short',
                           timeStyle: 'short',
                           timeZone: 'America/Bogota',

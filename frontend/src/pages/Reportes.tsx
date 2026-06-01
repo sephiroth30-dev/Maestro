@@ -646,7 +646,8 @@ export default function Reportes(): React.ReactElement {
             ) : kpisQ.data ? (
               <>
                 <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
-                  meta={kpisQ.data.presupuesto} metaLabel="Meta" icon={<DollarSign size={16} />} color="blue" />
+                  meta={kpisQ.data.presupuesto} metaLabel="Meta" icon={<DollarSign size={16} />} color="blue"
+                  showShortfall />
                 <KpiCard titulo="Cumplimiento" valor={kpisQ.data.cumplimiento_pct} formato="percent"
                   meta={100} metaLabel="Objetivo" icon={<Target size={16} />}
                   color={kpisQ.data.cumplimiento_pct >= 100 ? 'green' : kpisQ.data.cumplimiento_pct >= 80 ? 'amber' : 'rose'} />

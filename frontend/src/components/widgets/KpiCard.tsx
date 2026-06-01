@@ -31,6 +31,7 @@ export interface KpiCardProps {
   metaLabel?: string;
   icon?: React.ReactNode;
   color?: 'blue' | 'green' | 'purple' | 'amber' | 'rose';
+  showShortfall?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ export default function KpiCard({
   metaLabel,
   icon,
   color = 'blue',
+  showShortfall = false,
 }: KpiCardProps): React.ReactElement {
   const formattedValue =
     formato === 'currency'
@@ -103,7 +105,17 @@ export default function KpiCard({
             />
           </div>
           <div className="kpi-card-progress-labels">
-            <span>{formatPercent(cumplimientoPct)}</span>
+            {showShortfall && meta ? (
+              valor >= meta ? (
+                <span style={{ color: '#16a34a', fontWeight: 600, fontSize: '0.75rem' }}>✓ Meta cumplida</span>
+              ) : (
+                <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.75rem' }}>
+                  Faltó: {formato === 'currency' ? formatCOP(meta - valor) : formatNumber(meta - valor)}
+                </span>
+              )
+            ) : (
+              <span>{formatPercent(cumplimientoPct)}</span>
+            )}
             {metaLabel && meta && (
               <span className="kpi-card-progress-meta">
                 {metaLabel}: {formato === 'currency' ? formatCOP(meta) : formatNumber(meta)}
