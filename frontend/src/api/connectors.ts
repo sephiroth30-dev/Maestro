@@ -21,6 +21,7 @@ export interface Conector {
   activo: boolean;
   frecuenciaSync: FrecuenciaSync;
   ultimaSync: string | null;
+  lastSyncEstado: EstadoSync | null;
   createdAt: string;
   updatedAt: string;
 }

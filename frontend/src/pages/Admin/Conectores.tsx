@@ -86,6 +86,22 @@ const FRECUENCIA_LABELS: Record<FrecuenciaSync, string> = {
   'manual': 'Manual',
 };
 
+// Expected interval in ms per frecuencia (with 20% grace margin)
+const FRECUENCIA_MAX_AGE_MS: Record<FrecuenciaSync, number> = {
+  '30min': 30 * 60 * 1000 * 1.2,
+  '1h':    60 * 60 * 1000 * 1.2,
+  '4h':    4  * 60 * 60 * 1000 * 1.2,
+  'daily': 24 * 60 * 60 * 1000 * 1.2,
+  'manual': Infinity,
+};
+
+function isSyncLate(conector: Conector): boolean {
+  if (conector.frecuenciaSync === 'manual' || !conector.activo) return false;
+  if (!conector.ultimaSync) return true; // never synced
+  const ageMs = Date.now() - parseServerDate(conector.ultimaSync).getTime();
+  return ageMs > FRECUENCIA_MAX_AGE_MS[conector.frecuenciaSync];
+}
+
 const TIPO_ICONS: Record<TipoConector, React.ReactNode> = {
   GOOGLE_SHEETS: <Database size={22} className="text-emerald-600" />,
   REST_API: <Globe size={22} className="text-blue-600" />,
@@ -263,6 +279,20 @@ function ConnectorCard({
           </span>
         </div>
       </div>
+
+      {/* Persistent status banners (always visible, not just during current session) */}
+      {conector.lastSyncEstado === 'FALLIDA' && !syncPolling && !syncMutation.isPending && (
+        <div className="connector-test-result connector-test-result--error">
+          <XCircle size={14} />
+          <span>Última sincronización falló — ver Historial para detalles</span>
+        </div>
+      )}
+      {conector.lastSyncEstado !== 'FALLIDA' && isSyncLate(conector) && !syncPolling && !syncMutation.isPending && (
+        <div className="connector-test-result connector-test-result--warning">
+          <AlertCircle size={14} />
+          <span>Sincronización atrasada — se esperaba hace más de {FRECUENCIA_LABELS[conector.frecuenciaSync].toLowerCase()}</span>
+        </div>
+      )}
 
       {/* Test result inline */}
       {testResult && (

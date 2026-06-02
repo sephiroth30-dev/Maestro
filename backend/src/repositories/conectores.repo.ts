@@ -104,11 +104,20 @@ export class ConectoresRepository {
     return mapConector(rows[0]!);
   }
 
-  async findAll(): Promise<Conector[]> {
-    const [rows] = await pool.query<ConectorRow[]>(
-      'SELECT * FROM conectores ORDER BY created_at DESC'
-    );
-    return rows.map(mapConector);
+  async findAll(): Promise<(Conector & { lastSyncEstado: string | null })[]> {
+    // Join with the most recent sincronizacion per connector to expose last sync status
+    const [rows] = await pool.query<(ConectorRow & { last_sync_estado: string | null })[]>(`
+      SELECT c.*,
+        (SELECT s.estado FROM sincronizaciones s
+         WHERE s.conector_id = c.id
+         ORDER BY s.iniciada_at DESC LIMIT 1) AS last_sync_estado
+      FROM conectores c
+      ORDER BY c.created_at DESC
+    `);
+    return rows.map((r) => ({
+      ...mapConector(r),
+      lastSyncEstado: r.last_sync_estado ?? null,
+    }));
   }
 
   async findAllActive(): Promise<Conector[]> {
