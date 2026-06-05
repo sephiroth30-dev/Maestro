@@ -8,6 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/authStore.js';
 import { useAuth } from './hooks/useAuth.js';
+import { useInactivityLogout } from './hooks/useInactivityLogout.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
@@ -143,13 +144,75 @@ function AuditoriaRoute({ children }: { children: ReactElement }): ReactElement 
   return children;
 }
 
-// ─── Authenticated layout (with sidebar) ─────────────────────────────────────
+// ─── Inactivity warning modal ─────────────────────────────────────────────────
+
+function InactivityWarningModal({
+  secondsLeft,
+  onContinue,
+}: {
+  secondsLeft: number;
+  onContinue: () => void;
+}): ReactElement {
+  const urgent = secondsLeft <= 10;
+  return (
+    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+      <div className="modal modal--sm" role="alertdialog" aria-modal="true" aria-label="Sesión por expirar">
+        <div className="modal-body" style={{ textAlign: 'center', padding: '2rem 2rem 1.5rem' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: urgent ? '#fef2f2' : '#fffbeb',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1rem',
+            fontSize: 28,
+          }}>
+            ⏱
+          </div>
+          <h2 className="modal-title" style={{ marginBottom: '0.5rem' }}>
+            ¿Sigues ahí?
+          </h2>
+          <p className="modal-subtitle">
+            Tu sesión cerrará por inactividad en
+          </p>
+          <div style={{
+            fontSize: 48,
+            fontWeight: 800,
+            color: urgent ? '#dc2626' : '#f59e0b',
+            lineHeight: 1.1,
+            margin: '0.75rem 0',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {secondsLeft}s
+          </div>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 1.5rem' }}>
+            Mueve el mouse o haz clic en el botón para continuar
+          </p>
+        </div>
+        <div className="modal-footer" style={{ justifyContent: 'center' }}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onContinue}
+            autoFocus
+          >
+            Seguir en sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Authenticated layout (with sidebar + inactivity guard) ──────────────────
 
 function AppLayout({ children }: { children: ReactElement }): ReactElement {
+  const { showWarning, secondsLeft, resetTimer } = useInactivityLogout();
   return (
     <div className="app-layout">
       <Sidebar />
       <div className="app-content">{children}</div>
+      {showWarning && (
+        <InactivityWarningModal secondsLeft={secondsLeft} onContinue={resetTimer} />
+      )}
     </div>
   );
 }
