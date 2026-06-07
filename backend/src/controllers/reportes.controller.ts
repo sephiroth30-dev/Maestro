@@ -426,6 +426,17 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // DELETE /api/entidades/:id (ADMIN only — nullifies atenciones so they can be reclassified)
+  fastify.delete(
+    '/api/entidades/:id',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const result = await repo.deleteEntidad(id);
+      return reply.send(result);
+    }
+  );
+
   // GET /api/servicios (catalog for config UI — ADMIN only)
   fastify.get(
     '/api/servicios',

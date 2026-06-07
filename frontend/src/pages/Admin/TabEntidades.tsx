@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check, RefreshCw, Trash2 } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
 import {
   useEntidadesCatalog,
@@ -7,6 +7,7 @@ import {
   useUpdateEntidadTipo,
   useBulkUpdateEntidades,
   useUpdateEntidadNombresRaw,
+  useDeleteEntidad,
   useReclasificarEntidades,
   TIPOS_ENTIDAD,
   type TipoEntidad,
@@ -26,9 +27,11 @@ interface NombresEditorProps {
 
 function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactElement {
   const updateNombres = useUpdateEntidadNombresRaw();
+  const deleteEntidad = useDeleteEntidad();
   const [nombre, setNombre] = useState(entidad.nombre);
   const [nombres, setNombres] = useState<string[]>(entidad.nombres_raw ?? []);
   const [input, setInput] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const nombreRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -126,19 +129,59 @@ function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactEle
           </button>
         </div>
 
-        <div className="nombres-modal-footer">
-          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            onClick={() => void handleSave()}
-            disabled={!isDirty || nombres.length === 0 || updateNombres.isPending}
-          >
-            {updateNombres.isPending ? <Loader2 size={12} className="spin" /> : <Check size={12} />}
-            Guardar
-          </button>
+        <div className="nombres-modal-footer" style={{ justifyContent: 'space-between' }}>
+          {/* Delete zone */}
+          <div>
+            {!confirmDelete ? (
+              <button
+                type="button"
+                className="btn btn--sm"
+                style={{ color: '#ef4444', background: 'transparent', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => setConfirmDelete(true)}
+                disabled={updateNombres.isPending || deleteEntidad.isPending}
+              >
+                <Trash2 size={12} /> Eliminar
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>¿Confirmar?</span>
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  style={{ background: '#ef4444', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                  disabled={deleteEntidad.isPending}
+                  onClick={() => {
+                    deleteEntidad.mutate(entidad.id, { onSuccess: () => onClose() });
+                  }}
+                >
+                  {deleteEntidad.isPending ? <Loader2 size={12} className="spin" /> : <Trash2 size={12} />}
+                  Sí, eliminar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  No
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm"
+              onClick={() => void handleSave()}
+              disabled={!isDirty || nombres.length === 0 || updateNombres.isPending}
+            >
+              {updateNombres.isPending ? <Loader2 size={12} className="spin" /> : <Check size={12} />}
+              Guardar
+            </button>
+          </div>
         </div>
       </div>
     </div>

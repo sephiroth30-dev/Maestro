@@ -344,6 +344,17 @@ export async function patchEntidad(id: string, fields: PatchEntidadFields): Prom
   await pool.execute<ResultSetHeader>(`UPDATE entidades SET ${sets.join(', ')} WHERE id = ?`, params);
 }
 
+// ─── Delete entity (nullify atenciones so they can be reclassified) ──────────
+
+export async function deleteEntidad(id: string): Promise<{ nullified: number }> {
+  const [res] = await pool.execute<ResultSetHeader>(
+    'UPDATE atenciones SET entidad_id = NULL WHERE entidad_id = ?',
+    [id]
+  );
+  await pool.execute<ResultSetHeader>('DELETE FROM entidades WHERE id = ?', [id]);
+  return { nullified: res.affectedRows };
+}
+
 // ─── Create entity from unmatched raw name and reassign atenciones ───────────
 
 export interface CrearEntidadResult {

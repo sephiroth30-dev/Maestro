@@ -63,6 +63,15 @@ export function useUpdateEntidadNombresRaw() {
   });
 }
 
+export function useDeleteEntidad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<{ nullified: number }>(`/entidades/${id}`).then((r) => r.data),
+    onSuccess: () => invalidateAll(qc),
+  });
+}
+
 export function useReclasificarEntidades() {
   const qc = useQueryClient();
   return useMutation({
