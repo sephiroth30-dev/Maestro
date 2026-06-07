@@ -314,6 +314,7 @@ export const TIPOS_VALIDOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'] as
 export type TipoEntidad = typeof TIPOS_VALIDOS[number];
 
 export interface PatchEntidadFields {
+  nombre?: string;
   es_grupo_caja?: boolean;
   tipo?: TipoEntidad;
   nombres_raw?: string[];
@@ -322,6 +323,10 @@ export interface PatchEntidadFields {
 export async function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void> {
   const sets: string[] = [];
   const params: (string | number)[] = [];
+  if (fields.nombre !== undefined) {
+    sets.push('nombre = ?');
+    params.push(fields.nombre.trim().toUpperCase());
+  }
   if (fields.es_grupo_caja !== undefined) {
     sets.push('es_grupo_caja = ?');
     params.push(fields.es_grupo_caja ? 1 : 0);
@@ -363,6 +368,57 @@ export async function createEntidadFromRaw(
     [id, nombreRaw]
   );
   return { id, nombre: nombre.trim().toUpperCase(), tipo, reassigned: res.affectedRows };
+}
+
+// ─── Reclassify all atenciones against current entidades nombres_raw ──────────
+
+export async function reclasificarEntidades(): Promise<{ updated: number; sin_entidad: number }> {
+  const [entRows] = await pool.query<RowDataPacket[]>(
+    'SELECT id, nombres_raw FROM entidades WHERE activa = 1'
+  );
+
+  // Build normalized name → entity_id map
+  const nameMap = new Map<string, string>();
+  for (const row of entRows) {
+    let names: string[] = [];
+    try { names = JSON.parse(row['nombres_raw'] as string) as string[]; } catch { /* skip */ }
+    for (const n of names) {
+      const key = (n as string).trim().toUpperCase();
+      if (key) nameMap.set(key, row['id'] as string);
+    }
+  }
+
+  // Get all distinct raw names in atenciones
+  const [rawRows] = await pool.query<RowDataPacket[]>(
+    'SELECT DISTINCT entidad_nombre_raw FROM atenciones WHERE entidad_nombre_raw IS NOT NULL'
+  );
+
+  let updated = 0;
+  for (const row of rawRows) {
+    const raw = row['entidad_nombre_raw'] as string;
+    const entidadId = nameMap.get(raw.trim().toUpperCase());
+    if (entidadId) {
+      const [res] = await pool.execute<ResultSetHeader>(
+        'UPDATE atenciones SET entidad_id = ? WHERE entidad_nombre_raw = ? AND (entidad_id IS NULL OR entidad_id != ?)',
+        [entidadId, raw, entidadId]
+      );
+      updated += res.affectedRows;
+    } else {
+      // Raw name doesn't match any entity — clear any stale assignment so it shows as sin_entidad
+      await pool.execute<ResultSetHeader>(
+        'UPDATE atenciones SET entidad_id = NULL WHERE entidad_nombre_raw = ? AND entidad_id IS NOT NULL',
+        [raw]
+      );
+    }
+  }
+
+  const [sinRows] = await pool.query<RowDataPacket[]>(
+    'SELECT COUNT(*) AS cnt FROM atenciones WHERE entidad_id IS NULL AND entidad_nombre_raw IS NOT NULL'
+  );
+  return {
+    updated,
+    sin_entidad: Number((sinRows[0] ?? {})['cnt'] ?? 0),
+  };
 }
 
 // ─── Diagnostic: totals per connector per month ──────────────────────────────

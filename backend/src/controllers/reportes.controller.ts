@@ -82,13 +82,15 @@ const tendenciaQuerySchema = z.object({
 
 const patchEntidadBodySchema = z
   .object({
+    nombre: z.string().min(1).max(200).optional(),
     es_grupo_caja: z.boolean().optional(),
     tipo: z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
     nombres_raw: z.array(z.string().min(1)).min(1).optional(),
   })
-  .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined, {
-    message: 'Se requiere al menos un campo: es_grupo_caja, tipo o nombres_raw',
-  });
+  .refine(
+    (d) => d.nombre !== undefined || d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined,
+    { message: 'Se requiere al menos un campo: nombre, es_grupo_caja, tipo o nombres_raw' }
+  );
 
 const crearEntidadFromRawBodySchema = z.object({
   nombre: z.string().min(1).max(200),
@@ -405,11 +407,22 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
       await repo.patchEntidad(id, {
+        nombre: parsed.data.nombre,
         es_grupo_caja: parsed.data.es_grupo_caja,
         tipo: parsed.data.tipo,
         nombres_raw: parsed.data.nombres_raw,
       });
       return reply.status(200).send({ ok: true });
+    }
+  );
+
+  // POST /api/entidades/reclasificar (re-match all atenciones against current nombres_raw — ADMIN only)
+  fastify.post(
+    '/api/entidades/reclasificar',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const result = await repo.reclasificarEntidades();
+      return reply.send(result);
     }
   );
 

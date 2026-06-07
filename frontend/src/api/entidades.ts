@@ -57,9 +57,23 @@ export interface BulkPatchItem {
 export function useUpdateEntidadNombresRaw() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, nombres_raw }: { id: string; nombres_raw: string[] }) =>
-      apiClient.patch(`/entidades/${id}`, { nombres_raw }).then((r) => r.data),
+    mutationFn: ({ id, nombres_raw, nombre }: { id: string; nombres_raw: string[]; nombre?: string }) =>
+      apiClient.patch(`/entidades/${id}`, { nombres_raw, ...(nombre !== undefined ? { nombre } : {}) }).then((r) => r.data),
     onSuccess: () => invalidateAll(qc),
+  });
+}
+
+export function useReclasificarEntidades() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<{ updated: number; sin_entidad: number }>('/entidades/reclasificar').then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['entidades-catalog'] });
+      void qc.invalidateQueries({ queryKey: ['kpis'] });
+      void qc.invalidateQueries({ queryKey: ['entidades'] });
+      void qc.invalidateQueries({ queryKey: ['sin-entidad-diagnostico'] });
+    },
   });
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Lock, ChevronDown, CheckSquare, Square, Tags, X, Plus, Check, RefreshCw } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
 import {
   useEntidadesCatalog,
@@ -7,6 +7,7 @@ import {
   useUpdateEntidadTipo,
   useBulkUpdateEntidades,
   useUpdateEntidadNombresRaw,
+  useReclasificarEntidades,
   TIPOS_ENTIDAD,
   type TipoEntidad,
 } from '../../api/entidades.js';
@@ -25,12 +26,14 @@ interface NombresEditorProps {
 
 function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactElement {
   const updateNombres = useUpdateEntidadNombresRaw();
+  const [nombre, setNombre] = useState(entidad.nombre);
   const [nombres, setNombres] = useState<string[]>(entidad.nombres_raw ?? []);
   const [input, setInput] = useState('');
+  const nombreRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    nombreRef.current?.focus();
   }, []);
 
   function addNombre(): void {
@@ -40,17 +43,24 @@ function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactEle
     setInput('');
   }
 
-  function removeNombre(nombre: string): void {
-    setNombres((prev) => prev.filter((n) => n !== nombre));
+  function removeNombre(n: string): void {
+    setNombres((prev) => prev.filter((x) => x !== n));
   }
 
   async function handleSave(): Promise<void> {
     if (nombres.length === 0) return;
-    await updateNombres.mutateAsync({ id: entidad.id, nombres_raw: nombres });
+    const nombreChanged = nombre.trim().toUpperCase() !== entidad.nombre;
+    await updateNombres.mutateAsync({
+      id: entidad.id,
+      nombres_raw: nombres,
+      ...(nombreChanged ? { nombre: nombre.trim() } : {}),
+    });
     onClose();
   }
 
-  const isDirty = JSON.stringify(nombres) !== JSON.stringify(entidad.nombres_raw ?? []);
+  const isDirty =
+    nombre.trim().toUpperCase() !== entidad.nombre ||
+    JSON.stringify(nombres) !== JSON.stringify(entidad.nombres_raw ?? []);
 
   return (
     <div className="nombres-modal-overlay" onClick={onClose}>
@@ -58,15 +68,33 @@ function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactEle
         <div className="nombres-modal-header">
           <span className="nombres-modal-title">
             <Tags size={14} />
-            Nombres alternativos — <strong>{entidad.nombre}</strong>
+            Editar entidad — <strong>{entidad.nombre}</strong>
           </span>
           <button type="button" className="nombres-modal-close" onClick={onClose}>
             <X size={14} />
           </button>
         </div>
 
-        <p className="nombres-modal-hint">
-          Estos son los nombres que se buscan en el Google Sheet al sincronizar. Al menos uno debe estar presente para que las atenciones se adjudiquen a esta entidad.
+        {/* Nombre en catálogo */}
+        <div style={{ padding: '12px 16px 0' }}>
+          <label style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+            NOMBRE EN EL CATÁLOGO
+          </label>
+          <input
+            ref={nombreRef}
+            type="text"
+            className="nombres-add-input"
+            style={{ width: '100%', textTransform: 'uppercase' }}
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: ENTIDAD PROMOTORA DE SALUD SOS"
+          />
+        </div>
+
+        <p className="nombres-modal-hint" style={{ marginTop: 12 }}>
+          <strong>Nombres alternativos</strong> — estos son los strings exactos que se buscan en el Google Sheet.
+          Si quitas un nombre, las atenciones históricas con ese nombre quedan <em>sin entidad</em> hasta
+          que hagas clic en <strong>Reclasificar</strong> en la pantalla principal.
         </p>
 
         <div className="nombres-tags">
@@ -79,7 +107,7 @@ function NombresEditor({ entidad, onClose }: NombresEditorProps): React.ReactEle
             </span>
           ))}
           {nombres.length === 0 && (
-            <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>Sin nombres — la entidad no podrá ser identificada.</span>
+            <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>Sin nombres — la entidad no podrá ser identificada en el Sheet.</span>
           )}
         </div>
 
@@ -336,6 +364,8 @@ const TIPOS_ORDEN = ['EPS', 'CONVENIO', 'ARL', 'PARTICULAR', 'OTRO'];
 export default function TabEntidades(): React.ReactElement {
   const { data, isLoading, isError } = useEntidadesCatalog();
   const bulkUpdate = useBulkUpdateEntidades();
+  const reclasificar = useReclasificarEntidades();
+  const [reclasMsg, setReclasMsg] = useState<string | null>(null);
 
   const [filterTipo, setFilterTipo] = useState<string>('Todas');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -442,14 +472,40 @@ export default function TabEntidades(): React.ReactElement {
 
   return (
     <div style={{ paddingBottom: someSelected ? '72px' : 0, transition: 'padding-bottom 0.2s' }}>
+      {/* Reclasificar success message */}
+      {reclasMsg && (
+        <div className="entidades-config-banner" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', marginBottom: '0.5rem' }}>
+          <Check size={14} />
+          <span>{reclasMsg}</span>
+        </div>
+      )}
+
       {/* Banner */}
-      <div className="entidades-config-banner">
-        <Info size={14} style={{ flexShrink: 0 }} />
-        <span>
-          Selecciona una o varias filas para hacer cambios masivos de <strong>Tipo</strong> o <strong>Clasificación</strong>.{' '}
-          Para editar una sola entidad, usa el selector de Tipo o el botón de Clasificación directamente en la fila.
-          Los cambios de Tipo persisten entre reinicios del servidor.
+      <div className="entidades-config-banner" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1 }}>
+          <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>
+            Selecciona filas para cambios masivos de <strong>Tipo</strong> o <strong>Clasificación</strong>.
+            Para editar el nombre o los nombres alternativos del Sheet, haz clic en el número de la columna <strong>Nombres</strong>.
+          </span>
         </span>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+          disabled={reclasificar.isPending}
+          onClick={() => {
+            reclasificar.mutate(undefined, {
+              onSuccess: (data) => {
+                setReclasMsg(`Reclasificación completa: ${data.updated.toLocaleString('es-CO')} atención${data.updated !== 1 ? 'es' : ''} actualizadas, ${data.sin_entidad.toLocaleString('es-CO')} sin entidad.`);
+                setTimeout(() => setReclasMsg(null), 8000);
+              },
+            });
+          }}
+        >
+          {reclasificar.isPending ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+          Reclasificar
+        </button>
       </div>
 
       {/* Filtros por tipo */}
