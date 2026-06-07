@@ -90,6 +90,12 @@ const patchEntidadBodySchema = z
     message: 'Se requiere al menos un campo: es_grupo_caja, tipo o nombres_raw',
   });
 
+const crearEntidadFromRawBodySchema = z.object({
+  nombre: z.string().min(1).max(200),
+  tipo: z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']),
+  nombre_raw: z.string().min(1),
+});
+
 const presupuestoBodySchema = z.object({
   anio: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(1).max(12),
@@ -352,6 +358,25 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const { mes_idx, anio } = parsed.data;
       const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio);
       return reply.send(rows);
+    }
+  );
+
+  // POST /api/diagnostico/sin-entidad/crear-entidad (ADMIN — create entity from unmatched raw name)
+  fastify.post(
+    '/api/diagnostico/sin-entidad/crear-entidad',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = crearEntidadFromRawBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join(', '),
+          statusCode: 400,
+        });
+      }
+      const { nombre, tipo, nombre_raw } = parsed.data;
+      const result = await repo.createEntidadFromRaw(nombre, tipo, nombre_raw);
+      return reply.status(201).send(result);
     }
   );
 

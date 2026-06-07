@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -284,6 +284,40 @@ export function useSinServicioDiagnostico() {
       return res.data;
     },
     staleTime: 5 * 60_000,
+  });
+}
+
+export interface CrearEntidadFromRawInput {
+  nombre: string;
+  tipo: 'EPS' | 'ARL' | 'CONVENIO' | 'PARTICULAR' | 'OTRO';
+  nombre_raw: string;
+}
+
+export interface CrearEntidadFromRawResult {
+  id: string;
+  nombre: string;
+  tipo: string;
+  reassigned: number;
+}
+
+export function useCrearEntidadFromRaw(): UseMutationResult<
+  CrearEntidadFromRawResult,
+  Error,
+  CrearEntidadFromRawInput
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CrearEntidadFromRawInput) => {
+      const res = await apiClient.post<CrearEntidadFromRawResult>(
+        '/diagnostico/sin-entidad/crear-entidad',
+        input
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['sin-entidad-diagnostico'] });
+      void qc.invalidateQueries({ queryKey: ['entidades'] });
+    },
   });
 }
 

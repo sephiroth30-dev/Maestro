@@ -2,12 +2,12 @@ import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { Activity, ArrowRight, TrendingUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
-import { useKpis, useEntidades, useCumplimientoSemanal, useTendencia } from '../api/reportes.js';
+import { useKpis, useEntidades, useTendencia } from '../api/reportes.js';
 import type { KpisResult } from '../api/reportes.js';
 import { formatNumber } from '../components/widgets/KpiCard.js';
-import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import ChartTendencia from '../components/widgets/ChartTendencia.js';
+import ChartCumplimientoMensual from '../components/widgets/ChartCumplimientoMensual.js';
 import TopEntidades from '../components/widgets/TopEntidades.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -188,10 +188,14 @@ export default function Dashboard(): React.ReactElement {
   const hora   = now.getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 18 ? 'Buenas tardes' : 'Buenas noches';
 
+  // Annual date range: Jan 1 → last day of current month
+  const lastDay = new Date(anioActual, mesActual, 0).getDate();
+  const startDate = `${anioActual}-01-01`;
+  const endDate   = `${anioActual}-${String(mesActual).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
   const kpisQ        = useKpis(mesActual, anioActual);
-  const entidadesQ   = useEntidades(mesActual, anioActual);
-  const cumplimientoQ = useCumplimientoSemanal(mesActual, anioActual);
-  const tendenciaQ   = useTendencia(6);
+  const entidadesAnioQ = useEntidades(mesActual, anioActual, startDate, endDate);
+  const tendenciaQ   = useTendencia(12);
 
   return (
     <div className="page">
@@ -224,34 +228,34 @@ export default function Dashboard(): React.ReactElement {
           {/* ── Charts row 1: Tendencia + Mix Pagador ── */}
           <div className="charts-row charts-row--2-1">
             <div className="chart-card">
-              <h2 className="chart-title">Tendencia de Facturación — Últimos 6 Meses</h2>
+              <h2 className="chart-title">Tendencia de Facturación — Año {anioActual}</h2>
               {tendenciaQ.isLoading ? <ChartSkeleton height={270} /> :
                tendenciaQ.isError   ? <ErrorState onRetry={() => void tendenciaQ.refetch()} /> :
                tendenciaQ.data      ? <ChartTendencia rows={tendenciaQ.data} /> : null}
             </div>
             <div className="chart-card">
-              <h2 className="chart-title">Mix de Pagadores</h2>
-              {entidadesQ.isLoading ? <ChartSkeleton height={270} /> :
-               entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-               entidadesQ.data?.rows.length
-                 ? <ChartMixPagador rows={entidadesQ.data.rows} />
+              <h2 className="chart-title">Mix de Pagadores — Año {anioActual}</h2>
+              {entidadesAnioQ.isLoading ? <ChartSkeleton height={270} /> :
+               entidadesAnioQ.isError   ? <ErrorState onRetry={() => void entidadesAnioQ.refetch()} /> :
+               entidadesAnioQ.data?.rows.length
+                 ? <ChartMixPagador rows={entidadesAnioQ.data.rows} />
                  : <p style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '0.85rem' }}>Sin datos</p>}
             </div>
           </div>
 
-          {/* ── Charts row 2: Cumplimiento Semanal + Top Entidades ── */}
+          {/* ── Charts row 2: Cumplimiento Mensual + Top Entidades ── */}
           <div className="charts-row charts-row--2-1">
             <div className="chart-card">
-              <h2 className="chart-title">Cumplimiento Semanal — {MESES_ES[mesActual]}</h2>
-              {cumplimientoQ.isLoading ? <ChartSkeleton /> :
-               cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
-               cumplimientoQ.data      ? <ChartCumplimiento semanas={cumplimientoQ.data.semanas} /> : null}
+              <h2 className="chart-title">Cumplimiento Mensual — Año {anioActual}</h2>
+              {tendenciaQ.isLoading ? <ChartSkeleton /> :
+               tendenciaQ.isError   ? <ErrorState onRetry={() => void tendenciaQ.refetch()} /> :
+               tendenciaQ.data      ? <ChartCumplimientoMensual rows={tendenciaQ.data} /> : null}
             </div>
             <div className="chart-card">
-              <h2 className="chart-title">Top Entidades del Mes</h2>
-              {entidadesQ.isLoading ? <ChartSkeleton height={220} /> :
-               entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :
-               entidadesQ.data      ? <TopEntidades rows={entidadesQ.data.rows} /> : null}
+              <h2 className="chart-title">Top Entidades — Año {anioActual}</h2>
+              {entidadesAnioQ.isLoading ? <ChartSkeleton height={220} /> :
+               entidadesAnioQ.isError   ? <ErrorState onRetry={() => void entidadesAnioQ.refetch()} /> :
+               entidadesAnioQ.data      ? <TopEntidades rows={entidadesAnioQ.data.rows} /> : null}
             </div>
           </div>
         </>

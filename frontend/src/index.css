@@ -2803,10 +2803,8 @@ body,
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-gray-800);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1.2;
+  word-break: break-word;
 }
 
 .top-entidades-tipo {

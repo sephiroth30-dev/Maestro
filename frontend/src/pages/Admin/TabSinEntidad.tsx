@@ -1,9 +1,115 @@
-import React from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { useSinEntidadDiagnostico } from '../../api/reportes.js';
-import type { SinEntidadRow } from '../../api/reportes.js';
+import React, { useState } from 'react';
+import { AlertCircle, Loader2, Plus, X } from 'lucide-react';
+import { useSinEntidadDiagnostico, useCrearEntidadFromRaw } from '../../api/reportes.js';
+import type { SinEntidadRow, CrearEntidadFromRawInput } from '../../api/reportes.js';
 
 const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+
+const TIPOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'] as const;
+type Tipo = typeof TIPOS[number];
+
+// ─── Create Entity Modal ──────────────────────────────────────────────────────
+
+interface CreateModalProps {
+  nombreRaw: string;
+  onClose: () => void;
+  onSuccess: (reassigned: number) => void;
+}
+
+function CreateModal({ nombreRaw, onClose, onSuccess }: CreateModalProps): React.ReactElement {
+  const [nombre, setNombre] = useState(nombreRaw);
+  const [tipo, setTipo] = useState<Tipo>('EPS');
+  const mutation = useCrearEntidadFromRaw();
+
+  function handleSubmit(e: React.FormEvent): void {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    const input: CrearEntidadFromRawInput = { nombre: nombre.trim(), tipo, nombre_raw: nombreRaw };
+    mutation.mutate(input, {
+      onSuccess: (data) => {
+        onSuccess(data.reassigned);
+        onClose();
+      },
+    });
+  }
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+      <div className="modal modal--sm" role="dialog" aria-modal="true" aria-label="Crear entidad">
+        <div className="modal-header">
+          <h2 className="modal-title">Crear entidad</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Cerrar">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }}>
+            <div>
+              <label className="form-label" style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 4, display: 'block' }}>
+                NOMBRE EN EL SHEET (referencia)
+              </label>
+              <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '0.85rem', color: '#475569', wordBreak: 'break-word' }}>
+                {nombreRaw}
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.78rem', color: '#374151', marginBottom: 4, display: 'block' }}>
+                NOMBRE EN CATÁLOGO <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                className="form-input"
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                required
+                autoFocus
+                placeholder="Ej: NUEVA EPS"
+                style={{ width: '100%', textTransform: 'uppercase' }}
+              />
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.78rem', color: '#374151', marginBottom: 4, display: 'block' }}>
+                TIPO <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                className="form-select"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value as Tipo)}
+                style={{ width: '100%' }}
+              >
+                {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            {mutation.isError && (
+              <p style={{ color: '#ef4444', fontSize: '0.82rem' }}>
+                Error al crear la entidad. Intenta de nuevo.
+              </p>
+            )}
+          </div>
+
+          <div className="modal-footer" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
+            <button type="button" className="btn btn--secondary" onClick={onClose} disabled={mutation.isPending}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn--primary" disabled={mutation.isPending || !nombre.trim()}>
+              {mutation.isPending ? (
+                <><Loader2 size={14} className="spin" /> Creando…</>
+              ) : (
+                'Crear y asignar'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main tab ─────────────────────────────────────────────────────────────────
 
 export default function TabSinEntidad(): React.ReactElement {
   const now = new Date();
@@ -11,9 +117,16 @@ export default function TabSinEntidad(): React.ReactElement {
   const anio = now.getFullYear();
 
   const { data, isLoading, isError, refetch } = useSinEntidadDiagnostico(mesIdx, anio);
+  const [activeRaw, setActiveRaw] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const totalAtenciones = data?.reduce((s, r) => s + r.cnt, 0) ?? 0;
   const totalValor = data?.reduce((s, r) => s + r.total, 0) ?? 0;
+
+  function handleSuccess(reassigned: number): void {
+    setSuccessMsg(`Entidad creada y ${reassigned.toLocaleString('es-CO')} atencion${reassigned !== 1 ? 'es' : ''} reasignada${reassigned !== 1 ? 's' : ''}.`);
+    setTimeout(() => setSuccessMsg(null), 5000);
+  }
 
   if (isLoading) {
     return (
@@ -38,6 +151,14 @@ export default function TabSinEntidad(): React.ReactElement {
 
   return (
     <div>
+      {/* Success message */}
+      {successMsg && (
+        <div className="entidades-config-banner" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', marginBottom: '0.75rem' }}>
+          <AlertCircle size={14} />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       {/* Warning banner */}
       {totalAtenciones > 0 ? (
         <div className="entidades-config-banner" style={{ background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' }}>
@@ -70,6 +191,7 @@ export default function TabSinEntidad(): React.ReactElement {
                   <th className="tabla-entidades-th">NOMBRE EN EL SHEET</th>
                   <th className="tabla-entidades-th" style={{ textAlign: 'right' }}>ATENCIONES</th>
                   <th className="tabla-entidades-th" style={{ textAlign: 'right' }}>VALOR BRUTO</th>
+                  <th className="tabla-entidades-th" style={{ textAlign: 'center' }}>ACCIÓN</th>
                 </tr>
               </thead>
               <tbody>
@@ -90,6 +212,20 @@ export default function TabSinEntidad(): React.ReactElement {
                     <td className="tabla-entidades-td" style={{ textAlign: 'right', fontWeight: 500, color: '#9a3412' }}>
                       {COP.format(row.total)}
                     </td>
+                    <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
+                      {row.nombre_raw && row.nombre_raw !== '(vacío)' ? (
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn--sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem' }}
+                          onClick={() => setActiveRaw(row.nombre_raw)}
+                        >
+                          <Plus size={12} /> Crear entidad
+                        </button>
+                      ) : (
+                        <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {/* Total row */}
@@ -101,17 +237,26 @@ export default function TabSinEntidad(): React.ReactElement {
                   <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#9a3412' }}>
                     {COP.format(totalValor)}
                   </td>
+                  <td className="tabla-entidades-td" />
                 </tr>
               </tbody>
             </table>
           </div>
 
           <p style={{ color: '#64748b', fontSize: '0.82rem', marginTop: '1rem', lineHeight: 1.5 }}>
-            Después de la próxima sincronización verás los nombres exactos de las entidades que no
-            pudieron ser identificadas. Agrega los nombres faltantes al catálogo en la pestaña{' '}
-            <strong>Entidades</strong> para que aparezcan correctamente en el Mix Pagador.
+            Usa el botón <strong>Crear entidad</strong> para agregar una nueva entidad al catálogo y
+            reasignar automáticamente las atenciones con ese nombre.
           </p>
         </>
+      )}
+
+      {/* Create entity modal */}
+      {activeRaw !== null && (
+        <CreateModal
+          nombreRaw={activeRaw}
+          onClose={() => setActiveRaw(null)}
+          onSuccess={handleSuccess}
+        />
       )}
     </div>
   );

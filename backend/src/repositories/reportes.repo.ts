@@ -339,6 +339,32 @@ export async function patchEntidad(id: string, fields: PatchEntidadFields): Prom
   await pool.execute<ResultSetHeader>(`UPDATE entidades SET ${sets.join(', ')} WHERE id = ?`, params);
 }
 
+// ─── Create entity from unmatched raw name and reassign atenciones ───────────
+
+export interface CrearEntidadResult {
+  id: string;
+  nombre: string;
+  tipo: string;
+  reassigned: number;
+}
+
+export async function createEntidadFromRaw(
+  nombre: string,
+  tipo: TipoEntidad,
+  nombreRaw: string,
+): Promise<CrearEntidadResult> {
+  const id = randomUUID();
+  await pool.execute<ResultSetHeader>(
+    'INSERT INTO entidades (id, nombre, nombres_raw, tipo, es_grupo_caja, activa, created_at) VALUES (?, ?, ?, ?, 0, 1, NOW())',
+    [id, nombre.trim().toUpperCase(), JSON.stringify([nombreRaw]), tipo]
+  );
+  const [res] = await pool.execute<ResultSetHeader>(
+    'UPDATE atenciones SET entidad_id = ? WHERE entidad_id IS NULL AND entidad_nombre_raw = ?',
+    [id, nombreRaw]
+  );
+  return { id, nombre: nombre.trim().toUpperCase(), tipo, reassigned: res.affectedRows };
+}
+
 // ─── Diagnostic: totals per connector per month ──────────────────────────────
 
 export interface DiagnosticoRow {
