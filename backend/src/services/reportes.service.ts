@@ -192,7 +192,23 @@ function getSemanasEnRango(
 }
 
 /**
- * Sum of monthly presupuestos for all months that overlap with the date range.
+ * Count Mon-Fri days in [start, end] inclusive (UTC dates).
+ */
+function countWorkingDays(start: Date, end: Date): number {
+  let count = 0;
+  const cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  while (cur.getTime() <= end.getTime()) {
+    const dow = cur.getUTCDay();
+    if (dow >= 1 && dow <= 5) count++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return count;
+}
+
+/**
+ * Prorated sum of monthly presupuestos for the date range.
+ * Each overlapping month contributes budget * (working_days_in_range / working_days_in_month),
+ * so filtering "this week" yields the weekly target, not the full monthly budget.
  */
 async function getPresupuestoParaRango(startDate: Date, endDate: Date): Promise<number> {
   const months: Array<{ anio: number; mes: number }> = [];
@@ -202,8 +218,26 @@ async function getPresupuestoParaRango(startDate: Date, endDate: Date): Promise<
     months.push({ anio: cur.getUTCFullYear(), mes: cur.getUTCMonth() + 1 });
     cur.setUTCMonth(cur.getUTCMonth() + 1);
   }
-  const values = await Promise.all(months.map((m) => repo.getPresupuesto(m.anio, m.mes)));
-  return values.reduce((sum, v) => sum + v, 0);
+
+  let total = 0;
+  for (const m of months) {
+    const monthBudget = await repo.getPresupuesto(m.anio, m.mes);
+    if (monthBudget <= 0) continue;
+
+    const monthStart = new Date(Date.UTC(m.anio, m.mes - 1, 1));
+    const monthEnd   = new Date(Date.UTC(m.anio, m.mes, 0)); // last day of month
+
+    const totalWorkingDays = countWorkingDays(monthStart, monthEnd);
+    if (totalWorkingDays === 0) continue;
+
+    // Intersection of [startDate, endDate] with this calendar month
+    const intersectStart = new Date(Math.max(startDate.getTime(), monthStart.getTime()));
+    const intersectEnd   = new Date(Math.min(endDate.getTime(),   monthEnd.getTime()));
+    const daysInRange    = countWorkingDays(intersectStart, intersectEnd);
+
+    total += monthBudget * (daysInRange / totalWorkingDays);
+  }
+  return Math.round(total);
 }
 
 // ─── Service class ────────────────────────────────────────────────────────────
