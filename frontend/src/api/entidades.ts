@@ -11,6 +11,7 @@ export interface EntidadCatalogRow {
   es_grupo_caja: boolean;
   activa: boolean;
   nombres_raw: string[];
+  total_atenciones: number;
 }
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>): void {

@@ -285,11 +285,15 @@ export interface EntidadCatalogRow {
   es_grupo_caja: boolean;
   activa: boolean;
   nombres_raw: string[];
+  total_atenciones: number;
 }
 
 export async function listEntidades(): Promise<EntidadCatalogRow[]> {
-  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number; nombres_raw: string })[]>(
-    'SELECT id, nombre, tipo, es_grupo_caja, activa, nombres_raw FROM entidades ORDER BY tipo ASC, nombre ASC'
+  const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number; nombres_raw: string; total_atenciones: string })[]>(
+    `SELECT e.id, e.nombre, e.tipo, e.es_grupo_caja, e.activa, e.nombres_raw,
+      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id) AS total_atenciones
+     FROM entidades e
+     ORDER BY e.tipo ASC, e.nombre ASC`
   );
   return rows.map((r) => ({
     id: r.id,
@@ -300,6 +304,7 @@ export async function listEntidades(): Promise<EntidadCatalogRow[]> {
     nombres_raw: (() => {
       try { return JSON.parse(r.nombres_raw) as string[]; } catch { return []; }
     })(),
+    total_atenciones: Number(r.total_atenciones),
   }));
 }
 

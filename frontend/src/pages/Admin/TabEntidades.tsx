@@ -299,6 +299,15 @@ function EntidadRow({ entidad, isSelected, onToggle }: EntidadRowProps): React.R
         <td className="tabla-entidades-td tabla-entidades-td--impacto">
           {value ? 'Suma al flujo de caja' : 'Suma al cobro a entidades'}
         </td>
+        <td className="tabla-entidades-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{
+            fontSize: '0.8rem',
+            fontWeight: entidad.total_atenciones === 0 ? 400 : 600,
+            color: entidad.total_atenciones === 0 ? '#ef4444' : '#0f172a',
+          }}>
+            {entidad.total_atenciones === 0 ? '—' : entidad.total_atenciones.toLocaleString('es-CO')}
+          </span>
+        </td>
         <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
           <button
             type="button"
@@ -615,6 +624,9 @@ export default function TabEntidades(): React.ReactElement {
               <th className="tabla-entidades-th tabla-entidades-th--impacto">
                 Impacto en el Mix
               </th>
+              <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '88px' }}>
+                Atenciones
+              </th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '72px' }}>
                 Nombres
               </th>
@@ -622,7 +634,7 @@ export default function TabEntidades(): React.ReactElement {
           </thead>
           <tbody>
             {displayed.length === 0 ? (
-              <tr><td colSpan={6} className="table-no-results">Sin resultados para "{search}"</td></tr>
+              <tr><td colSpan={7} className="table-no-results">Sin resultados para "{search}"</td></tr>
             ) : displayed.map((e) => (
               <EntidadRow
                 key={e.id}
