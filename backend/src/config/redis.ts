@@ -29,7 +29,7 @@ export async function disconnectRedis(): Promise<void> {
 }
 
 export function flushReportesCache(): void {
-  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:'];
+  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:'];
   for (const key of memCache.keys()) {
     if (prefixes.some((p) => key.startsWith(p))) {
       memCache.delete(key);

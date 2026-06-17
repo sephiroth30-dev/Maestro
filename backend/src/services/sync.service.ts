@@ -1,7 +1,7 @@
 import type { Sincronizacion } from '@prisma/client';
 import { conectoresRepo } from '../repositories/conectores.repo.js';
 import { connectorService } from './connector.service.js';
-import { getRedisClient } from '../config/redis.js';
+import { getRedisClient, flushReportesCache } from '../config/redis.js';
 import { logger } from '../config/logger.js';
 import type { DataSet } from '../connectors/base.connector.js';
 import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
@@ -67,6 +67,7 @@ export class SyncService {
         const mapResult = await mapRowsToAtenciones(dataset.rows, conectorId);
         filasNuevas = mapResult.created;
         logger.info('Sheet rows mapped to atenciones', mapResult);
+        flushReportesCache();
       }
 
       // Update sync record

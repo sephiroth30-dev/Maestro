@@ -478,6 +478,7 @@ export default function Reportes(): React.ReactElement {
     const { start, end } = getPreset(preset);
     setRangeStart(start);
     setRangeEnd(end);
+    setFilterMode('rango');
     setSelectedDia(null);
     setActivePreset(preset);
   }
