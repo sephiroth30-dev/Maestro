@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock, AlertTriangle } from 'lucide-react';
+import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
@@ -478,7 +478,8 @@ export default function Reportes(): React.ReactElement {
     .reduce((s, r) => s + r.valor_bruto, 0);
   const flujoPct: number | null = totalPeriodo > 0 ? (flujoTotal / totalPeriodo) * 100 : null;
   const alertPeriodKey = [filterMode, selected.mes, selected.anio, periodStart ?? '', periodEnd ?? ''].join('-');
-  const alertaVisible  = flujoPct !== null && flujoPct < FLUJO_CAJA_TARGET && dismissedKey !== alertPeriodKey;
+  const alertaVisible  = flujoPct !== null && !entidadesQ.isLoading && dismissedKey !== alertPeriodKey;
+  const alertaSeverity = (flujoPct ?? 0) >= FLUJO_CAJA_TARGET ? 'green' : (flujoPct ?? 0) < 10 ? 'red' : 'amber';
 
   // Context flags — drive adaptive layout
   const isDayFilter    = selectedDia !== null;
@@ -689,18 +690,26 @@ export default function Reportes(): React.ReactElement {
         </div>
       )}
 
-      {/* ── Alerta Flujo de Caja ── */}
+      {/* ── Alerta Flujo de Caja — siempre visible, refleja el período activo ── */}
       {alertaVisible && (
-        <div className={`alerta-kpi alerta-kpi--${(flujoPct ?? 0) < 10 ? 'red' : 'amber'}`}>
+        <div className={`alerta-kpi alerta-kpi--${alertaSeverity}`}>
           <div className="alerta-kpi__icon">
-            <AlertTriangle size={17} />
+            {alertaSeverity === 'green'
+              ? <CheckCircle size={17} />
+              : <AlertTriangle size={17} />}
           </div>
           <div className="alerta-kpi__body">
             <span className="alerta-kpi__title">
-              Flujo de Caja bajo objetivo — refuerza Particulares
+              {alertaSeverity === 'green'
+                ? 'Flujo de Caja en meta — Particulares van bien en este período'
+                : alertaSeverity === 'red'
+                ? 'Flujo de Caja crítico — urgente reforzar Particulares'
+                : 'Flujo de Caja bajo objetivo — refuerza Particulares'}
             </span>
             <span className="alerta-kpi__detail">
-              {(flujoPct ?? 0).toFixed(1)}% del período son ingresos por caja · Meta: {FLUJO_CAJA_TARGET}% · Faltan {(FLUJO_CAJA_TARGET - (flujoPct ?? 0)).toFixed(1)} pp
+              {alertaSeverity === 'green'
+                ? `${(flujoPct ?? 0).toFixed(1)}% del período son ingresos por caja · Meta: ${FLUJO_CAJA_TARGET}% · Superado por ${((flujoPct ?? 0) - FLUJO_CAJA_TARGET).toFixed(1)} pp`
+                : `${(flujoPct ?? 0).toFixed(1)}% del período son ingresos por caja · Meta: ${FLUJO_CAJA_TARGET}% · Faltan ${(FLUJO_CAJA_TARGET - (flujoPct ?? 0)).toFixed(1)} pp`}
             </span>
             <div className="alerta-kpi__bar-wrap">
               <div

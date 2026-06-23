@@ -2353,6 +2353,7 @@ body,
 
 .alerta-kpi--red   { background: #fff1f2; border-left-color: #f43f5e; color: #9f1239; }
 .alerta-kpi--amber { background: #fffbeb; border-left-color: #f59e0b; color: #78350f; }
+.alerta-kpi--green { background: #f0fdf4; border-left-color: #22c55e; color: #14532d; }
 
 .alerta-kpi__icon { flex-shrink: 0; opacity: 0.75; }
 
