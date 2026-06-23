@@ -3,7 +3,7 @@ import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock } from 
 import { useAuth } from '../hooks/useAuth.js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
-  ResponsiveContainer, Cell, ReferenceLine,
+  ResponsiveContainer, Cell, ReferenceLine, CartesianGrid,
 } from 'recharts';
 import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendencia, useServicios } from '../api/reportes.js';
 import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow } from '../api/reportes.js';
@@ -125,6 +125,18 @@ function getCurrentMonthRange(): { start: string; end: string } {
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return { start: fmt(firstDay), end: fmt(lastDay) };
+}
+
+function countWorkingDaysInRange(start: string, end: string): number {
+  let count = 0;
+  const cur = new Date(start + 'T00:00:00Z');
+  const endDate = new Date(end + 'T00:00:00Z');
+  while (cur <= endDate) {
+    const dow = cur.getUTCDay();
+    if (dow >= 1 && dow <= 5) count++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return count;
 }
 
 // ─── Días de semana mini card ─────────────────────────────────────────────────
@@ -292,6 +304,73 @@ function ChartCumplimientoMensual({ rows }: { rows: TendenciaRow[] }): React.Rea
   );
 }
 
+// ─── Cumplimiento diario (range mode) ────────────────────────────────────────
+
+interface DiaCumpData { dia: string; total: number; pct: number }
+
+function ChartCumplimientoDiario({
+  rows,
+  dailyTarget,
+}: {
+  rows: DiaSemanaRow[];
+  dailyTarget: number;
+}): React.ReactElement {
+  const fmtMoney = (n: number): string =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
+
+  const data: DiaCumpData[] = rows.map((r) => ({
+    dia:   r.dia.substring(0, 3),
+    total: r.total,
+    pct:   dailyTarget > 0 ? Math.round((r.total / dailyTarget) * 1000) / 10 : 0,
+  }));
+
+  function barColor(pct: number): string {
+    if (!dailyTarget) return '#3b82f6';
+    if (pct >= 100)   return '#22c55e';
+    if (pct >= 80)    return '#f59e0b';
+    return '#ef4444';
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 16, right: 24, left: 8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="dia" tick={{ fontSize: 12, fill: '#64748b' }} />
+        <YAxis
+          tickFormatter={fmtMoney}
+          tick={{ fontSize: 11, fill: '#64748b' }}
+          width={54}
+          domain={[0, 'auto']}
+        />
+        {dailyTarget > 0 && (
+          <ReferenceLine
+            y={dailyTarget}
+            stroke="#6366f1"
+            strokeDasharray="6 3"
+            strokeWidth={2}
+            label={{ value: `Meta ${fmtMoney(dailyTarget)}`, position: 'insideTopRight', fontSize: 10, fill: '#6366f1', dy: -4 }}
+          />
+        )}
+        <RechartTooltip
+          formatter={(val: number) => [fmtMoney(val), 'Facturado']}
+          labelFormatter={(label: string) => {
+            const row = data.find((d) => d.dia === label);
+            return row && dailyTarget > 0
+              ? `${label} · ${row.pct.toFixed(1)}% de meta`
+              : label;
+          }}
+          contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
+        />
+        <Bar dataKey="total" maxBarSize={64} name="Facturado">
+          {data.map((entry, i) => (
+            <Cell key={`cell-${i}`} fill={barColor(entry.pct)} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function KpiSkeleton(): React.ReactElement {
@@ -380,6 +459,12 @@ export default function Reportes(): React.ReactElement {
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
+
+  const isRangoMode = filterMode === 'rango' && !isAnioMode;
+  const workingDays = isRangoMode && periodStart && periodEnd
+    ? countWorkingDaysInRange(periodStart, periodEnd) : 0;
+  const dailyTarget = workingDays > 0 ? (kpisQ.data?.presupuesto ?? 0) / workingDays : 0;
+  const diasEnMeta = (diasQ.data ?? []).filter((d) => dailyTarget > 0 && d.total >= dailyTarget).length;
 
   // Context flags — drive adaptive layout
   const isDayFilter    = selectedDia !== null;
@@ -689,26 +774,43 @@ export default function Reportes(): React.ReactElement {
                   {diasQ.data && diasQ.data.length > 0 ? (
                     <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
                   ) : <div />}
-                  <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
-                    formato="number" meta={kpisQ.data?.semanas_total}
-                    metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
-                    icon={<Award size={14} />} color="purple" />
+                  {isRangoMode ? (
+                    <KpiCard
+                      titulo="Días en Meta"
+                      valor={diasEnMeta}
+                      formato="number"
+                      meta={workingDays || diasQ.data?.length || 0}
+                      metaLabel={`de ${workingDays || diasQ.data?.length || 0} días`}
+                      icon={<Award size={14} />}
+                      color={diasEnMeta > 0 ? 'green' : 'rose'}
+                    />
+                  ) : (
+                    <KpiCard titulo="Semanas en Meta" valor={kpisQ.data?.semanas_en_meta ?? 0}
+                      formato="number" meta={kpisQ.data?.semanas_total}
+                      metaLabel={`de ${kpisQ.data?.semanas_total ?? 0} sem.`}
+                      icon={<Award size={14} />} color="purple" />
+                  )}
                 </>
               )
             )}
           </div>
 
-          {/* Charts Row: Cumplimiento (semanal/mensual) + Mix Pagador */}
+          {/* Charts Row: Cumplimiento (diario/semanal/mensual) + Mix Pagador */}
           <div className="charts-row">
             <div className="chart-card chart-card--2-3">
               <h2 className="chart-title">
-                {isAnioMode ? 'Cumplimiento Mensual' : 'Cumplimiento Semanal'}
+                {isAnioMode ? 'Cumplimiento Mensual' : isRangoMode ? 'Cumplimiento Diario' : 'Cumplimiento Semanal'}
               </h2>
               {isAnioMode ? (
                 tendenciaQ.isLoading ? <ChartSkeleton /> :
                 tendenciaAnio.length > 0 ? (
                   <ChartCumplimientoMensual rows={tendenciaAnio} />
                 ) : null
+              ) : isRangoMode ? (
+                diasQ.isLoading ? <ChartSkeleton /> :
+                diasQ.data && diasQ.data.length > 0 ? (
+                  <ChartCumplimientoDiario rows={diasQ.data} dailyTarget={dailyTarget} />
+                ) : <p style={{ color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center', padding: '2rem 0' }}>Sin datos para el período</p>
               ) : (
                 cumplimientoQ.isLoading ? <ChartSkeleton /> :
                 cumplimientoQ.isError   ? <ErrorState onRetry={() => void cumplimientoQ.refetch()} /> :
