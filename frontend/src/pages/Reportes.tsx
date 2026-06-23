@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock } from 'lucide-react';
+import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
@@ -420,6 +420,9 @@ export default function Reportes(): React.ReactElement {
 
   const isAnioMode = activePreset === 'anio';
 
+  // Alert dismiss: key encodes the current period so it reappears on every filter change
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+
   // Day-of-week click filter (dia_num: 1=Mon…5=Fri, null=off)
   const [selectedDia, setSelectedDia] = useState<number | null>(null);
 
@@ -465,6 +468,17 @@ export default function Reportes(): React.ReactElement {
     ? countWorkingDaysInRange(periodStart, periodEnd) : 0;
   const dailyTarget = workingDays > 0 ? (kpisQ.data?.presupuesto ?? 0) / workingDays : 0;
   const diasEnMeta = (diasQ.data ?? []).filter((d) => dailyTarget > 0 && d.total >= dailyTarget).length;
+
+  // Flujo de Caja alert — shows when Particulares + Caja < 20 % of period revenue
+  const FLUJO_CAJA_TARGET = 20;
+  const entidadRows = entidadesQ.data?.rows ?? [];
+  const totalPeriodo = entidadRows.reduce((s, r) => s + r.valor_bruto, 0);
+  const flujoTotal   = entidadRows
+    .filter((r) => r.es_grupo || r.tipo === 'PARTICULAR')
+    .reduce((s, r) => s + r.valor_bruto, 0);
+  const flujoPct: number | null = totalPeriodo > 0 ? (flujoTotal / totalPeriodo) * 100 : null;
+  const alertPeriodKey = [filterMode, selected.mes, selected.anio, periodStart ?? '', periodEnd ?? ''].join('-');
+  const alertaVisible  = flujoPct !== null && flujoPct < FLUJO_CAJA_TARGET && dismissedKey !== alertPeriodKey;
 
   // Context flags — drive adaptive layout
   const isDayFilter    = selectedDia !== null;
@@ -672,6 +686,41 @@ export default function Reportes(): React.ReactElement {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Alerta Flujo de Caja ── */}
+      {alertaVisible && (
+        <div className={`alerta-kpi alerta-kpi--${(flujoPct ?? 0) < 10 ? 'red' : 'amber'}`}>
+          <div className="alerta-kpi__icon">
+            <AlertTriangle size={17} />
+          </div>
+          <div className="alerta-kpi__body">
+            <span className="alerta-kpi__title">
+              Flujo de Caja bajo objetivo — refuerza Particulares
+            </span>
+            <span className="alerta-kpi__detail">
+              {(flujoPct ?? 0).toFixed(1)}% del período son ingresos por caja · Meta: {FLUJO_CAJA_TARGET}% · Faltan {(FLUJO_CAJA_TARGET - (flujoPct ?? 0)).toFixed(1)} pp
+            </span>
+            <div className="alerta-kpi__bar-wrap">
+              <div
+                className="alerta-kpi__bar-fill"
+                style={{ width: `${Math.min(((flujoPct ?? 0) / FLUJO_CAJA_TARGET) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="alerta-kpi__stat">
+            <span className="alerta-kpi__stat-val">{(flujoPct ?? 0).toFixed(1)}%</span>
+            <span className="alerta-kpi__stat-of">/ {FLUJO_CAJA_TARGET}%</span>
+          </div>
+          <button
+            type="button"
+            className="alerta-kpi__close"
+            onClick={() => setDismissedKey(alertPeriodKey)}
+            title="Cerrar alerta"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
