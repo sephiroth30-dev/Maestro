@@ -320,6 +320,39 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // POST /api/profesionales (ADMIN — create a new professional)
+  fastify.post(
+    '/api/profesionales',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const body = request.body as {
+        nombres_raw?: string[];
+        nombre_completo?: string | null;
+        especialidad?: string | null;
+      };
+
+      const nombresRaw: string[] = (body.nombres_raw ?? [])
+        .map((n) => String(n).trim().toUpperCase())
+        .filter((n) => n.length > 0);
+
+      if (nombresRaw.length === 0) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'Se requiere al menos un nombre en el sheet', statusCode: 400 });
+      }
+
+      const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null, undefined];
+      if (!allowed.includes(body.especialidad ?? null)) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'especialidad inválida', statusCode: 400 });
+      }
+      const especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+
+      const nc = body.nombre_completo;
+      const nombreCompleto = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+
+      const result = await repo.createProfesional(nombresRaw[0], nombreCompleto, especialidad, nombresRaw);
+      return reply.status(201).send(result);
+    }
+  );
+
   // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
   fastify.patch(
     '/api/profesionales/:id',

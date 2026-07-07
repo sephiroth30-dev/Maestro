@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Loader2, AlertCircle, Info, Check, Pencil } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Loader2, AlertCircle, Info, Check, Pencil, Plus, X } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
-import { useProfesionales, useUpdateProfesional } from '../../api/profesionales.js';
+import { useProfesionales, useUpdateProfesional, useCreateProfesional } from '../../api/profesionales.js';
 import type { ProfesionalRow, Especialidad } from '../../api/profesionales.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
@@ -99,9 +99,116 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
   );
 }
 
+function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.ReactElement {
+  const create = useCreateProfesional();
+  const [nombreCompleto, setNombreCompleto] = useState('');
+  const [rawInput, setRawInput] = useState('');
+  const [especialidad, setEspecialidad] = useState<Especialidad>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleSubmit(e: React.FormEvent): void {
+    e.preventDefault();
+    const nombres_raw = rawInput
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => s.length > 0);
+    if (nombres_raw.length === 0) {
+      setError('Escribe al menos un nombre tal como aparece en el Sheet.');
+      inputRef.current?.focus();
+      return;
+    }
+    setError(null);
+    void create.mutateAsync({
+      nombres_raw,
+      nombre_completo: nombreCompleto.trim() || null,
+      especialidad,
+    }).then(onClose);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal modal--sm" role="dialog" aria-modal="true">
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">Nuevo profesional</div>
+            <div className="modal-subtitle">El profesional estará disponible en la próxima sincronización.</div>
+          </div>
+          <button className="prof-name-edit" onClick={onClose} aria-label="Cerrar" style={{ marginLeft: 'auto', opacity: 1 }}>
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label className="prof-modal-label" htmlFor="pm-raw">
+                Nombre en el Sheet <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="pm-raw"
+                ref={inputRef}
+                className="prof-modal-input"
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+                placeholder="Ej: DR GARCIA, DR. GARCIA LOPEZ"
+                autoFocus
+              />
+              <p className="prof-modal-hint">
+                Escribe el nombre exactamente como aparece en el Sheet. Si tiene variantes, sepáralas con coma.
+              </p>
+              {error && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: 4 }}>{error}</p>}
+            </div>
+
+            <div>
+              <label className="prof-modal-label" htmlFor="pm-nombre">
+                Nombre completo (para reportes)
+              </label>
+              <input
+                id="pm-nombre"
+                className="prof-modal-input"
+                value={nombreCompleto}
+                onChange={(e) => setNombreCompleto(e.target.value)}
+                placeholder="Ej: Dr. Juan García López"
+              />
+            </div>
+
+            <div>
+              <label className="prof-modal-label" htmlFor="pm-esp">
+                Especialidad
+              </label>
+              <select
+                id="pm-esp"
+                className="prof-esp-select"
+                value={especialidad ?? ''}
+                onChange={(e) => setEspecialidad((e.target.value || null) as Especialidad)}
+                style={{ width: '100%', borderColor: '#e2e8f0', color: '#334155' }}
+              >
+                <option value="">— sin asignar —</option>
+                <option value="NEUROLOGIA">Neurología</option>
+                <option value="FISIATRIA">Fisiatría</option>
+                <option value="OTRO">Otra especialidad</option>
+              </select>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={create.isPending}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn--primary" disabled={create.isPending}>
+              {create.isPending ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
+              Crear profesional
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function TabProfesionales(): React.ReactElement {
   const { data, isLoading, isError } = useProfesionales();
   const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -144,6 +251,8 @@ export default function TabProfesionales(): React.ReactElement {
 
   return (
     <div>
+      {showModal && <NuevoProfesionalModal onClose={() => setShowModal(false)} />}
+
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
         <span>
@@ -152,17 +261,23 @@ export default function TabProfesionales(): React.ReactElement {
         </span>
       </div>
 
-      <p className="entidades-stats" style={{ marginTop: '8px' }}>
-        {data.length} profesionales
-        {' · '}
-        <strong style={{ color: '#16a34a' }}>{tagged}</strong> etiquetados
-        {' · '}
-        {byEsp.map(({ key, label, count }) => count > 0 && (
-          <span key={key} style={{ marginRight: 8 }}>
-            <strong style={{ color: ESP_COLORS[key] }}>{count}</strong> {label}
-          </span>
-        ))}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+        <p className="entidades-stats" style={{ margin: 0 }}>
+          {data.length} profesionales
+          {' · '}
+          <strong style={{ color: '#16a34a' }}>{tagged}</strong> etiquetados
+          {' · '}
+          {byEsp.map(({ key, label, count }) => count > 0 && (
+            <span key={key} style={{ marginRight: 8 }}>
+              <strong style={{ color: ESP_COLORS[key] }}>{count}</strong> {label}
+            </span>
+          ))}
+        </p>
+        <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>
+          <Plus size={14} />
+          Nuevo profesional
+        </button>
+      </div>
 
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">

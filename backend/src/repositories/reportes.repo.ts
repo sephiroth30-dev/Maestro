@@ -517,6 +517,20 @@ export async function listProfesionales(): Promise<ProfesionalRow[]> {
   }));
 }
 
+export async function createProfesional(
+  nombre: string,
+  nombreCompleto: string | null,
+  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null,
+  nombresRaw: string[],
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await pool.execute<ResultSetHeader>(
+    'INSERT INTO profesionales (id, nombre, nombre_completo, nombres_raw, es_nomina, especialidad, activo) VALUES (?, ?, ?, ?, 0, ?, 1)',
+    [id, nombre, nombreCompleto ?? null, JSON.stringify(nombresRaw), especialidad ?? null]
+  );
+  return { id };
+}
+
 export async function patchProfesional(
   id: string,
   fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null; nombre_completo?: string | null }

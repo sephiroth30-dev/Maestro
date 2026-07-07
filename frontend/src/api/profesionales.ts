@@ -34,3 +34,14 @@ export function useUpdateProfesional() {
     },
   });
 }
+
+export function useCreateProfesional() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { nombres_raw: string[]; nombre_completo?: string | null; especialidad?: Especialidad }) =>
+      apiClient.post<{ id: string }>('/profesionales', data).then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['profesionales-catalog'] });
+    },
+  });
+}
