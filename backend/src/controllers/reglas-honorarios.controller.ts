@@ -3,7 +3,7 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import {
   findAllReglas, upsertRegla, deleteRegla,
-  findAllReglasEspeciales, updateReglaEspecial,
+  findAllReglasEspeciales, updateReglaEspecial, duplicarReglas,
 } from '../repositories/reglas-honorarios.repo.js';
 
 type PutBody = {
@@ -56,6 +56,24 @@ export async function registerReglasHonorariosRoutes(fastify: FastifyInstance): 
     async (request, reply: FastifyReply) => {
       await deleteRegla(request.params.id);
       return reply.status(204).send();
+    }
+  );
+
+  // POST /api/reglas-honorarios/duplicar — copia las reglas de un profesional a otro
+  fastify.post<{ Body: { from: string; to: string } }>(
+    '/api/reglas-honorarios/duplicar',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (request, reply: FastifyReply) => {
+      const { from, to } = request.body;
+      if (!from || !to) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'from y to son requeridos', statusCode: 400 });
+      }
+      if (from === to) {
+        return reply.status(400).send({ error: 'Bad Request', message: 'from y to deben ser diferentes', statusCode: 400 });
+      }
+      const result = await duplicarReglas(from, to);
+      const reglas = await findAllReglas();
+      return reply.send({ ...result, reglas });
     }
   );
 

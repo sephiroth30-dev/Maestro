@@ -71,3 +71,12 @@ export function useUpdateReglaEspecial() {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: QUERY_KEY }); },
   });
 }
+
+export function useDuplicarReglas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { from: string; to: string }) =>
+      api.post<{ copiadas: number }>('/reglas-honorarios/duplicar', payload).then((r) => r.data),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: QUERY_KEY }); },
+  });
+}

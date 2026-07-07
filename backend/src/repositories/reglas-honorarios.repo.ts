@@ -121,3 +121,31 @@ export async function updateReglaEspecial(
     [valor, descripcion, id]
   );
 }
+
+export async function duplicarReglas(
+  from: string,
+  to: string,
+): Promise<{ copiadas: number }> {
+  const [rows] = await pool.query<(RowDataPacket & { categoria: string; tipo: string; valor_entidad: string; valor_particular: string; notas: string | null })[]>(
+    'SELECT categoria, tipo, valor_entidad, valor_particular, notas FROM reglas_honorarios WHERE profesional_nombre = ? AND activo = 1',
+    [from]
+  );
+
+  for (const row of rows) {
+    await pool.execute(
+      `INSERT INTO reglas_honorarios
+         (id, profesional_nombre, categoria, tipo, valor_entidad, valor_particular, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         tipo = VALUES(tipo),
+         valor_entidad = VALUES(valor_entidad),
+         valor_particular = VALUES(valor_particular),
+         notas = VALUES(notas),
+         activo = 1,
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [randomUUID(), to, row.categoria, row.tipo, Number(row.valor_entidad), Number(row.valor_particular), row.notas ?? null]
+    );
+  }
+
+  return { copiadas: rows.length };
+}
