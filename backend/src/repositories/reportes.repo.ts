@@ -544,6 +544,75 @@ export async function patchProfesional(
   await pool.execute<ResultSetHeader>(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals as (string | null)[]);
 }
 
+// ─── Diagnostic: unmatched professional names (SIN PROFESIONAL) ──────────────
+
+export interface SinProfesionalRow {
+  nombre_raw: string;
+  cnt: number;
+  total: number;
+}
+
+export async function getSinProfesionalDiagnostico(): Promise<SinProfesionalRow[]> {
+  const [rows] = await pool.query<(RowDataPacket & { nombre_raw: string; cnt: string; total: string })[]>(
+    `SELECT
+      profesional_nombre_raw AS nombre_raw,
+      COUNT(*) AS cnt,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    WHERE profesional_id IS NULL
+      AND profesional_nombre_raw IS NOT NULL
+      AND profesional_nombre_raw != ''
+    GROUP BY profesional_nombre_raw
+    ORDER BY cnt DESC`
+  );
+  return rows.map((r) => ({
+    nombre_raw: r.nombre_raw,
+    cnt: Number(r.cnt),
+    total: Number(r.total),
+  }));
+}
+
+export async function reclasificarProfesionales(): Promise<{ updated: number; sin_profesional: number }> {
+  const [profRows] = await pool.query<RowDataPacket[]>(
+    'SELECT id, nombres_raw FROM profesionales WHERE activo = 1'
+  );
+
+  const nameMap = new Map<string, string>();
+  for (const row of profRows) {
+    let names: string[] = [];
+    try { names = JSON.parse(row['nombres_raw'] as string) as string[]; } catch { /* skip */ }
+    for (const n of names) {
+      const key = (n as string).trim().toUpperCase();
+      if (key) nameMap.set(key, row['id'] as string);
+    }
+  }
+
+  const [rawRows] = await pool.query<RowDataPacket[]>(
+    'SELECT DISTINCT profesional_nombre_raw FROM atenciones WHERE profesional_nombre_raw IS NOT NULL AND profesional_nombre_raw != \'\''
+  );
+
+  let updated = 0;
+  for (const row of rawRows) {
+    const raw = row['profesional_nombre_raw'] as string;
+    const profId = nameMap.get(raw.trim().toUpperCase());
+    if (profId) {
+      const [res] = await pool.execute<ResultSetHeader>(
+        'UPDATE atenciones SET profesional_id = ? WHERE profesional_nombre_raw = ? AND (profesional_id IS NULL OR profesional_id != ?)',
+        [profId, raw, profId]
+      );
+      updated += res.affectedRows;
+    }
+  }
+
+  const [sinRows] = await pool.query<RowDataPacket[]>(
+    'SELECT COUNT(*) AS cnt FROM atenciones WHERE profesional_id IS NULL AND profesional_nombre_raw IS NOT NULL AND profesional_nombre_raw != \'\''
+  );
+  return {
+    updated,
+    sin_profesional: Number((sinRows[0] ?? {})['cnt'] ?? 0),
+  };
+}
+
 // ─── Diagnostic: unmatched entity names (SIN ENTIDAD) ────────────────────────
 
 export interface SinEntidadRow {

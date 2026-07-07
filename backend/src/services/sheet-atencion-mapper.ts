@@ -342,6 +342,7 @@ export async function mapRowsToAtenciones(
     entidadId: string | null;
     entidadNombreRaw: string;
     profesionalId: string | null;
+    profesionalNombreRaw: string;
     servicioId: string | null;
     pacienteNombre: string | null;
     pacienteDocumento: string | null;
@@ -411,8 +412,9 @@ export async function mapRowsToAtenciones(
         esTelemetria:       rawDescripcion.toUpperCase().includes('TELEMETRIA'),
         hashFila:           hash,
         entidadId,
-        entidadNombreRaw:   rawEntidad,
+        entidadNombreRaw:      rawEntidad,
         profesionalId,
+        profesionalNombreRaw:  rawProfesional,
         servicioId,
         pacienteNombre:     rawPaciente  || null,
         pacienteDocumento:  rawDocumento || null,
@@ -453,6 +455,7 @@ export async function mapRowsToAtenciones(
       item.hashFila,
       item.entidadId,
       item.profesionalId,
+      item.profesionalNombreRaw || null,
       item.servicioId,
       item.conectorId,
       item.entidadNombreRaw || null,
@@ -471,7 +474,7 @@ export async function mapRowsToAtenciones(
         await conn.beginTransaction();
         await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
         const [res] = await conn.query<ResultSetHeader>(
-          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?',
+          'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, profesional_nombre_raw, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?',
           [values]
         );
         await conn.commit();

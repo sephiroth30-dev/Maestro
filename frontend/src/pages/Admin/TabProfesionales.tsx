@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Loader2, AlertCircle, Info, Check, Pencil, Plus, X } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
-import { useProfesionales, useUpdateProfesional, useCreateProfesional } from '../../api/profesionales.js';
-import type { ProfesionalRow, Especialidad } from '../../api/profesionales.js';
+import { useProfesionales, useUpdateProfesional, useCreateProfesional, useSinProfesional, useReclasificarProfesionales } from '../../api/profesionales.js';
+import type { ProfesionalRow, Especialidad, SinProfesionalRow } from '../../api/profesionales.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 
@@ -99,10 +99,67 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
   );
 }
 
-function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.ReactElement {
+function SinProfesionalSection({ onCreateFromRaw }: { onCreateFromRaw: (raw: string) => void }): React.ReactElement | null {
+  const { data: sinData, isLoading } = useSinProfesional();
+  const reclasificar = useReclasificarProfesionales();
+  const [lastResult, setLastResult] = React.useState<{ updated: number; sin_profesional: number } | null>(null);
+
+  if (isLoading || !sinData || sinData.length === 0) return null;
+
+  function doReclasificar(): void {
+    void reclasificar.mutateAsync().then((r) => setLastResult(r));
+  }
+
+  return (
+    <div className="sin-prof-section">
+      <div className="sin-prof-header">
+        <AlertCircle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+        <span className="sin-prof-title">
+          {sinData.length} nombre{sinData.length !== 1 ? 's' : ''} sin profesional asignado
+        </span>
+        <button
+          className="btn btn--ghost btn--xs"
+          onClick={doReclasificar}
+          disabled={reclasificar.isPending}
+          style={{ marginLeft: 'auto' }}
+        >
+          {reclasificar.isPending ? <Loader2 size={11} className="spin" /> : null}
+          Reclasificar
+        </button>
+      </div>
+      <div className="sin-prof-list">
+        {sinData.map((row: SinProfesionalRow) => (
+          <div key={row.nombre_raw} className="sin-prof-row">
+            <span className="sin-prof-name">{row.nombre_raw}</span>
+            <span className="sin-prof-cnt">{fmtNum(row.cnt)} registros</span>
+            <button
+              className="btn btn--ghost btn--xs"
+              style={{ marginLeft: 8, padding: '2px 8px' }}
+              onClick={() => onCreateFromRaw(row.nombre_raw)}
+            >
+              <Plus size={11} /> Crear
+            </button>
+          </div>
+        ))}
+      </div>
+      {lastResult !== null && (
+        <p className="sin-prof-result">
+          {lastResult.updated > 0
+            ? `✓ ${fmtNum(lastResult.updated)} registros reclasificados. Quedan ${fmtNum(lastResult.sin_profesional)} sin asignar.`
+            : lastResult.sin_profesional === 0
+              ? '✓ Todos los registros están asignados.'
+              : 'No se encontraron coincidencias. Crea el profesional con el nombre exacto del Sheet.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => void; initialRaw?: string }): React.ReactElement {
   const create = useCreateProfesional();
+  const reclasificar = useReclasificarProfesionales();
   const [nombreCompleto, setNombreCompleto] = useState('');
-  const [rawInput, setRawInput] = useState('');
+  const [rawInput, setRawInput] = useState(initialRaw);
   const [especialidad, setEspecialidad] = useState<Especialidad>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -123,7 +180,7 @@ function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.Reac
       nombres_raw,
       nombre_completo: nombreCompleto.trim() || null,
       especialidad,
-    }).then(onClose);
+    }).then(() => reclasificar.mutateAsync()).then(onClose);
   }
 
   return (
@@ -132,7 +189,7 @@ function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.Reac
         <div className="modal-header">
           <div>
             <div className="modal-title">Nuevo profesional</div>
-            <div className="modal-subtitle">El profesional estará disponible en la próxima sincronización.</div>
+            <div className="modal-subtitle">Los registros existentes serán reclasificados automáticamente.</div>
           </div>
           <button className="prof-name-edit" onClick={onClose} aria-label="Cerrar" style={{ marginLeft: 'auto', opacity: 1 }}>
             <X size={16} />
@@ -191,10 +248,10 @@ function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.Reac
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={create.isPending}>
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={create.isPending || reclasificar.isPending}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn--primary" disabled={create.isPending}>
+            <button type="submit" className="btn btn--primary" disabled={create.isPending || reclasificar.isPending}>
               {create.isPending ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
               Crear profesional
             </button>
@@ -208,7 +265,7 @@ function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.Reac
 export default function TabProfesionales(): React.ReactElement {
   const { data, isLoading, isError } = useProfesionales();
   const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const [modalRaw, setModalRaw] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -251,7 +308,7 @@ export default function TabProfesionales(): React.ReactElement {
 
   return (
     <div>
-      {showModal && <NuevoProfesionalModal onClose={() => setShowModal(false)} />}
+      {modalRaw !== null && <NuevoProfesionalModal initialRaw={modalRaw} onClose={() => setModalRaw(null)} />}
 
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
@@ -260,6 +317,8 @@ export default function TabProfesionales(): React.ReactElement {
           También asigna la especialidad para que las consultas genéricas se clasifiquen correctamente.
         </span>
       </div>
+
+      <SinProfesionalSection onCreateFromRaw={(raw) => setModalRaw(raw)} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
         <p className="entidades-stats" style={{ margin: 0 }}>
@@ -273,7 +332,7 @@ export default function TabProfesionales(): React.ReactElement {
             </span>
           ))}
         </p>
-        <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>
+        <button className="btn btn--primary btn--sm" onClick={() => setModalRaw('')}>
           <Plus size={14} />
           Nuevo profesional
         </button>

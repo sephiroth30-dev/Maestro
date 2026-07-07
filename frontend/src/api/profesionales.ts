@@ -45,3 +45,32 @@ export function useCreateProfesional() {
     },
   });
 }
+
+export interface SinProfesionalRow {
+  nombre_raw: string;
+  cnt: number;
+  total: number;
+}
+
+export function useSinProfesional() {
+  return useQuery<SinProfesionalRow[]>({
+    queryKey: ['sin-profesional'],
+    queryFn: async () => {
+      const res = await apiClient.get<SinProfesionalRow[]>('/diagnostico/sin-profesional');
+      return res.data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useReclasificarProfesionales() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<{ updated: number; sin_profesional: number }>('/admin/reclasificar-profesionales').then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['sin-profesional'] });
+      void qc.invalidateQueries({ queryKey: ['profesionales-catalog'] });
+    },
+  });
+}

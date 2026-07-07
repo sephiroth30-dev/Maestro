@@ -353,6 +353,26 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  // GET /api/diagnostico/sin-profesional (ADMIN — unmatched professional names)
+  fastify.get(
+    '/api/diagnostico/sin-profesional',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const rows = await repo.getSinProfesionalDiagnostico();
+      return reply.send(rows);
+    }
+  );
+
+  // POST /api/admin/reclasificar-profesionales (ADMIN — reassign profesional_id from nombres_raw)
+  fastify.post(
+    '/api/admin/reclasificar-profesionales',
+    { preHandler: [requireAuth, requireRole('ADMIN')] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const result = await repo.reclasificarProfesionales();
+      return reply.send(result);
+    }
+  );
+
   // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
   fastify.patch(
     '/api/profesionales/:id',
