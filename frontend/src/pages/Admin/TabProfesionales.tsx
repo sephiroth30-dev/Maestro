@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Loader2, AlertCircle, Info, Check, Pencil, Plus, X } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Check, Pencil, Plus, X, CheckCircle2 } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
-import { useProfesionales, useUpdateProfesional, useCreateProfesional, useSinProfesional, useReclasificarProfesionales } from '../../api/profesionales.js';
+import {
+  useProfesionales, useUpdateProfesional, useCreateProfesional,
+  useSinProfesional, useReclasificarProfesionales,
+} from '../../api/profesionales.js';
 import type { ProfesionalRow, Especialidad, SinProfesionalRow } from '../../api/profesionales.js';
 
 const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
@@ -11,12 +14,13 @@ const ESP_LABELS: Record<string, string> = {
   FISIATRIA:  'Fisiatría',
   OTRO:       'Otra',
 };
-
 const ESP_COLORS: Record<string, string> = {
   NEUROLOGIA: '#3b82f6',
   FISIATRIA:  '#8b5cf6',
   OTRO:       '#64748b',
 };
+
+// ─── Professional table row ───────────────────────────────────────────────────
 
 function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
   const update = useUpdateProfesional();
@@ -24,8 +28,7 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
   const [nameVal, setNameVal] = useState(p.nombre_completo ?? '');
 
   function setEsp(val: string): void {
-    const esp: Especialidad = val === '' ? null : (val as Especialidad);
-    void update.mutateAsync({ id: p.id, especialidad: esp });
+    void update.mutateAsync({ id: p.id, especialidad: val === '' ? null : (val as Especialidad) });
   }
 
   function saveName(): void {
@@ -59,13 +62,16 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
             <div>
               {p.nombre_completo
                 ? <span style={{ fontWeight: 600 }}>{p.nombre_completo}</span>
-                : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{p.nombre}</span>
-              }
+                : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{p.nombre}</span>}
               {p.nombre_completo && (
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>{p.nombre}</div>
               )}
             </div>
-            <button className="prof-name-edit" onClick={() => { setNameVal(p.nombre_completo ?? ''); setEditingName(true); }} title="Editar nombre">
+            <button
+              className="prof-name-edit"
+              onClick={() => { setNameVal(p.nombre_completo ?? ''); setEditingName(true); }}
+              title="Editar nombre"
+            >
               <Pencil size={11} />
             </button>
           </div>
@@ -73,9 +79,7 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
       </td>
       <td className="tabla-entidades-td">
         <div className="svc-kws-list">
-          {p.nombres_raw.map((n) => (
-            <span key={n} className="svc-kw-tag">{n}</span>
-          ))}
+          {p.nombres_raw.map((n) => <span key={n} className="svc-kw-tag">{n}</span>)}
         </div>
       </td>
       <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
@@ -99,69 +103,116 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
   );
 }
 
-function SinProfesionalSection({ onCreateFromRaw }: { onCreateFromRaw: (raw: string) => void }): React.ReactElement | null {
-  const { data: sinData, isLoading } = useSinProfesional();
+// ─── Sin Profesional — individual row with direct create ──────────────────────
+
+function SinProfRow({ row, onDone }: { row: SinProfesionalRow; onDone: () => void }): React.ReactElement {
+  const create = useCreateProfesional();
   const reclasificar = useReclasificarProfesionales();
-  const [lastResult, setLastResult] = React.useState<{ updated: number; sin_profesional: number } | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [errMsg, setErrMsg] = useState('');
+
+  function handleCreate(): void {
+    setStatus('loading');
+    void create.mutateAsync({
+      nombres_raw: [row.nombre_raw],
+      nombre_completo: null,
+      especialidad: null,
+    })
+      .then(() => reclasificar.mutateAsync())
+      .then(() => { setStatus('done'); setTimeout(onDone, 1500); })
+      .catch((e: unknown) => {
+        setErrMsg(e instanceof Error ? e.message : 'Error al crear');
+        setStatus('error');
+      });
+  }
+
+  if (status === 'done') {
+    return (
+      <div className="sin-prof-row sin-prof-row--done">
+        <CheckCircle2 size={13} style={{ color: '#16a34a', flexShrink: 0 }} />
+        <span className="sin-prof-name">{row.nombre_raw}</span>
+        <span style={{ color: '#16a34a', fontSize: 11, marginLeft: 'auto' }}>Creado y reclasificado</span>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="sin-prof-row sin-prof-row--error">
+        <AlertCircle size={13} style={{ color: '#ef4444', flexShrink: 0 }} />
+        <span className="sin-prof-name">{row.nombre_raw}</span>
+        <span style={{ color: '#ef4444', fontSize: 11 }}>{errMsg}</span>
+        <button className="btn btn--ghost btn--xs" style={{ marginLeft: 'auto' }} onClick={() => setStatus('idle')}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sin-prof-row">
+      <span className="sin-prof-name">{row.nombre_raw}</span>
+      <span className="sin-prof-cnt">{fmtNum(row.cnt)} registros</span>
+      <button
+        className="btn btn--primary btn--xs"
+        style={{ marginLeft: 'auto' }}
+        onClick={handleCreate}
+        disabled={status === 'loading'}
+      >
+        {status === 'loading' ? <Loader2 size={11} className="spin" /> : <Plus size={11} />}
+        {status === 'loading' ? 'Creando…' : 'Crear y asignar'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Sin Profesional section ──────────────────────────────────────────────────
+
+function SinProfesionalSection({ onOpenModal }: { onOpenModal: () => void }): React.ReactElement | null {
+  const { data: sinData, isLoading, refetch } = useSinProfesional();
 
   if (isLoading || !sinData || sinData.length === 0) return null;
-
-  function doReclasificar(): void {
-    void reclasificar.mutateAsync().then((r) => setLastResult(r));
-  }
 
   return (
     <div className="sin-prof-section">
       <div className="sin-prof-header">
         <AlertCircle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
         <span className="sin-prof-title">
-          {sinData.length} nombre{sinData.length !== 1 ? 's' : ''} sin profesional asignado
+          {sinData.length} nombre{sinData.length !== 1 ? 's' : ''} sin profesional asignado en los registros
         </span>
-        <button
-          className="btn btn--ghost btn--xs"
-          onClick={doReclasificar}
-          disabled={reclasificar.isPending}
-          style={{ marginLeft: 'auto' }}
-        >
-          {reclasificar.isPending ? <Loader2 size={11} className="spin" /> : null}
-          Reclasificar
-        </button>
       </div>
       <div className="sin-prof-list">
-        {sinData.map((row: SinProfesionalRow) => (
-          <div key={row.nombre_raw} className="sin-prof-row">
-            <span className="sin-prof-name">{row.nombre_raw}</span>
-            <span className="sin-prof-cnt">{fmtNum(row.cnt)} registros</span>
-            <button
-              className="btn btn--ghost btn--xs"
-              style={{ marginLeft: 8, padding: '2px 8px' }}
-              onClick={() => onCreateFromRaw(row.nombre_raw)}
-            >
-              <Plus size={11} /> Crear
-            </button>
-          </div>
+        {sinData.map((row) => (
+          <SinProfRow
+            key={row.nombre_raw}
+            row={row}
+            onDone={() => void refetch()}
+          />
         ))}
       </div>
-      {lastResult !== null && (
-        <p className="sin-prof-result">
-          {lastResult.updated > 0
-            ? `✓ ${fmtNum(lastResult.updated)} registros reclasificados. Quedan ${fmtNum(lastResult.sin_profesional)} sin asignar.`
-            : lastResult.sin_profesional === 0
-              ? '✓ Todos los registros están asignados.'
-              : 'No se encontraron coincidencias. Crea el profesional con el nombre exacto del Sheet.'}
-        </p>
-      )}
+      <div className="sin-prof-footer">
+        <span style={{ fontSize: 11, color: '#92400e' }}>
+          "Crear y asignar" crea el profesional y reclasifica sus registros existentes de inmediato.
+          Luego puedes editar el nombre completo y especialidad en la tabla.
+        </span>
+        <button className="btn btn--ghost btn--xs" onClick={onOpenModal}>
+          Agregar manualmente
+        </button>
+      </div>
     </div>
   );
 }
 
-function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => void; initialRaw?: string }): React.ReactElement {
+// ─── Nuevo Profesional modal ──────────────────────────────────────────────────
+
+function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.ReactElement {
   const create = useCreateProfesional();
   const reclasificar = useReclasificarProfesionales();
   const [nombreCompleto, setNombreCompleto] = useState('');
-  const [rawInput, setRawInput] = useState(initialRaw);
+  const [rawInput, setRawInput] = useState('');
   const [especialidad, setEspecialidad] = useState<Especialidad>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleSubmit(e: React.FormEvent): void {
@@ -176,11 +227,18 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
       return;
     }
     setError(null);
+    setSaving(true);
     void create.mutateAsync({
       nombres_raw,
       nombre_completo: nombreCompleto.trim() || null,
       especialidad,
-    }).then(() => reclasificar.mutateAsync()).then(onClose);
+    })
+      .then(() => reclasificar.mutateAsync())
+      .then(onClose)
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : 'Error al guardar. Intenta de nuevo.');
+        setSaving(false);
+      });
   }
 
   return (
@@ -189,7 +247,7 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
         <div className="modal-header">
           <div>
             <div className="modal-title">Nuevo profesional</div>
-            <div className="modal-subtitle">Los registros existentes serán reclasificados automáticamente.</div>
+            <div className="modal-subtitle">Los registros existentes se reclasificarán automáticamente.</div>
           </div>
           <button className="prof-name-edit" onClick={onClose} aria-label="Cerrar" style={{ marginLeft: 'auto', opacity: 1 }}>
             <X size={16} />
@@ -197,6 +255,11 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 12px', color: '#dc2626', fontSize: 12 }}>
+                <AlertCircle size={13} style={{ flexShrink: 0 }} /> {error}
+              </div>
+            )}
             <div>
               <label className="prof-modal-label" htmlFor="pm-raw">
                 Nombre en el Sheet <span style={{ color: '#ef4444' }}>*</span>
@@ -211,11 +274,9 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
                 autoFocus
               />
               <p className="prof-modal-hint">
-                Escribe el nombre exactamente como aparece en el Sheet. Si tiene variantes, sepáralas con coma.
+                Nombre exacto del Sheet. Variantes separadas por coma.
               </p>
-              {error && <p style={{ color: '#ef4444', fontSize: '12px', marginTop: 4 }}>{error}</p>}
             </div>
-
             <div>
               <label className="prof-modal-label" htmlFor="pm-nombre">
                 Nombre completo (para reportes)
@@ -228,11 +289,8 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
                 placeholder="Ej: Dr. Juan García López"
               />
             </div>
-
             <div>
-              <label className="prof-modal-label" htmlFor="pm-esp">
-                Especialidad
-              </label>
+              <label className="prof-modal-label" htmlFor="pm-esp">Especialidad</label>
               <select
                 id="pm-esp"
                 className="prof-esp-select"
@@ -248,12 +306,12 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={create.isPending || reclasificar.isPending}>
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={saving}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn--primary" disabled={create.isPending || reclasificar.isPending}>
-              {create.isPending ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
-              Crear profesional
+            <button type="submit" className="btn btn--primary" disabled={saving}>
+              {saving ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
+              {saving ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -262,10 +320,12 @@ function NuevoProfesionalModal({ onClose, initialRaw = '' }: { onClose: () => vo
   );
 }
 
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function TabProfesionales(): React.ReactElement {
   const { data, isLoading, isError } = useProfesionales();
   const [search, setSearch] = useState('');
-  const [modalRaw, setModalRaw] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -295,8 +355,7 @@ export default function TabProfesionales(): React.ReactElement {
   if (isError || !data) {
     return (
       <div className="reportes-error">
-        <AlertCircle size={16} />
-        Error al cargar el catálogo de profesionales.
+        <AlertCircle size={16} /> Error al cargar el catálogo de profesionales.
       </div>
     );
   }
@@ -308,23 +367,26 @@ export default function TabProfesionales(): React.ReactElement {
 
   return (
     <div>
-      {modalRaw !== null && <NuevoProfesionalModal initialRaw={modalRaw} onClose={() => setModalRaw(null)} />}
+      {showModal && <NuevoProfesionalModal onClose={() => setShowModal(false)} />}
 
+      {/* ── Banner ────────────────────────────────────────────────────────── */}
       <div className="entidades-config-banner">
         <Info size={14} style={{ flexShrink: 0 }} />
         <span>
-          Registra el nombre completo de cada profesional para los reportes de honorarios.
-          También asigna la especialidad para que las consultas genéricas se clasifiquen correctamente.
+          Registra el nombre completo de cada profesional para los reportes.
+          Asigna la especialidad para que las consultas genéricas se clasifiquen correctamente.
         </span>
       </div>
 
-      <SinProfesionalSection onCreateFromRaw={(raw) => setModalRaw(raw)} />
+      {/* ── Unmatched names alert ─────────────────────────────────────────── */}
+      <SinProfesionalSection onOpenModal={() => setShowModal(true)} />
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+      {/* ── Stats + action ───────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0 8px' }}>
         <p className="entidades-stats" style={{ margin: 0 }}>
           {data.length} profesionales
           {' · '}
-          <strong style={{ color: '#16a34a' }}>{tagged}</strong> etiquetados
+          <strong style={{ color: '#16a34a' }}>{tagged}</strong> con especialidad
           {' · '}
           {byEsp.map(({ key, label, count }) => count > 0 && (
             <span key={key} style={{ marginRight: 8 }}>
@@ -332,12 +394,12 @@ export default function TabProfesionales(): React.ReactElement {
             </span>
           ))}
         </p>
-        <button className="btn btn--primary btn--sm" onClick={() => setModalRaw('')}>
-          <Plus size={14} />
-          Nuevo profesional
+        <button className="btn btn--primary btn--sm" onClick={() => setShowModal(true)}>
+          <Plus size={14} /> Nuevo profesional
         </button>
       </div>
 
+      {/* ── Table ────────────────────────────────────────────────────────── */}
       <div className="tabla-entidades-wrapper">
         <table className="tabla-entidades-table">
           <thead>

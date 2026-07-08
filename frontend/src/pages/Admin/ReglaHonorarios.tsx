@@ -445,95 +445,110 @@ export default function ReglaHonorarios(): React.ReactElement {
       </div>
 
       {/* ── Matriz principal ─────────────────────────────────────────────── */}
-      <div className="card" style={{ overflowX: 'auto', marginBottom: 24 }}>
-        <div className="card-header">
-          <h2 className="card-title">Matriz de tarifas</h2>
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <h2 className="card-title">Matriz de tarifas</h2>
+            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+              Clic en una celda para agregar o editar · <span style={{ color: '#1d4ed8' }}>■</span> Fijo COP · <span style={{ color: '#15803d' }}>■</span> Porcentaje
+            </p>
+          </div>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              className="btn btn--primary btn--sm"
+              onClick={() => setShowAddPicker((v) => !v)}
+              disabled={addCandidates.length === 0}
+            >
+              <Plus size={13} />
+              Agregar profesional
+            </button>
+            {showAddPicker && (
+              <AddProfPicker
+                candidates={addCandidates}
+                onAdd={(nombre) => setExtraProfs((prev) => [...new Set([...prev, nombre])])}
+                onClose={() => setShowAddPicker(false)}
+              />
+            )}
+          </div>
         </div>
-        <table className="data-table rh-matrix" style={{ minWidth: 900, fontSize: 12 }}>
-          <thead>
-            <tr>
-              <th className="rh-prof-col">Profesional</th>
-              {CATEGORIAS.map((c) => (
-                <th key={c.key} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{c.label}</th>
-              ))}
-              <th style={{ width: 40 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {profList.map((prof) => {
-              const ruleCount = CATEGORIAS.filter((c) => reglaMap.has(`${prof}::${c.key}`)).length;
-              return (
-                <tr key={prof} className="rh-prof-row">
-                  <td className="rh-prof-col rh-prof-name">
-                    <div className="rh-prof-name-inner">
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b' }}>{profLabel(prof)}</div>
-                        {profLabel(prof) !== prof && (
-                          <div style={{ fontSize: 10, color: '#94a3b8' }}>{prof}</div>
-                        )}
-                      </div>
-                      <span className="rh-rule-count">{ruleCount}/{CATEGORIAS.length}</span>
-                    </div>
-                  </td>
-                  {CATEGORIAS.map((c) => {
-                    const regla = reglaMap.get(`${prof}::${c.key}`);
-                    return (
-                      <td
-                        key={c.key}
-                        className="rh-cell"
-                        title={regla ? 'Clic para editar' : 'Sin regla — clic para agregar'}
-                        onClick={() => setEditCell({ prof, cat: c.key, catLabel: c.label })}
-                      >
-                        {regla ? (
-                          <span className={`rh-badge rh-badge--${regla.tipo}`}>
-                            {fmtCell(regla)}
-                          </span>
-                        ) : (
-                          <span className="rh-empty">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td style={{ textAlign: 'center', padding: '4px 6px' }}>
-                    <button
-                      className="rh-dup-btn"
-                      title={`Duplicar reglas de ${profLabel(prof)}`}
-                      onClick={() => setDuplicarFrom(prof)}
-                      disabled={ruleCount === 0}
-                    >
-                      <Copy size={12} />
-                    </button>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table rh-matrix" style={{ minWidth: 900, fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th className="rh-prof-col">Profesional</th>
+                {CATEGORIAS.map((c) => (
+                  <th key={c.key} style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{c.label}</th>
+                ))}
+                <th style={{ width: 36 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {profList.length === 0 ? (
+                <tr>
+                  <td colSpan={CATEGORIAS.length + 2} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px', fontSize: 13 }}>
+                    Ningún profesional configurado. Usa "Agregar profesional" para comenzar.
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Add professional row */}
-        <div className="rh-add-row" style={{ position: 'relative' }}>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => setShowAddPicker((v) => !v)}
-            disabled={addCandidates.length === 0}
-          >
-            <Plus size={13} />
-            Agregar profesional
-            <ChevronDown size={12} style={{ opacity: 0.6 }} />
-          </button>
-          {showAddPicker && (
-            <AddProfPicker
-              candidates={addCandidates}
-              onAdd={(nombre) => setExtraProfs((prev) => [...new Set([...prev, nombre])])}
-              onClose={() => setShowAddPicker(false)}
-            />
-          )}
-          {addCandidates.length === 0 && catalog && catalog.length > 0 && (
-            <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>
-              Todos los profesionales del catálogo ya están en la matriz.
-            </span>
-          )}
+              ) : profList.map((prof) => {
+                const ruleCount = CATEGORIAS.filter((c) => reglaMap.has(`${prof}::${c.key}`)).length;
+                return (
+                  <tr key={prof} className="rh-prof-row">
+                    <td className="rh-prof-col rh-prof-name">
+                      <div className="rh-prof-name-inner">
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 12, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {profLabel(prof)}
+                          </div>
+                          {profLabel(prof) !== prof && (
+                            <div style={{ fontSize: 10, color: '#94a3b8' }}>{prof}</div>
+                          )}
+                        </div>
+                        <span className={`rh-rule-count ${ruleCount === CATEGORIAS.length ? 'rh-rule-count--full' : ''}`}>
+                          {ruleCount}/{CATEGORIAS.length}
+                        </span>
+                      </div>
+                    </td>
+                    {CATEGORIAS.map((c) => {
+                      const regla = reglaMap.get(`${prof}::${c.key}`);
+                      return (
+                        <td
+                          key={c.key}
+                          className="rh-cell"
+                          title={regla ? `${profLabel(prof)} — ${c.label}: clic para editar` : `${profLabel(prof)} — ${c.label}: sin regla, clic para agregar`}
+                          onClick={() => setEditCell({ prof, cat: c.key, catLabel: c.label })}
+                        >
+                          {regla ? (
+                            <span className={`rh-badge rh-badge--${regla.tipo}`}>{fmtCell(regla)}</span>
+                          ) : (
+                            <span className="rh-empty">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', padding: '4px 4px' }}>
+                      <button
+                        className="rh-dup-btn"
+                        title={ruleCount === 0 ? 'Sin reglas para duplicar' : `Duplicar reglas de ${profLabel(prof)}`}
+                        onClick={() => setDuplicarFrom(prof)}
+                        disabled={ruleCount === 0}
+                        style={{ opacity: ruleCount > 0 ? 0.45 : 0.2 }}
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+
+        {addCandidates.length === 0 && catalog && catalog.length > 0 && profList.length > 0 && (
+          <p style={{ fontSize: 11, color: '#94a3b8', padding: '8px 16px', margin: 0, borderTop: '1px solid #f1f5f9' }}>
+            Todos los profesionales del catálogo están en la matriz.
+          </p>
+        )}
       </div>
 
       {/* ── Reglas especiales ─────────────────────────────────────────────── */}
