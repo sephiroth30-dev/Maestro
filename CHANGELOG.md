@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.0] - 2026-07-08
+
+### Added
+- **Profesional_nombre_raw**: nueva columna en la tabla `atenciones` (migración m12) que almacena el nombre literal del profesional leído desde el Google Sheet. Permite diagnosticar y corregir registros donde el profesional no pudo ser identificado sin esperar a la próxima sincronización.
+- **Panel "Sin profesional"** en Configuración > Profesionales: sección ámbar que muestra los nombres de profesionales del Sheet que no están dados de alta en el catálogo — con recuento de atenciones y valor total afectado. Cada fila tiene un botón de creación en 1 clic.
+- **Creación de nuevo profesional en 1 clic** desde el panel "Sin profesional": crea el profesional en el catálogo y reclasifica sus atenciones históricas en un solo paso. Muestra estado de carga, éxito y error inline por fila — sin modal adicional.
+- **Modal "Nuevo profesional"** disponible también desde el botón "Agregar manualmente" para flujos donde se necesita ingresar campos opcionales (nombre completo, especialidad, nombres raw adicionales).
+- **Endpoint `POST /api/profesionales`**: crea un profesional con `nombre`, `nombre_completo`, `especialidad` y `nombres_raw`. Retorna el nuevo `id`.
+- **Endpoint `GET /api/diagnostico/sin-profesional`**: devuelve los `profesional_nombre_raw` sin asignar, agrupados por nombre con conteo y valor total.
+- **Endpoint `POST /api/admin/reclasificar-profesionales`**: re-aplica los `nombres_raw` del catálogo sobre las atenciones con `profesional_id = NULL`, asignando el profesional correcto a todos los registros existentes.
+- **Lista dinámica de profesionales** en Reglas de Honorarios: la matriz ya no es una lista fija — se genera a partir de los profesionales con reglas en la base de datos más los que se agreguen manualmente en la sesión.
+- **"Agregar profesional" en el encabezado** de la tarjeta de Reglas de Honorarios: dropdown con búsqueda para añadir cualquier profesional del catálogo a la matriz de reglas. Botón siempre visible, posición prominente.
+- **Duplicar reglas entre profesionales**: botón por columna que abre un modal para seleccionar el profesional destino y copiar todas sus reglas activas de una vez. Endpoint `POST /api/reglas-honorarios/duplicar` con INSERT...ON DUPLICATE KEY UPDATE.
+- **`useDuplicarReglas()`** en el API frontend para la operación de duplicación.
+
+### Changed
+- Honorarios: el botón "Duplicar reglas" siempre visible (opacity 0.45 en reposo, completo al pasar el cursor) — antes estaba oculto hasta el hover, lo que lo hacía imposible de descubrir.
+- Honorarios: jerarquía visual mejorada — "Agregar profesional" es el botón primario en el encabezado; los controles secundarios están bien diferenciados.
+- `sheet-atencion-mapper.ts`: ahora inserta `profesional_nombre_raw` junto a `profesional_id` en cada sincronización.
+
+---
+
+## [1.6.0] - 2026-06-15
+
+### Added
+- **Gráfica "Cumplimiento Diario"** (ChartCumplimientoDiario): en modo rango de fechas, muestra barras diarias con semáforo de color (verde ≥ 100%, amarillo ≥ 80%, rojo < 80% del presupuesto diario esperado). Permite identificar de un vistazo qué días del período estuvieron por debajo de la meta.
+- **Alerta Flujo de Caja**: banner en el panel de reportes cuando el porcentaje de Particulares cae por debajo del 20% del total facturado — señal de alerta para la liquidez de la clínica.
+
+### Fixed
+- **Cache flush post-sincronización**: después de cada sync exitoso, se invalidan las claves de caché relevantes. Solucionaba que los filtros mostraran $0 en el primer render tras una sincronización reciente.
+- **Cron catch-up al reiniciar el servidor**: si el servidor estuvo caído durante más de 1 hora (ej. ventana de 18 horas en Hostinger), el cron lanza una sincronización compensatoria al arrancar, en lugar de esperar al próximo intervalo programado.
+
+---
+
 ## [1.5.6] - 2026-05-28
 
 ### Added
