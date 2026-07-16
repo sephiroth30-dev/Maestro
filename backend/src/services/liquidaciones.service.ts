@@ -37,6 +37,7 @@ export async function generarLiquidaciones(
       fecha_hasta:    fechaHasta,
       monto_total:    row.total,
       datos_snapshot: row,
+      es_simulado:    row.es_nomina,
     });
   }
 

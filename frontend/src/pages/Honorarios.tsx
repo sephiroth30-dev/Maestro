@@ -492,12 +492,15 @@ function FilaLiquidacion({
             type="checkbox"
             className="liq-checkbox"
             checked={checked}
-            disabled={liq.estado === 'PAGADO'}
+            disabled={liq.estado === 'PAGADO' || liq.es_simulado}
             onChange={() => onCheck(liq.id)}
           />
         </td>
         <td className="liq-td liq-td--nombre">
-          <div className="liq-nombre">{liq.profesional_display}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div className="liq-nombre">{liq.profesional_display}</div>
+            {liq.es_simulado && <span className="liq-badge liq-badge--sim" title="Profesional de nómina — monto calculado para análisis de rentabilidad, no se aprueba ni paga">Nómina</span>}
+          </div>
           {liq.especialidad && <div className="liq-especialidad">{liq.especialidad}</div>}
         </td>
         <td className="liq-td liq-td--periodo">
@@ -507,30 +510,38 @@ function FilaLiquidacion({
         <td className="liq-td liq-td--estado"><EstadoBadge estado={liq.estado} /></td>
         <td className="liq-td liq-td--acciones">
           <div className="liq-acciones">
-            {liq.estado === 'CALCULADO' && canAutorizar && (
-              <button type="button" className="liq-btn liq-btn--aprov" onClick={() => onAprobar(liq)} title="Aprobar">
-                <Check size={13} /> Aprobar
-              </button>
-            )}
-            {liq.estado === 'CALCULADO' && !canAutorizar && (
-              <span className="liq-badge liq-badge--calc" title="Requiere aprobación de Gerencia o Dirección" style={{ cursor: 'help' }}>
-                Pendiente aprobación
+            {liq.es_simulado ? (
+              <span className="liq-badge liq-badge--sim" title="Monto de referencia — profesional de nómina fija. Agrega reglas de honorarios en Configuración para calcular el teórico.">
+                Ref. rentabilidad
               </span>
-            )}
-            {liq.estado === 'APROBADO' && (
+            ) : (
               <>
-                <button type="button" className="liq-btn liq-btn--pay" onClick={() => onPagar(liq)} title="Pagar">
-                  <Banknote size={13} /> Pagar
-                </button>
-                <button type="button" className="liq-btn liq-btn--revert" onClick={() => onRevertir(liq)} title="Revertir a borrador">
-                  <RotateCcw size={13} />
-                </button>
+                {liq.estado === 'CALCULADO' && canAutorizar && (
+                  <button type="button" className="liq-btn liq-btn--aprov" onClick={() => onAprobar(liq)} title="Aprobar">
+                    <Check size={13} /> Aprobar
+                  </button>
+                )}
+                {liq.estado === 'CALCULADO' && !canAutorizar && (
+                  <span className="liq-badge liq-badge--calc" title="Requiere aprobación de Gerencia o Dirección" style={{ cursor: 'help' }}>
+                    Pendiente aprobación
+                  </span>
+                )}
+                {liq.estado === 'APROBADO' && (
+                  <>
+                    <button type="button" className="liq-btn liq-btn--pay" onClick={() => onPagar(liq)} title="Pagar">
+                      <Banknote size={13} /> Pagar
+                    </button>
+                    <button type="button" className="liq-btn liq-btn--revert" onClick={() => onRevertir(liq)} title="Revertir a borrador">
+                      <RotateCcw size={13} />
+                    </button>
+                  </>
+                )}
+                {liq.estado !== 'CALCULADO' && (
+                  <button type="button" className="liq-btn liq-btn--pdf" onClick={() => onPDF(liq)} title="Descargar PDF">
+                    <FileText size={13} /> PDF
+                  </button>
+                )}
               </>
-            )}
-            {liq.estado !== 'CALCULADO' && (
-              <button type="button" className="liq-btn liq-btn--pdf" onClick={() => onPDF(liq)} title="Descargar PDF">
-                <FileText size={13} /> PDF
-              </button>
             )}
             <button
               type="button"
@@ -634,10 +645,14 @@ function ContribucionSection({
   const fmtCOP2 = (n: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
 
-  // Build honorarios lookup by profesional_nombre (from liquidaciones snapshot)
-  const honMap = new Map<string, number>();
+  // Build honorarios lookup by profesional_display — track amount and simulado flag
+  const honMap = new Map<string, { amount: number; simulado: boolean }>();
   for (const r of honorariosRows) {
-    honMap.set(r.profesional_display, (honMap.get(r.profesional_display) ?? 0) + r.monto_total);
+    const existing = honMap.get(r.profesional_display);
+    honMap.set(r.profesional_display, {
+      amount: (existing?.amount ?? 0) + r.monto_total,
+      simulado: r.es_simulado,
+    });
   }
 
   return (
@@ -676,13 +691,20 @@ function ContribucionSection({
                 </thead>
                 <tbody>
                   {data.map((row) => {
-                    const hon = honMap.get(row.profesional_nombre) ?? 0;
+                    const honData = honMap.get(row.profesional_nombre) ?? { amount: 0, simulado: false };
+                    const hon = honData.amount;
+                    const isSim = honData.simulado;
                     const margen = row.total_bruto - hon;
                     const pct = row.total_bruto > 0 ? (margen / row.total_bruto) * 100 : 0;
+                    const honColor = isSim ? '#5b21b6' : '#b45309';
+                    const margenColor = isSim ? '#5b21b6' : (margen >= 0 ? '#15803d' : '#dc2626');
                     return (
                       <tr key={row.profesional_nombre} className="liq-tr">
                         <td className="liq-td liq-td--nombre">
-                          <div className="liq-nombre">{row.profesional_nombre}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <div className="liq-nombre">{row.profesional_nombre}</div>
+                            {isSim && <span className="liq-badge liq-badge--sim" style={{ fontSize: '10px', padding: '1px 5px' }}>Nómina</span>}
+                          </div>
                         </td>
                         <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           {fmtCOP2(row.total_entidad)}
@@ -693,10 +715,12 @@ function ContribucionSection({
                         <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                           {fmtCOP2(row.total_bruto)}
                         </td>
-                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#b45309' }}>
-                          {hon > 0 ? fmtCOP2(hon) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: honColor }}>
+                          {hon > 0 ? (
+                            <>{fmtCOP2(hon)}{isSim && <span style={{ fontSize: '10px', opacity: 0.75, marginLeft: '3px' }}>(sim.)</span>}</>
+                          ) : <span style={{ color: '#94a3b8' }}>—</span>}
                         </td>
-                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: margen >= 0 ? '#15803d' : '#dc2626', fontWeight: 600 }}>
+                        <td className="liq-td" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: margenColor, fontWeight: 600 }}>
                           {hon > 0 ? (
                             <>{fmtCOP2(margen)} <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({pct.toFixed(1)}%)</span></>
                           ) : <span style={{ color: '#94a3b8' }}>—</span>}
@@ -706,7 +730,9 @@ function ContribucionSection({
                   })}
                   {data.length > 0 && (() => {
                     const totFact = data.reduce((s, r) => s + r.total_bruto, 0);
-                    const totHon = [...honMap.values()].reduce((s, v) => s + v, 0);
+                    const totHonReal = [...honMap.values()].filter(v => !v.simulado).reduce((s, v) => s + v.amount, 0);
+                    const totHonSim  = [...honMap.values()].filter(v => v.simulado).reduce((s, v) => s + v.amount, 0);
+                    const totHon = totHonReal + totHonSim;
                     const totMargen = totFact - totHon;
                     const totPct = totFact > 0 ? (totMargen / totFact) * 100 : 0;
                     return (
@@ -719,7 +745,14 @@ function ContribucionSection({
                           {fmtCOP2(data.reduce((s, r) => s + r.total_particular, 0))}
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtCOP2(totFact)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#b45309' }}>{fmtCOP2(totHon)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#b45309' }}>
+                          {fmtCOP2(totHon)}
+                          {totHonSim > 0 && (
+                            <div style={{ fontSize: '10px', color: '#5b21b6', fontWeight: 400 }}>
+                              incl. {fmtCOP2(totHonSim)} sim.
+                            </div>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: totMargen >= 0 ? '#15803d' : '#dc2626' }}>
                           {fmtCOP2(totMargen)} <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({totPct.toFixed(1)}%)</span>
                         </td>
@@ -731,7 +764,8 @@ function ContribucionSection({
             </div>
           )}
           <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-            Facturación bruta registrada en atenciones del período. El margen excluye otros costos operativos.
+            Facturación bruta registrada en atenciones del período. El margen excluye otros costos operativos.{' '}
+            <span style={{ color: '#5b21b6' }}>Nómina (sim.)</span>: honorario teórico de profesionales con salario fijo — solo para análisis de rentabilidad.
           </p>
         </>
       )}
@@ -776,16 +810,17 @@ export default function Honorarios(): React.ReactElement {
   const aprobarL  = useAprobarLote();
   const pagarL    = usePagarLote();
 
-  // KPIs
+  // KPIs — exclude simulated (nómina) rows since they are not real payments
   const kpis = useMemo(() => {
-    const acumulado = rows.reduce((s, r) => s + r.monto_total, 0);
-    const aprobado  = rows.filter((r) => r.estado === 'APROBADO' || r.estado === 'PAGADO').reduce((s, r) => s + r.monto_total, 0);
-    const pagado    = rows.filter((r) => r.estado === 'PAGADO').reduce((s, r) => s + r.monto_total, 0);
+    const real = rows.filter((r) => !r.es_simulado);
+    const acumulado = real.reduce((s, r) => s + r.monto_total, 0);
+    const aprobado  = real.filter((r) => r.estado === 'APROBADO' || r.estado === 'PAGADO').reduce((s, r) => s + r.monto_total, 0);
+    const pagado    = real.filter((r) => r.estado === 'PAGADO').reduce((s, r) => s + r.monto_total, 0);
     return { acumulado, aprobado, pagado };
   }, [rows]);
 
-  // Selection helpers
-  const selectableIds = rows.filter((r) => r.estado !== 'PAGADO').map((r) => r.id);
+  // Selection helpers — simulated rows cannot be approved/paid
+  const selectableIds = rows.filter((r) => r.estado !== 'PAGADO' && !r.es_simulado).map((r) => r.id);
   const toggleAll = () => {
     if (selected.size === selectableIds.length) setSelected(new Set());
     else setSelected(new Set(selectableIds));
@@ -883,7 +918,7 @@ export default function Honorarios(): React.ReactElement {
         <div className="liq-kpi">
           <span className="liq-kpi-label">Acumulado total</span>
           <span className="liq-kpi-value">{fmtCOP(kpis.acumulado)}</span>
-          <span className="liq-kpi-sub">{rows.length} profesionales</span>
+          <span className="liq-kpi-sub">{rows.filter(r => !r.es_simulado).length} profesionales{rows.some(r => r.es_simulado) ? ` · ${rows.filter(r => r.es_simulado).length} nómina (sim.)` : ''}</span>
         </div>
         <div className="liq-kpi liq-kpi--aprov">
           <span className="liq-kpi-label">Aprobado</span>
@@ -1053,6 +1088,8 @@ export default function Honorarios(): React.ReactElement {
         Los valores calculados se basan en las reglas de liquidación vigentes.
         Los registros <strong>Aprobados</strong> y <strong>Pagados</strong> quedan bloqueados y no se modifican al recalcular.
         El PDF se genera con el snapshot del momento de creación.
+        Los profesionales marcados como <span style={{ color: '#5b21b6' }}>Nómina</span> muestran un honorario teórico (simulado) para análisis de rentabilidad — no se aprueban ni pagan.
+        Para activar el cálculo de un profesional de nómina, agrega sus reglas en <strong>Configuración → Reglas de Honorarios</strong>.
       </p>
     </div>
   );

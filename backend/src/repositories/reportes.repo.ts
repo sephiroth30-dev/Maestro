@@ -533,12 +533,13 @@ export async function createProfesional(
 
 export async function patchProfesional(
   id: string,
-  fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null; nombre_completo?: string | null }
+  fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null; nombre_completo?: string | null; es_nomina?: boolean }
 ): Promise<void> {
   const parts: string[] = [];
   const vals: unknown[] = [];
   if ('especialidad' in fields) { parts.push('especialidad = ?'); vals.push(fields.especialidad); }
   if ('nombre_completo' in fields) { parts.push('nombre_completo = ?'); vals.push(fields.nombre_completo ?? null); }
+  if ('es_nomina' in fields) { parts.push('es_nomina = ?'); vals.push(fields.es_nomina ? 1 : 0); }
   if (parts.length === 0) return;
   vals.push(id);
   await pool.execute<ResultSetHeader>(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals as (string | null)[]);

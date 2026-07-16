@@ -379,7 +379,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const body = request.body as { especialidad?: string | null; nombre_completo?: string | null };
+      const body = request.body as { especialidad?: string | null; nombre_completo?: string | null; es_nomina?: boolean };
       const fields: Parameters<typeof repo.patchProfesional>[1] = {};
       if ('especialidad' in body) {
         const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
@@ -391,6 +391,9 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       if ('nombre_completo' in body) {
         const nc = body.nombre_completo;
         fields.nombre_completo = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+      }
+      if ('es_nomina' in body) {
+        fields.es_nomina = Boolean(body.es_nomina);
       }
       await repo.patchProfesional(id, fields);
       return reply.send({ ok: true });

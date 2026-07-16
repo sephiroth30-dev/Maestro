@@ -37,6 +37,10 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
     void update.mutateAsync({ id: p.id, nombre_completo: trimmed || null }).then(() => setEditingName(false));
   }
 
+  function toggleNomina(): void {
+    void update.mutateAsync({ id: p.id, es_nomina: !p.es_nomina });
+  }
+
   const current = p.especialidad ?? '';
   const color = current ? ESP_COLORS[current] : '#9ca3af';
 
@@ -95,6 +99,16 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
           <option value="FISIATRIA">Fisiatría</option>
           <option value="OTRO">Otra especialidad</option>
         </select>
+      </td>
+      <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
+        <button
+          className={`prof-nomina-toggle${p.es_nomina ? ' prof-nomina-toggle--on' : ''}`}
+          onClick={toggleNomina}
+          disabled={update.isPending}
+          title={p.es_nomina ? 'Nómina fija — la liquidación es simulada (clic para cambiar)' : 'Honorarios variables — se liquidará normalmente (clic para cambiar)'}
+        >
+          {p.es_nomina ? 'Nómina' : 'Honorarios'}
+        </button>
       </td>
       <td className="tabla-entidades-td" style={{ textAlign: 'right', color: '#64748b' }}>
         {fmtNum(p.total_atenciones)}
@@ -416,6 +430,7 @@ export default function TabProfesionales(): React.ReactElement {
               />
               <th className="tabla-entidades-th">Nombres en el Sheet</th>
               <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '180px' }}>Especialidad</th>
+              <th className="tabla-entidades-th" style={{ textAlign: 'center', width: '120px' }}>Tipo pago</th>
               <ColFilter
                 label="Registros"
                 field="registros"
@@ -430,7 +445,7 @@ export default function TabProfesionales(): React.ReactElement {
           </thead>
           <tbody>
             {displayed.length === 0 ? (
-              <tr><td colSpan={4} className="table-no-results">Sin resultados para "{search}"</td></tr>
+              <tr><td colSpan={5} className="table-no-results">Sin resultados para "{search}"</td></tr>
             ) : displayed.map((p) => <ProfRow key={p.id} p={p} />)}
           </tbody>
         </table>

@@ -27,7 +27,7 @@ export function useProfesionales() {
 export function useUpdateProfesional() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...fields }: { id: string; especialidad?: Especialidad; nombre_completo?: string | null }) =>
+    mutationFn: ({ id, ...fields }: { id: string; especialidad?: Especialidad; nombre_completo?: string | null; es_nomina?: boolean }) =>
       apiClient.patch(`/profesionales/${id}`, fields).then((r) => r.data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['profesionales-catalog'] });

@@ -74,6 +74,10 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     id: 'm12_atenciones_profesional_nombre_raw',
     sql: 'ALTER TABLE atenciones ADD COLUMN IF NOT EXISTS profesional_nombre_raw VARCHAR(200) NULL',
   },
+  {
+    id: 'm13_liquidaciones_es_simulado',
+    sql: 'ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS es_simulado TINYINT(1) NOT NULL DEFAULT 0',
+  },
 ];
 
 export async function runSchemaMigrations(): Promise<void> {

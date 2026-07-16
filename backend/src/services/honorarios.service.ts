@@ -197,6 +197,7 @@ export interface HonorariosCeldas {
 export interface HonorariosProfesionalRow {
   profesional_id: string;
   nombre: string;
+  es_nomina: boolean;
   consulta:       HonorariosCeldas;
   emg_vcn:        HonorariosCeldas;
   infiltracion:   HonorariosCeldas;
@@ -222,9 +223,9 @@ export interface HonorariosResult {
 
 function nuevaCelda(): HonorariosCeldas { return { monto: 0, cnt: 0 }; }
 
-function nuevaFila(profesional_id: string, nombre: string): HonorariosProfesionalRow {
+function nuevaFila(profesional_id: string, nombre: string, esNomina = false): HonorariosProfesionalRow {
   return {
-    profesional_id, nombre,
+    profesional_id, nombre, es_nomina: esNomina,
     consulta:       nuevaCelda(),
     emg_vcn:        nuevaCelda(),
     infiltracion:   nuevaCelda(),
@@ -273,7 +274,7 @@ export async function calcularHonorarios(
   for (const l of lineas) {
     let fila = mapaFilas.get(l.profesional_id);
     if (!fila) {
-      fila = nuevaFila(l.profesional_id, l.profesional_display);
+      fila = nuevaFila(l.profesional_id, l.profesional_display, l.es_nomina);
       mapaFilas.set(l.profesional_id, fila);
     }
 
@@ -367,7 +368,7 @@ function aplicarReglasSync(
   for (const l of lineas) {
     let fila = mapaFilas.get(l.profesional_id);
     if (!fila) {
-      fila = nuevaFila(l.profesional_id, l.profesional_display);
+      fila = nuevaFila(l.profesional_id, l.profesional_display, l.es_nomina);
       mapaFilas.set(l.profesional_id, fila);
     }
 

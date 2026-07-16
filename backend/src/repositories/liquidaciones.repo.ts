@@ -15,6 +15,7 @@ export interface LiquidacionDB {
   fecha_desde: string;   // 'YYYY-MM-DD'
   fecha_hasta: string;
   estado: EstadoLiquidacion;
+  es_simulado: boolean;       // professional on fixed salary — for profitability analysis only
   monto_total: number;        // base calculado
   monto_ajustes: number;      // suma de ajustes autorizados
   ajustes_pendientes: number; // ajustes en espera de autorización
@@ -42,6 +43,7 @@ const SELECT_LIQUIDACIONES = `
     DATE_FORMAT(l.fecha_desde, '%Y-%m-%d') AS fecha_desde,
     DATE_FORMAT(l.fecha_hasta, '%Y-%m-%d') AS fecha_hasta,
     l.estado,
+    l.es_simulado,
     CAST(l.monto_total AS DECIMAL(15,2)) AS monto_total,
     COALESCE((
       SELECT SUM(a.valor_total) FROM liquidacion_ajustes a
@@ -77,6 +79,7 @@ function mapRow(r: RowDataPacket): LiquidacionDB {
     fecha_desde:         r.fecha_desde,
     fecha_hasta:         r.fecha_hasta,
     estado:             r.estado as EstadoLiquidacion,
+    es_simulado:        Boolean(r.es_simulado),
     monto_total:        Number(r.monto_total),
     monto_ajustes:      Number(r.monto_ajustes ?? 0),
     ajustes_pendientes: Number(r.ajustes_pendientes ?? 0),
@@ -147,8 +150,10 @@ export async function upsertLiquidacion(data: {
   fecha_hasta: string;
   monto_total: number;
   datos_snapshot: HonorariosProfesionalRow;
+  es_simulado?: boolean;
 }): Promise<string> {
   const snapshot = JSON.stringify(data.datos_snapshot);
+  const esSimulado = data.es_simulado ? 1 : 0;
 
   // Only upsert if not already APROBADO or PAGADO
   const [existing] = await pool.query<RowDataPacket[]>(
@@ -162,17 +167,17 @@ export async function upsertLiquidacion(data: {
 
   if (existing.length) {
     await pool.execute(
-      `UPDATE liquidaciones SET monto_total = ?, datos_snapshot = ?, updated_at = NOW()
+      `UPDATE liquidaciones SET monto_total = ?, datos_snapshot = ?, es_simulado = ?, updated_at = NOW()
        WHERE id = ?`,
-      [data.monto_total, snapshot, existing[0].id] as (string | number)[],
+      [data.monto_total, snapshot, esSimulado, existing[0].id] as (string | number)[],
     );
     return existing[0].id as string;
   }
 
   const [result] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO liquidaciones (profesional_id, fecha_desde, fecha_hasta, monto_total, datos_snapshot)
-     VALUES (?, ?, ?, ?, ?)`,
-    [data.profesional_id, data.fecha_desde, data.fecha_hasta, data.monto_total, snapshot] as (string | number)[],
+    `INSERT INTO liquidaciones (profesional_id, fecha_desde, fecha_hasta, monto_total, datos_snapshot, es_simulado)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [data.profesional_id, data.fecha_desde, data.fecha_hasta, data.monto_total, snapshot, esSimulado] as (string | number)[],
   );
 
   // Fetch the generated UUID

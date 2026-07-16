@@ -5,6 +5,7 @@ export interface HonorariosLineaDB {
   profesional_id: string;
   profesional_nombre: string;       // internal key: PERLAZA, LAVERDE, …
   profesional_display: string;      // nombre_completo ?? nombre
+  es_nomina: boolean;               // professional is on fixed salary (liquidación simulada)
   servicio_nombre: string | null;
   servicio_tipo_conteo: string;
   entidad_tipo: string | null;      // 'EPS' | 'PARTICULAR' | 'CONVENIO' | …
@@ -23,6 +24,7 @@ export async function getLineasHonorarios(
         p.id                                                  AS profesional_id,
         p.nombre                                              AS profesional_nombre,
         COALESCE(p.nombre_completo, p.nombre)                 AS profesional_display,
+        p.es_nomina                                           AS es_nomina,
         s.nombre                                              AS servicio_nombre,
         COALESCE(s.tipo_conteo, 'unidad')                     AS servicio_tipo_conteo,
         e.tipo                                                AS entidad_tipo,
@@ -40,7 +42,7 @@ export async function getLineasHonorarios(
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
      WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL
      GROUP BY
-        p.id, p.nombre, p.nombre_completo,
+        p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`,
@@ -51,6 +53,7 @@ export async function getLineasHonorarios(
     profesional_id:       r.profesional_id,
     profesional_nombre:   r.profesional_nombre,
     profesional_display:  r.profesional_display,
+    es_nomina:            Boolean(r.es_nomina),
     servicio_nombre:      r.servicio_nombre ?? null,
     servicio_tipo_conteo: r.servicio_tipo_conteo ?? 'unidad',
     entidad_tipo:         r.entidad_tipo ?? null,
@@ -70,6 +73,7 @@ export async function getLineasHonorariosRango(
         p.id                                                  AS profesional_id,
         p.nombre                                              AS profesional_nombre,
         COALESCE(p.nombre_completo, p.nombre)                 AS profesional_display,
+        p.es_nomina                                           AS es_nomina,
         s.nombre                                              AS servicio_nombre,
         COALESCE(s.tipo_conteo, 'unidad')                     AS servicio_tipo_conteo,
         e.tipo                                                AS entidad_tipo,
@@ -88,7 +92,7 @@ export async function getLineasHonorariosRango(
      WHERE DATE(a.fecha_dia) >= ? AND DATE(a.fecha_dia) <= ?
        AND a.profesional_id IS NOT NULL
      GROUP BY
-        p.id, p.nombre, p.nombre_completo,
+        p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`,
@@ -99,6 +103,7 @@ export async function getLineasHonorariosRango(
     profesional_id:       r.profesional_id,
     profesional_nombre:   r.profesional_nombre,
     profesional_display:  r.profesional_display,
+    es_nomina:            Boolean(r.es_nomina),
     servicio_nombre:      r.servicio_nombre ?? null,
     servicio_tipo_conteo: r.servicio_tipo_conteo ?? 'unidad',
     entidad_tipo:         r.entidad_tipo ?? null,

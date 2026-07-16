@@ -15,6 +15,7 @@ export interface LiquidacionRow {
   fecha_desde: string;
   fecha_hasta: string;
   estado: EstadoLiquidacion;
+  es_simulado: boolean;
   monto_total: number;
   datos_snapshot: HonorariosProfesionalRow;
   aprobado_por: string | null;
