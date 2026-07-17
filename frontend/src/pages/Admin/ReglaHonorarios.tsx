@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Pencil, X, Check, Trash2, AlertCircle, Copy, Plus, ChevronDown } from 'lucide-react';
+import { Pencil, X, Check, Trash2, AlertCircle, Copy, Plus } from 'lucide-react';
 import {
   useReglasHonorarios,
   useUpsertRegla,
