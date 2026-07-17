@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   UserPlus, Pencil, Trash2, KeyRound, Loader2,
   CheckCircle, AlertCircle, X, Eye, EyeOff, ShieldCheck,
@@ -11,6 +11,7 @@ import type { UsuarioRow } from '../../api/usuarios.js';
 import type { Rol, Modulo } from '../../types/index.js';
 import { ROL_LABELS, MODULO_LABELS } from '../../types/index.js';
 import { useAuth } from '../../hooks/useAuth.js';
+import { useSortState } from '../../components/SortableHeader.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -558,6 +559,17 @@ export default function Usuarios(): React.ReactElement {
   const { user: self } = useAuth();
   const { data: usuarios, isLoading, error } = useUsuarios();
   const [modal, setModal] = useState<Modal | null>(null);
+  const { sortField, sortDir, onSort } = useSortState<'nombre' | 'rol'>('nombre', 'asc');
+
+  const sortedUsuarios = useMemo(() => {
+    if (!usuarios) return [];
+    return [...usuarios].sort((a, b) => {
+      const cmp = sortField === 'nombre'
+        ? a.nombre.localeCompare(b.nombre, 'es')
+        : a.rol.localeCompare(b.rol, 'es');
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [usuarios, sortField, sortDir]);
 
   const closeModal = (): void => setModal(null);
 
@@ -597,15 +609,19 @@ export default function Usuarios(): React.ReactElement {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Usuario</th>
-                <th>Rol</th>
+                <th className="sort-th" onClick={() => onSort('nombre')}>
+                  Usuario<span className={`liq-sort-icon${sortField === 'nombre' ? ' liq-sort-icon--active' : ''}`}>{sortField === 'nombre' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                </th>
+                <th className="sort-th" onClick={() => onSort('rol')}>
+                  Rol<span className={`liq-sort-icon${sortField === 'rol' ? ' liq-sort-icon--active' : ''}`}>{sortField === 'rol' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+                </th>
                 <th>Acceso a módulos</th>
                 <th>Estado</th>
                 <th style={{ textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {usuarios.map((u) => (
+              {sortedUsuarios.map((u) => (
                 <tr key={u.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>

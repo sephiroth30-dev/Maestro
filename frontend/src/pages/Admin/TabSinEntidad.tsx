@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlertCircle, Loader2, Plus, X } from 'lucide-react';
 import { useSinEntidadDiagnostico, useCrearEntidadFromRaw } from '../../api/reportes.js';
 import type { SinEntidadRow, CrearEntidadFromRawInput } from '../../api/reportes.js';
+import { SortableHeader, useSortState } from '../../components/SortableHeader.js';
 
 const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
@@ -119,6 +120,17 @@ export default function TabSinEntidad(): React.ReactElement {
   const { data, isLoading, isError, refetch } = useSinEntidadDiagnostico(mesIdx, anio);
   const [activeRaw, setActiveRaw] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const { sortField, sortDir, onSort } = useSortState<'nombre' | 'atenciones' | 'valor'>('valor', 'desc');
+  const sortedData = useMemo(() => {
+    if (!data) return [];
+    return [...data].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'nombre') cmp = (a.nombre_raw ?? '').localeCompare(b.nombre_raw ?? '', 'es');
+      else if (sortField === 'atenciones') cmp = a.cnt - b.cnt;
+      else cmp = a.total - b.total;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [data, sortField, sortDir]);
 
   const totalAtenciones = data?.reduce((s, r) => s + r.cnt, 0) ?? 0;
   const totalValor = data?.reduce((s, r) => s + r.total, 0) ?? 0;
@@ -188,14 +200,14 @@ export default function TabSinEntidad(): React.ReactElement {
             <table className="tabla-entidades-table">
               <thead>
                 <tr>
-                  <th className="tabla-entidades-th">NOMBRE EN EL SHEET</th>
-                  <th className="tabla-entidades-th" style={{ textAlign: 'right' }}>ATENCIONES</th>
-                  <th className="tabla-entidades-th" style={{ textAlign: 'right' }}>VALOR BRUTO</th>
+                  <SortableHeader field="nombre" label="NOMBRE EN EL SHEET" thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+                  <SortableHeader field="atenciones" label="ATENCIONES" right thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+                  <SortableHeader field="valor" label="VALOR BRUTO" right thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
                   <th className="tabla-entidades-th" style={{ textAlign: 'center' }}>ACCIÓN</th>
                 </tr>
               </thead>
               <tbody>
-                {data.map((row: SinEntidadRow, idx: number) => (
+                {sortedData.map((row: SinEntidadRow, idx: number) => (
                   <tr key={idx} className="tabla-entidades-tr">
                     <td className="tabla-entidades-td tabla-entidades-nombre">
                       {row.nombre_raw === '(vacío)' || row.nombre_raw === null ? (

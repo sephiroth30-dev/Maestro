@@ -55,23 +55,7 @@ function fmtPeriodo(desde: string | null | undefined, hasta: string | null | und
   return `${fmtFecha(desde)} – ${fmtFecha(hasta)}`;
 }
 
-type SortField = 'nombre' | 'monto';
-function SortTh({ field, label, right = false, width, sortField, sortDir, onSort }: {
-  field: SortField; label: string; right?: boolean; width?: number;
-  sortField: SortField; sortDir: 'asc' | 'desc'; onSort: (f: SortField) => void;
-}): React.ReactElement {
-  const active = sortField === field;
-  const arrow = active ? (sortDir === 'asc' ? '↑' : '↓') : '↕';
-  return (
-    <th
-      className={`liq-th liq-th--sort${right ? ' liq-th--r' : ''}`}
-      style={width !== undefined ? { width } : undefined}
-      onClick={() => onSort(field)}
-    >
-      {label}<span className={`liq-sort-icon${active ? ' liq-sort-icon--active' : ''}`}>{arrow}</span>
-    </th>
-  );
-}
+import { SortableHeader, useSortState } from '../components/SortableHeader.js';
 
 const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -669,19 +653,34 @@ function ContribucionSection({
 }) {
   const [open, setOpen] = useState(false);
   const { data = [], isLoading } = useContribucion(fechaDesde, fechaHasta, open);
+  const { sortField: cSort, sortDir: cDir, onSort: toggleCSort } =
+    useSortState<'medico' | 'total' | 'hon' | 'margen'>('total', 'desc');
 
   const fmtCOP2 = (n: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
 
-  // Build honorarios lookup by profesional_display — track amount and simulado flag
-  const honMap = new Map<string, { amount: number; simulado: boolean }>();
-  for (const r of honorariosRows) {
-    const existing = honMap.get(r.profesional_display);
-    honMap.set(r.profesional_display, {
-      amount: (existing?.amount ?? 0) + r.monto_total,
-      simulado: r.es_simulado,
-    });
-  }
+  const honMap = useMemo(() => {
+    const map = new Map<string, { amount: number; simulado: boolean }>();
+    for (const r of honorariosRows) {
+      const existing = map.get(r.profesional_display);
+      map.set(r.profesional_display, {
+        amount: (existing?.amount ?? 0) + r.monto_total,
+        simulado: r.es_simulado,
+      });
+    }
+    return map;
+  }, [honorariosRows]);
+
+  const sortedData = useMemo(() => [...data].sort((a, b) => {
+    const ha = honMap.get(a.profesional_nombre)?.amount ?? 0;
+    const hb = honMap.get(b.profesional_nombre)?.amount ?? 0;
+    let cmp = 0;
+    if (cSort === 'medico') cmp = a.profesional_nombre.localeCompare(b.profesional_nombre, 'es');
+    else if (cSort === 'total') cmp = a.total_bruto - b.total_bruto;
+    else if (cSort === 'hon') cmp = ha - hb;
+    else cmp = (a.total_bruto - ha) - (b.total_bruto - hb);
+    return cDir === 'asc' ? cmp : -cmp;
+  }), [data, cSort, cDir, honMap]);
 
   return (
     <div style={{ marginTop: '24px' }}>
@@ -709,16 +708,16 @@ function ContribucionSection({
               <table className="liq-table">
                 <thead>
                   <tr>
-                    <th className="liq-th">Médico</th>
+                    <SortableHeader field="medico" label="Médico" sortField={cSort} sortDir={cDir} onSort={toggleCSort} />
                     <th className="liq-th liq-th--r">Facturado EPS/ARL</th>
                     <th className="liq-th liq-th--r">Facturado Particular</th>
-                    <th className="liq-th liq-th--r">Total Facturado</th>
-                    <th className="liq-th liq-th--r">Honorarios a pagar</th>
-                    <th className="liq-th liq-th--r">Margen clínica</th>
+                    <SortableHeader field="total" label="Total Facturado" right sortField={cSort} sortDir={cDir} onSort={toggleCSort} />
+                    <SortableHeader field="hon" label="Honorarios a pagar" right sortField={cSort} sortDir={cDir} onSort={toggleCSort} />
+                    <SortableHeader field="margen" label="Margen clínica" right sortField={cSort} sortDir={cDir} onSort={toggleCSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((row) => {
+                  {sortedData.map((row) => {
                     const honData = honMap.get(row.profesional_nombre) ?? { amount: 0, simulado: false };
                     const hon = honData.amount;
                     const isSim = honData.simulado;
@@ -831,12 +830,7 @@ export default function Honorarios(): React.ReactElement {
   const fechaHasta = modoRango ? rangoHasta : ultimoDelMes(anio, mes);
 
   const { data: rows = [], isLoading, isError } = useLiquidaciones(fechaDesde, fechaHasta);
-  const [sortField, setSortField] = useState<SortField>('monto');
-  const [sortDir,   setSortDir]   = useState<'asc' | 'desc'>('desc');
-  function toggleSort(field: SortField): void {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDir(field === 'monto' ? 'desc' : 'asc'); }
-  }
+  const { sortField, sortDir, onSort: toggleSort } = useSortState<'nombre' | 'monto'>('monto', 'desc');
   const sortedRows = useMemo(() => [...rows].sort((a, b) => {
     const cmp = sortField === 'nombre'
       ? a.profesional_display.localeCompare(b.profesional_display, 'es')
@@ -1067,9 +1061,9 @@ export default function Honorarios(): React.ReactElement {
                       onChange={toggleAll}
                     />
                   </th>
-                  <SortTh field="nombre" label="Profesional" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader field="nombre" label="Profesional" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <th className="liq-th" style={{ width: 128 }}>Período</th>
-                  <SortTh field="monto" label="Total honorario" right width={145} sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader field="monto" label="Total honorario" right width={145} sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <th className="liq-th" style={{ width: 105 }}>Estado</th>
                   <th className="liq-th" style={{ width: 200 }}>Acciones</th>
                 </tr>

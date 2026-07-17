@@ -4,6 +4,7 @@ import {
   RefreshCw, X, Pencil, Check, Eye,
 } from 'lucide-react';
 import { ColFilter, useColSort } from '../../components/ColFilter.js';
+import { SortableHeader, useSortState } from '../../components/SortableHeader.js';
 import {
   useServiciosCatalog, useUpdateServicio, useReclasificarServicios,
   useServicioAgrupaciones,
@@ -172,11 +173,19 @@ function ServicioRow({ s, agrupacion }: ServicioRowProps): React.ReactElement {
 function SinClasificarSection(): React.ReactElement {
   const { data, isLoading } = useSinServicioDiagnostico();
   const [expanded, setExpanded] = useState(false);
+  const { sortField, sortDir, onSort } = useSortState<'descripcion' | 'cnt' | 'total'>('total', 'desc');
 
   if (isLoading || !data || data.length === 0) return <></>;
 
   const totalCnt = data.reduce((s, r) => s + r.cnt, 0);
   const totalVal = data.reduce((s, r) => s + r.total, 0);
+  const sorted = [...data].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'descripcion') cmp = (a.descripcion_raw ?? '').localeCompare(b.descripcion_raw ?? '', 'es');
+    else if (sortField === 'cnt') cmp = a.cnt - b.cnt;
+    else cmp = a.total - b.total;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   return (
     <div className="sin-clasificar-section" style={{ marginTop: '24px' }}>
@@ -201,13 +210,13 @@ function SinClasificarSection(): React.ReactElement {
           <table className="tabla-entidades-table">
             <thead>
               <tr>
-                <th className="tabla-entidades-th">Descripción en el Sheet</th>
-                <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '90px' }}>Registros</th>
-                <th className="tabla-entidades-th" style={{ textAlign: 'right', width: '130px' }}>Valor</th>
+                <SortableHeader field="descripcion" label="Descripción en el Sheet" thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+                <SortableHeader field="cnt" label="Registros" right width={90} thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+                <SortableHeader field="total" label="Valor" right width={130} thClass="tabla-entidades-th" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               </tr>
             </thead>
             <tbody>
-              {data.map((r, i) => (
+              {sorted.map((r, i) => (
                 <tr key={i} className="tabla-entidades-tr">
                   <td className="tabla-entidades-td" style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
                     {r.descripcion_raw ?? '(vacío)'}

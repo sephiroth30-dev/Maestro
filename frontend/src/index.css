@@ -5146,8 +5146,10 @@ body,
 }
 .liq-th--check { width: 36px; }
 .liq-th--r { text-align: right; }
-.liq-th--sort { cursor: pointer; user-select: none; }
-.liq-th--sort:hover { background: #f1f5f9; color: #334155; }
+.sort-th { cursor: pointer; user-select: none; }
+.liq-th.sort-th:hover { background: #f1f5f9; color: #334155; }
+.tabla-entidades-th.sort-th:hover { background: #f1f5f9; color: #334155; }
+.data-table th.sort-th:hover { background: #f1f5f9; color: #334155; }
 .liq-sort-icon { opacity: 0.25; margin-left: 3px; font-style: normal; }
 .liq-sort-icon--active { opacity: 1; color: #6366f1; }
 
