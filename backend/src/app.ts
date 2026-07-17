@@ -88,7 +88,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Version endpoint (public) ───────────────────────────────────────────
   fastify.get('/api/version', async (_request, reply) => {
-    return reply.send({ version: APP_VERSION, env: env.NODE_ENV });
+    return reply.send({ version: APP_VERSION, commit: process.env.COMMIT_SHA ?? 'local', env: env.NODE_ENV });
   });
 
   // ─── Routes ───────────────────────────────────────────────────────────────

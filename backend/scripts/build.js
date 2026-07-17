@@ -13,5 +13,6 @@ const result = spawnSync(
 if (result.status === 0) {
   console.log('[BUILD] TypeScript compilado sin errores');
 } else {
-  console.log('[BUILD] tsc completado con advertencias (code ' + result.status + ')');
+  console.error('[BUILD] Error de TypeScript (code ' + (result.status ?? 1) + '). Abortando build.');
+  process.exit(result.status ?? 1);
 }

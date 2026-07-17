@@ -45,6 +45,34 @@ const fmtFecha = (iso: string | null | undefined): string => {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
 };
 
+function fmtPeriodo(desde: string | null | undefined, hasta: string | null | undefined): string {
+  if (!desde || !hasta) return '—';
+  const d = parseHonDate(desde);
+  const h = parseHonDate(hasta);
+  if (d.getMonth() === h.getMonth() && d.getFullYear() === h.getFullYear()) {
+    return d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
+  }
+  return `${fmtFecha(desde)} – ${fmtFecha(hasta)}`;
+}
+
+type SortField = 'nombre' | 'monto';
+function SortTh({ field, label, right = false, width, sortField, sortDir, onSort }: {
+  field: SortField; label: string; right?: boolean; width?: number;
+  sortField: SortField; sortDir: 'asc' | 'desc'; onSort: (f: SortField) => void;
+}): React.ReactElement {
+  const active = sortField === field;
+  const arrow = active ? (sortDir === 'asc' ? '↑' : '↓') : '↕';
+  return (
+    <th
+      className={`liq-th liq-th--sort${right ? ' liq-th--r' : ''}`}
+      style={width !== undefined ? { width } : undefined}
+      onClick={() => onSort(field)}
+    >
+      {label}<span className={`liq-sort-icon${active ? ' liq-sort-icon--active' : ''}`}>{arrow}</span>
+    </th>
+  );
+}
+
 const MESES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -504,7 +532,7 @@ function FilaLiquidacion({
           {liq.especialidad && <div className="liq-especialidad">{liq.especialidad}</div>}
         </td>
         <td className="liq-td liq-td--periodo">
-          <div className="liq-periodo">{fmtFecha(liq.fecha_desde)} – {fmtFecha(liq.fecha_hasta)}</div>
+          <div className="liq-periodo">{fmtPeriodo(liq.fecha_desde, liq.fecha_hasta)}</div>
         </td>
         <td className="liq-td liq-td--monto">{fmtCOP(liq.monto_total)}</td>
         <td className="liq-td liq-td--estado"><EstadoBadge estado={liq.estado} /></td>
@@ -803,6 +831,19 @@ export default function Honorarios(): React.ReactElement {
   const fechaHasta = modoRango ? rangoHasta : ultimoDelMes(anio, mes);
 
   const { data: rows = [], isLoading, isError } = useLiquidaciones(fechaDesde, fechaHasta);
+  const [sortField, setSortField] = useState<SortField>('monto');
+  const [sortDir,   setSortDir]   = useState<'asc' | 'desc'>('desc');
+  function toggleSort(field: SortField): void {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir(field === 'monto' ? 'desc' : 'asc'); }
+  }
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => {
+    const cmp = sortField === 'nombre'
+      ? a.profesional_display.localeCompare(b.profesional_display, 'es')
+      : a.monto_total - b.monto_total;
+    return sortDir === 'asc' ? cmp : -cmp;
+  }), [rows, sortField, sortDir]);
+
   const generar   = useGenerarLiquidaciones();
   const aprobar1  = useAprobarLiquidacion();
   const pagar1    = usePagarLiquidacion();
@@ -1026,15 +1067,15 @@ export default function Honorarios(): React.ReactElement {
                       onChange={toggleAll}
                     />
                   </th>
-                  <th className="liq-th">Profesional</th>
-                  <th className="liq-th">Período</th>
-                  <th className="liq-th liq-th--r">Total honorario</th>
-                  <th className="liq-th">Estado</th>
-                  <th className="liq-th">Acciones</th>
+                  <SortTh field="nombre" label="Profesional" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="liq-th" style={{ width: 128 }}>Período</th>
+                  <SortTh field="monto" label="Total honorario" right width={145} sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="liq-th" style={{ width: 105 }}>Estado</th>
+                  <th className="liq-th" style={{ width: 200 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((liq) => (
+                {sortedRows.map((liq) => (
                   <FilaLiquidacion
                     key={liq.id}
                     liq={liq}
