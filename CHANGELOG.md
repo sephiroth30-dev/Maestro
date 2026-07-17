@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.1] - 2026-07-17
+
+### Added
+- **Profesional en nómina (`es_nomina`)**: nuevo toggle en Configuración > Profesionales para marcar a un profesional como empleado de nómina fija (ej. Álvaro Tellez). Al activarse, el sistema calcula sus honorarios de forma **simulada** usando las mismas reglas que cualquier fisiatra, pero la liquidación queda marcada como `es_simulado = true`.
+- **Análisis de rentabilidad para nómina**: las liquidaciones simuladas aparecen en la pantalla de Honorarios con badge morado "Nómina", estilo diferenciado y etiqueta "Ref. rentabilidad". Los botones Aprobar/Pagar están deshabilitados para estas filas.
+- **Contribución con desglose simulado**: en la sección "Contribución por profesional", los montos simulados se muestran en morado con sufijo "(sim.)" para distinguirlos de honorarios reales. Las KPIs de resumen (total honorarios, margen) excluyen los montos simulados.
+- **"Copiar desde…" en Reglas de Honorarios**: los profesionales sin reglas configuradas ahora muestran un botón morado "Copiar desde…" que abre un modal para seleccionar un profesional origen y copiar todas sus reglas en un clic. Los candidatos se ordenan por cantidad de reglas (mayor a menor).
+- **`DuplicarModal` bidireccional**: refactorizado para soportar `mode='copy-to'` (origen fijo, elige destino) y `mode='copy-from'` (destino fijo, elige origen). Mismo endpoint backend `POST /api/reglas-honorarios/duplicar`.
+- **Migración m13** (`liquidaciones.es_simulado`): nueva columna `TINYINT(1) DEFAULT 0` en la tabla `liquidaciones`. Se establece en `1` automáticamente cuando el profesional tiene `es_nomina = true`.
+
+### Changed
+- `PATCH /api/profesionales/:id` ahora acepta el campo `es_nomina` (boolean) para actualizar el tipo de pago del profesional.
+- La propagación de `es_nomina` recorre toda la cadena: repo → service → controller → liquidaciones → frontend.
+
+---
+
 ## [1.7.0] - 2026-07-08
 
 ### Added
