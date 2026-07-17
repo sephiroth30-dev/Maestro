@@ -174,36 +174,52 @@ function EditModal({ prof, cat, catLabel, existing, onClose }: EditModalProps) {
 }
 
 // ─── Duplicate rules modal ────────────────────────────────────────────────────
+// mode='copy-to'  → fixed is the SOURCE; user picks the DESTINATION
+// mode='copy-from' → fixed is the DESTINATION; user picks the SOURCE
 
 interface DuplicarModalProps {
-  from: string;
-  fromLabel: string;
-  reglaCount: number;
-  candidates: Array<{ nombre: string; label: string }>;
+  mode: 'copy-to' | 'copy-from';
+  fixed: string;
+  fixedLabel: string;
+  fixedRuleCount: number;   // used in 'copy-to' mode subtitle
+  candidates: Array<{ nombre: string; label: string; ruleCount?: number }>;
   onClose: () => void;
 }
 
-function DuplicarModal({ from, fromLabel, reglaCount, candidates, onClose }: DuplicarModalProps) {
-  const [to, setTo] = useState('');
+function DuplicarModal({ mode, fixed, fixedLabel, fixedRuleCount, candidates, onClose }: DuplicarModalProps) {
+  const [selected, setSelected] = useState('');
   const [done, setDone] = useState<number | null>(null);
   const duplicar = useDuplicarReglas();
 
-  const targetLabel = candidates.find((c) => c.nombre === to)?.label ?? to;
-  const targetHasRules = to !== '';
+  const selectedLabel = candidates.find((c) => c.nombre === selected)?.label ?? selected;
+  const selectedRuleCount = candidates.find((c) => c.nombre === selected)?.ruleCount ?? 0;
+
+  const isCopyTo   = mode === 'copy-to';
+  const sourceLabel = isCopyTo ? fixedLabel : selectedLabel;
+  const destLabel   = isCopyTo ? selectedLabel : fixedLabel;
+  const ruleCount   = isCopyTo ? fixedRuleCount : selectedRuleCount;
 
   async function handleDuplicar() {
-    if (!to) return;
+    if (!selected) return;
+    const from = isCopyTo ? fixed : selected;
+    const to   = isCopyTo ? selected : fixed;
     const result = await duplicar.mutateAsync({ from, to });
     setDone(result.copiadas);
   }
+
+  const title    = isCopyTo ? `Duplicar reglas de ${fixedLabel}` : `Copiar reglas a ${fixedLabel}`;
+  const subtitle = isCopyTo
+    ? `Copia las ${fixedRuleCount} reglas de ${fixedLabel} a otro profesional`
+    : `Selecciona el profesional del que copiar las reglas`;
+  const selectLabel = isCopyTo ? 'Copiar a' : 'Copiar desde';
 
   return (
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal modal--sm" role="dialog">
         <div className="modal-header">
           <div>
-            <div className="modal-title">Duplicar reglas</div>
-            <div className="modal-subtitle">Copiar las {reglaCount} reglas de {fromLabel}</div>
+            <div className="modal-title">{title}</div>
+            <div className="modal-subtitle">{subtitle}</div>
           </div>
           <button className="prof-name-edit" style={{ opacity: 1, marginLeft: 'auto' }} onClick={onClose}>
             <X size={16} />
@@ -214,31 +230,34 @@ function DuplicarModal({ from, fromLabel, reglaCount, candidates, onClose }: Dup
             <div className="dup-done">
               <Check size={20} style={{ color: '#16a34a' }} />
               <div>
-                <strong>{done} reglas</strong> copiadas a <strong>{targetLabel}</strong>.
+                <strong>{done} reglas</strong> copiadas de <strong>{sourceLabel}</strong> a <strong>{destLabel}</strong>.
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                  Las reglas existentes del destino se actualizaron con los valores de {fromLabel}.
+                  Las reglas existentes de {destLabel} en las mismas categorías fueron actualizadas.
                 </div>
               </div>
             </div>
           ) : (
             <>
               <div>
-                <label className="prof-modal-label">Profesional destino</label>
+                <label className="prof-modal-label">{selectLabel}</label>
                 <select
                   className="prof-modal-input"
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
+                  value={selected}
+                  onChange={(e) => setSelected(e.target.value)}
                   autoFocus
                 >
                   <option value="">— Seleccionar —</option>
                   {candidates.map((c) => (
-                    <option key={c.nombre} value={c.nombre}>{c.label}</option>
+                    <option key={c.nombre} value={c.nombre}>
+                      {c.label}{c.ruleCount !== undefined ? ` (${c.ruleCount} reglas)` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
-              {targetHasRules && (
+              {selected && (
                 <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', padding: '8px 12px', borderRadius: 6, margin: 0 }}>
-                  Las reglas existentes de {targetLabel} en las mismas categorías serán reemplazadas por los valores de {fromLabel}.
+                  {ruleCount} reglas de <strong>{sourceLabel}</strong> serán copiadas a <strong>{destLabel}</strong>.
+                  Las categorías que ya existan en el destino serán reemplazadas.
                 </p>
               )}
             </>
@@ -252,10 +271,10 @@ function DuplicarModal({ from, fromLabel, reglaCount, candidates, onClose }: Dup
             <button
               className="btn btn--primary"
               onClick={() => { void handleDuplicar(); }}
-              disabled={!to || duplicar.isPending}
+              disabled={!selected || duplicar.isPending}
             >
               <Copy size={13} />
-              {duplicar.isPending ? 'Copiando…' : `Duplicar ${reglaCount} reglas`}
+              {duplicar.isPending ? 'Copiando…' : `Copiar ${ruleCount} reglas`}
             </button>
           )}
         </div>
@@ -371,6 +390,7 @@ export default function ReglaHonorarios(): React.ReactElement {
   const [extraProfs, setExtraProfs] = useState<string[]>([]);
   const [editCell, setEditCell] = useState<{ prof: string; cat: string; catLabel: string } | null>(null);
   const [duplicarFrom, setDuplicarFrom] = useState<string | null>(null);
+  const [copiarDesdeFor, setCopiarDesdeFor] = useState<string | null>(null);
   const [showAddPicker, setShowAddPicker] = useState(false);
 
   // Build lookup name → display label from profesionales catalog
@@ -407,7 +427,7 @@ export default function ReglaHonorarios(): React.ReactElement {
     return map;
   }, [data]);
 
-  // Duplicate modal: candidates = all catalog entries except the source
+  // "Duplicar" (copy-to): candidates = all catalog entries except the source
   const dupCandidates = useMemo(() => {
     if (!duplicarFrom) return [];
     return (catalog ?? [])
@@ -415,6 +435,20 @@ export default function ReglaHonorarios(): React.ReactElement {
       .map((p) => ({ nombre: p.nombre, label: p.nombre_completo ?? p.nombre }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [catalog, duplicarFrom]);
+
+  // "Copiar desde" (copy-from): candidates = professionals in matrix WITH at least 1 rule
+  const copiarDesdeCandidates = useMemo(() => {
+    if (!copiarDesdeFor) return [];
+    return profList
+      .filter((p) => p !== copiarDesdeFor)
+      .map((p) => ({
+        nombre: p,
+        label: profLabel(p),
+        ruleCount: CATEGORIAS.filter((c) => reglaMap.has(`${p}::${c.key}`)).length,
+      }))
+      .filter((p) => p.ruleCount > 0)
+      .sort((a, b) => b.ruleCount - a.ruleCount || a.label.localeCompare(b.label));
+  }, [copiarDesdeFor, profList, reglaMap]);
 
   const editingRegla = editCell
     ? (reglaMap.get(`${editCell.prof}::${editCell.cat}`) ?? null)
@@ -526,16 +560,25 @@ export default function ReglaHonorarios(): React.ReactElement {
                         </td>
                       );
                     })}
-                    <td style={{ textAlign: 'center', padding: '4px 4px' }}>
-                      <button
-                        className="rh-dup-btn"
-                        title={ruleCount === 0 ? 'Sin reglas para duplicar' : `Duplicar reglas de ${profLabel(prof)}`}
-                        onClick={() => setDuplicarFrom(prof)}
-                        disabled={ruleCount === 0}
-                        style={{ opacity: ruleCount > 0 ? 0.45 : 0.2 }}
-                      >
-                        <Copy size={12} />
-                      </button>
+                    <td style={{ textAlign: 'center', padding: '4px 6px', whiteSpace: 'nowrap' }}>
+                      {ruleCount === 0 ? (
+                        <button
+                          className="rh-dup-btn rh-dup-btn--from"
+                          title="Copiar reglas de otro profesional a este"
+                          onClick={() => setCopiarDesdeFor(prof)}
+                        >
+                          <Copy size={11} /> Copiar desde…
+                        </button>
+                      ) : (
+                        <button
+                          className="rh-dup-btn"
+                          title={`Copiar reglas de ${profLabel(prof)} a otro profesional`}
+                          onClick={() => setDuplicarFrom(prof)}
+                          style={{ opacity: 0.5 }}
+                        >
+                          <Copy size={12} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -605,11 +648,23 @@ export default function ReglaHonorarios(): React.ReactElement {
 
       {duplicarFrom && (
         <DuplicarModal
-          from={duplicarFrom}
-          fromLabel={profLabel(duplicarFrom)}
-          reglaCount={CATEGORIAS.filter((c) => reglaMap.has(`${duplicarFrom}::${c.key}`)).length}
+          mode="copy-to"
+          fixed={duplicarFrom}
+          fixedLabel={profLabel(duplicarFrom)}
+          fixedRuleCount={CATEGORIAS.filter((c) => reglaMap.has(`${duplicarFrom}::${c.key}`)).length}
           candidates={dupCandidates}
           onClose={() => setDuplicarFrom(null)}
+        />
+      )}
+
+      {copiarDesdeFor && (
+        <DuplicarModal
+          mode="copy-from"
+          fixed={copiarDesdeFor}
+          fixedLabel={profLabel(copiarDesdeFor)}
+          fixedRuleCount={0}
+          candidates={copiarDesdeCandidates}
+          onClose={() => setCopiarDesdeFor(null)}
         />
       )}
     </div>

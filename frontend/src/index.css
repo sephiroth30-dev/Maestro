@@ -4634,6 +4634,18 @@ body,
 .rh-prof-row:hover .rh-dup-btn { opacity: 1 !important; }
 .rh-dup-btn:hover:not(:disabled) { background: #eff6ff; color: #3b82f6; border-color: #bfdbfe; opacity: 1 !important; }
 .rh-dup-btn:disabled { cursor: not-allowed; }
+.rh-dup-btn--from {
+  width: auto;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #7c3aed;
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  opacity: 1 !important;
+}
+.rh-dup-btn--from:hover { background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; }
 .rh-add-row {
   padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
