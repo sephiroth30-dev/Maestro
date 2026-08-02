@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart2, Loader2, AlertCircle } from 'lucide-react';
 import { useUtilizacion } from '../api/capacidad.js';
+import { ExportButton } from '../export/index.js';
+import { buildCapacidadDoc } from '../export/docs/capacidadDoc.js';
 import type { UtilizacionGrupo } from '../types/index.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -177,6 +179,14 @@ export default function Capacidad(): React.ReactElement {
     return { totalSesiones, totalCapacidad, pctGlobal, gruposConCap: gruposConCap.length };
   }, [grupos]);
 
+  const buildExportDoc = useMemo(() => () => buildCapacidadDoc({
+    periodLabel: `${MESES[mes]} ${anio}`,
+    filters: [{ label: 'Periodo', value: `${MESES[mes]} ${anio}` }],
+    grupos,
+    kpis,
+    estadoDe: (pct) => getStatus(pct).label,
+  }), [mes, anio, grupos, kpis]);
+
   return (
     <div className="page">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -221,6 +231,7 @@ export default function Capacidad(): React.ReactElement {
               ))}
             </select>
           </div>
+          <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
         </div>
       </div>
 

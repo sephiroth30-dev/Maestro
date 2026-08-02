@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { Activity, ArrowRight, TrendingUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
@@ -9,6 +9,8 @@ import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import ChartTendencia from '../components/widgets/ChartTendencia.js';
 import ChartCumplimientoMensual from '../components/widgets/ChartCumplimientoMensual.js';
 import TopEntidades from '../components/widgets/TopEntidades.js';
+import { ExportButton } from '../export/index.js';
+import { buildDashboardDoc } from '../export/docs/dashboardDoc.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -197,6 +199,26 @@ export default function Dashboard(): React.ReactElement {
   const entidadesAnioQ = useEntidades(mesActual, anioActual, startDate, endDate);
   const tendenciaQ   = useTendencia(12);
 
+  // ── Exportación ────────────────────────────────────────────────────────────
+  const refTendencia = useRef<HTMLDivElement>(null);
+  const refMix       = useRef<HTMLDivElement>(null);
+
+  const tendenciaAnio = useMemo(
+    () => (tendenciaQ.data ?? []).filter((r) => r.anio === anioActual).sort((a, b) => a.mesIdx - b.mesIdx),
+    [tendenciaQ.data, anioActual],
+  );
+
+  const buildExportDoc = useMemo(() => () => buildDashboardDoc({
+    anio: anioActual,
+    mesActual,
+    mesNombre: MESES_ES[mesActual] ?? '',
+    kpis: kpisQ.data,
+    tendencia: tendenciaAnio,
+    entidades: entidadesAnioQ.data?.rows ?? [],
+    getChartTendencia: () => refTendencia.current,
+    getChartMix: () => refMix.current,
+  }), [anioActual, mesActual, kpisQ.data, tendenciaAnio, entidadesAnioQ.data]);
+
   return (
     <div className="page">
       {/* Welcome header */}
@@ -206,9 +228,12 @@ export default function Dashboard(): React.ReactElement {
           <p className="page-subtitle">Panel de control · Neurofic Clínica · {MESES_ES[mesActual]} {anioActual}</p>
         </div>
         {canViewReportes && (
-          <Link to="/reportes" className="db-reportes-link">
-            Reportes completos <ArrowRight size={14} />
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ExportButton buildDoc={buildExportDoc} disabled={kpisQ.isLoading} />
+            <Link to="/reportes" className="db-reportes-link">
+              Reportes completos <ArrowRight size={14} />
+            </Link>
+          </div>
         )}
       </div>
 
@@ -227,13 +252,13 @@ export default function Dashboard(): React.ReactElement {
 
           {/* ── Charts row 1: Tendencia + Mix Pagador ── */}
           <div className="charts-row charts-row--2-1">
-            <div className="chart-card">
+            <div className="chart-card" ref={refTendencia}>
               <h2 className="chart-title">Tendencia de Facturación — Año {anioActual}</h2>
               {tendenciaQ.isLoading ? <ChartSkeleton height={270} /> :
                tendenciaQ.isError   ? <ErrorState onRetry={() => void tendenciaQ.refetch()} /> :
                tendenciaQ.data      ? <ChartTendencia rows={tendenciaQ.data} /> : null}
             </div>
-            <div className="chart-card">
+            <div className="chart-card" ref={refMix}>
               <h2 className="chart-title">Mix de Pagadores — Año {anioActual}</h2>
               {entidadesAnioQ.isLoading ? <ChartSkeleton height={270} /> :
                entidadesAnioQ.isError   ? <ErrorState onRetry={() => void entidadesAnioQ.refetch()} /> :

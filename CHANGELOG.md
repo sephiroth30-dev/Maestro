@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.0] - 2026-08-02
+
+### Added
+- **Exportación de reportes a PDF, Excel y CSV** en Dashboard, Reportes, Honorarios, Capacidad Instalada y Auditoría. Botón "Exportar" en el encabezado de cada página.
+- **Diálogo de exportación** con casilla por sección y por columna (todo marcado por defecto), resumen de filas a exportar y elección de orientación para el PDF.
+- **Presets de exportación**: `Todo`, `Vista médicos (sin valores)` — oculta de un clic toda columna monetaria para quienes solo necesitan cantidades —, `Solo tablas` y `Resumen ejecutivo`.
+- **PDF con marca**: banda azul con el logosímbolo Neurofic, título, período, filtros aplicados, tarjetas de indicadores, tablas con cebreado y fila de totales, gráficas incrustadas y pie con fecha de generación y numeración de páginas.
+- **Excel analizable**: una hoja por sección más una portada con el período y los filtros; encabezado fijo y con autofiltro, anchos de columna, y valores guardados como número o fecha reales con formato COP — se pueden sumar y usar en tablas dinámicas.
+- **Honorarios** exporta dos pivotes paralelos por categoría: uno de montos y otro de cantidades. El preset "Vista médicos" descarta el primero y deja exactamente el que le sirve al profesional.
+- **Auditoría** descarga todos los eventos del filtro activo (no solo la página visible) paginando de a 200 en peticiones secuenciales, con tope de 2.000 registros indicado en el archivo.
+
+### Security
+- La exportación **respeta los permisos de rol**: los roles sin acceso a información financiera (ADMISIONES) reciben siempre la versión sin valores. La restricción se aplica en el generador, no solo en la interfaz, y también **sustituye las gráficas por su tabla equivalente** — recharts dibuja las cifras en pesos dentro del SVG, así que incrustar la imagen habría filtrado los montos.
+- Las celdas de CSV que empiezan por `=`, `+`, `-` o `@` se neutralizan para evitar la ejecución de fórmulas al abrir el archivo en Excel.
+
+### Changed
+- Las librerías de generación (jsPDF, ExcelJS) se cargan bajo demanda al pulsar Exportar; el bundle inicial crece solo ~35 kB en lugar de ~400 kB.
+- `ChartMixPagador` exporta `aggregateMix` para que el detalle del PDF reutilice la misma agregación que dibuja el donut, en vez de reimplementarla.
+- La contribución por médico se consulta desde la página de Honorarios y no al desplegar la sección, para que la exportación no dependa de que el usuario la haya abierto antes.
+
+### Fixed
+- `descargarPDF` no insertaba el enlace en el DOM antes de pulsarlo; algunas versiones de Firefox no disparaban la descarga. La utilidad compartida `saveBlob` lo corrige.
+
+---
+
 ## [1.7.1] - 2026-07-17
 
 ### Added

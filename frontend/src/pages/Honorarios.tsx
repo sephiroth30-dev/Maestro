@@ -19,6 +19,9 @@ import {
 import { useAuth } from '../hooks/useAuth.js';
 import type { HonorariosCeldas, HonorariosProfesionalRow } from '../api/honorarios.js';
 import { useContribucion } from '../api/honorarios.js';
+import type { ContribucionRow } from '../api/honorarios.js';
+import { ExportButton } from '../export/index.js';
+import { buildHonorariosDoc } from '../export/docs/honorariosDoc.js';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -75,7 +78,7 @@ function EstadoBadge({ estado }: { estado: EstadoLiquidacion }) {
 
 // ─── CATS para detalle ────────────────────────────────────────────────────────
 
-const CATS: { key: keyof Omit<HonorariosProfesionalRow,'profesional_id'|'nombre'|'total'|'sin_regla'>; label: string }[] = [
+export const CATS: { key: keyof Omit<HonorariosProfesionalRow,'profesional_id'|'nombre'|'total'|'sin_regla'>; label: string }[] = [
   { key: 'consulta',       label: 'Consulta' },
   { key: 'emg_vcn',        label: 'EMG / VCN' },
   { key: 'infiltracion',   label: 'Infiltración' },
@@ -643,33 +646,23 @@ function FilaLiquidacion({
 // ─── Sección contribución por médico ─────────────────────────────────────────
 
 function ContribucionSection({
-  fechaDesde,
-  fechaHasta,
-  honorariosRows,
+  data,
+  isLoading,
+  open,
+  setOpen,
+  honMap,
 }: {
-  fechaDesde: string;
-  fechaHasta: string;
-  honorariosRows: LiquidacionRow[];
+  data: ContribucionRow[];
+  isLoading: boolean;
+  open: boolean;
+  setOpen: (v: boolean | ((p: boolean) => boolean)) => void;
+  honMap: Map<string, { amount: number; simulado: boolean }>;
 }) {
-  const [open, setOpen] = useState(false);
-  const { data = [], isLoading } = useContribucion(fechaDesde, fechaHasta, open);
   const { sortField: cSort, sortDir: cDir, onSort: toggleCSort } =
     useSortState<'medico' | 'total' | 'hon' | 'margen'>('total', 'desc');
 
   const fmtCOP2 = (n: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
-
-  const honMap = useMemo(() => {
-    const map = new Map<string, { amount: number; simulado: boolean }>();
-    for (const r of honorariosRows) {
-      const existing = map.get(r.profesional_display);
-      map.set(r.profesional_display, {
-        amount: (existing?.amount ?? 0) + r.monto_total,
-        simulado: r.es_simulado,
-      });
-    }
-    return map;
-  }, [honorariosRows]);
 
   const sortedData = useMemo(() => [...data].sort((a, b) => {
     const ha = honMap.get(a.profesional_nombre)?.amount ?? 0;
@@ -854,6 +847,44 @@ export default function Honorarios(): React.ReactElement {
     return { acumulado, aprobado, pagado };
   }, [rows]);
 
+  // ── Contribución ─────────────────────────────────────────────────────────
+  // El hook vive en la página y se consulta siempre (no solo al desplegar la
+  // sección) porque la exportación necesita los datos disponibles de forma
+  // síncrona al generar; esperar a que propague el estado produciría un
+  // archivo con la sección vacía en el primer intento.
+  const [contribOpen, setContribOpen] = useState(false);
+  const { data: contribucionData = [], isLoading: contribucionLoading } =
+    useContribucion(fechaDesde, fechaHasta, true);
+
+  const honMap = useMemo(() => {
+    const map = new Map<string, { amount: number; simulado: boolean }>();
+    for (const r of rows) {
+      const existing = map.get(r.profesional_display);
+      map.set(r.profesional_display, {
+        amount: (existing?.amount ?? 0) + r.monto_total,
+        simulado: r.es_simulado,
+      });
+    }
+    return map;
+  }, [rows]);
+
+  const periodLabel = modoRango ? `${fechaDesde} a ${fechaHasta}` : `${MESES[mes]} ${anio}`;
+
+  const buildExportDoc = useMemo(() => () => buildHonorariosDoc({
+    periodLabel,
+    filters: [
+      { label: 'Periodo', value: periodLabel },
+      { label: 'Modo', value: modoRango ? 'Periodo parcial' : 'Mes completo' },
+      { label: 'Desde', value: fechaDesde },
+      { label: 'Hasta', value: fechaHasta },
+    ],
+    cats: CATS,
+    rows: sortedRows,
+    contribucion: contribucionData,
+    honorariosPorMedico: honMap,
+    kpis,
+  }), [periodLabel, modoRango, fechaDesde, fechaHasta, sortedRows, contribucionData, honMap, kpis]);
+
   // Selection helpers — simulated rows cannot be approved/paid
   const selectableIds = rows.filter((r) => r.estado !== 'PAGADO' && !r.es_simulado).map((r) => r.id);
   const toggleAll = () => {
@@ -925,6 +956,8 @@ export default function Honorarios(): React.ReactElement {
           >
             <Calendar size={13} /> {modoRango ? 'Usar mes completo' : 'Período parcial'}
           </button>
+
+          <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
         </div>
       </div>
 
@@ -1113,9 +1146,11 @@ export default function Honorarios(): React.ReactElement {
 
       {/* ── Contribución por médico ────────────────────────────────────────── */}
       <ContribucionSection
-        fechaDesde={fechaDesde}
-        fechaHasta={fechaHasta}
-        honorariosRows={rows}
+        data={contribucionData}
+        isLoading={contribucionLoading}
+        open={contribOpen}
+        setOpen={setContribOpen}
+        honMap={honMap}
       />
 
       {/* ── Nota al pie ────────────────────────────────────────────────────── */}

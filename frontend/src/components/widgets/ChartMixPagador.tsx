@@ -21,7 +21,7 @@ interface ChartMixPagadorProps {
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
 
-interface Slice {
+export interface Slice {
   tipo: string;
   label: string;
   valor: number;
@@ -66,7 +66,7 @@ function getColor(tipo: string): string {
   return TIPO_COLOR[tipo] ?? TIPO_COLOR['OTRO']!;
 }
 
-function aggregateMix(rows: EntidadRow[]): {
+export function aggregateMix(rows: EntidadRow[]): {
   slices: Slice[];
   cobroTotal: number;
   cajaTotal: number;

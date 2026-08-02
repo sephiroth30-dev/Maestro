@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { RefreshCw, DollarSign, BarChart2, Users, Target, Award, X, Lock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import {
@@ -12,6 +12,8 @@ import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import TablaEntidades from '../components/widgets/TablaEntidades.js';
 import TablaServicios from '../components/widgets/TablaServicios.js';
+import { ExportButton } from '../export/index.js';
+import { buildReportesDoc } from '../export/docs/reportesDoc.js';
 
 // ─── Month selector helper ────────────────────────────────────────────────────
 
@@ -583,8 +585,51 @@ export default function Reportes(): React.ReactElement {
     setActivePreset(preset);
   }
 
+  // ── Exportación ────────────────────────────────────────────────────────────
+  const refCumplimiento = useRef<HTMLDivElement>(null);
+  const refMix          = useRef<HTMLDivElement>(null);
+
+  const periodLabel = isAnioMode
+    ? `Año ${currentYear}`
+    : filterMode === 'rango' && periodStart && periodEnd
+      ? `${periodStart} a ${periodEnd}`
+      : selected.label;
+
   const diaLabel      = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
   const groupLabel    = selectedGroup === 'caja' ? 'Flujo de caja' : selectedGroup === 'cobro' ? 'Cobro a entidades' : null;
+
+  const buildExportDoc = useMemo(() => () => {
+    const filters: { label: string; value: string }[] = [
+      { label: 'Modo', value: filterMode === 'rango' ? 'Rango de fechas' : 'Mes' },
+      { label: 'Periodo', value: periodLabel },
+    ];
+    if (diaLabel)            filters.push({ label: 'Dia', value: diaLabel });
+    if (groupLabel)          filters.push({ label: 'Grupo', value: groupLabel });
+    if (selectedTipo)        filters.push({ label: 'Tipo', value: tipoLabel(selectedTipo) });
+    if (selectedEntidadName) filters.push({ label: 'Entidad', value: selectedEntidadName });
+
+    return buildReportesDoc({
+      periodLabel,
+      filters,
+      kpis: kpisQ.data,
+      flujoPct,
+      flujoTarget: FLUJO_CAJA_TARGET,
+      dias: diasQ.data ?? [],
+      semanas: cumplimientoQ.data?.semanas ?? [],
+      tendenciaAnio,
+      entidades: tableRows,
+      entidadesAll: allRows,
+      servicios: serviciosQ.data,
+      isAnioMode,
+      isRangoMode,
+      getChartCumplimiento: () => refCumplimiento.current,
+      getChartMix: () => refMix.current,
+    });
+  }, [
+    filterMode, periodLabel, diaLabel, groupLabel, selectedTipo, selectedEntidadName,
+    kpisQ.data, flujoPct, diasQ.data, cumplimientoQ.data, tendenciaAnio,
+    tableRows, allRows, serviciosQ.data, isAnioMode, isRangoMode,
+  ]);
 
   return (
     <div className="page">
@@ -643,6 +688,8 @@ export default function Reportes(): React.ReactElement {
               )}
             </>
           )}
+
+          <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
 
           <button type="button" className="btn btn--secondary btn--icon"
             onClick={handleRefresh} disabled={isLoading}
@@ -855,7 +902,7 @@ export default function Reportes(): React.ReactElement {
 
           {/* Charts Row: Cumplimiento (diario/semanal/mensual) + Mix Pagador */}
           <div className="charts-row">
-            <div className="chart-card chart-card--2-3">
+            <div className="chart-card chart-card--2-3" ref={refCumplimiento}>
               <h2 className="chart-title">
                 {isAnioMode ? 'Cumplimiento Mensual' : isRangoMode ? 'Cumplimiento Diario' : 'Cumplimiento Semanal'}
               </h2>
@@ -880,7 +927,7 @@ export default function Reportes(): React.ReactElement {
                 ) : null
               )}
             </div>
-            <div className="chart-card chart-card--1-3">
+            <div className="chart-card chart-card--1-3" ref={refMix}>
               <h2 className="chart-title">Mix Pagador</h2>
               {entidadesQ.isLoading ? <ChartSkeleton /> :
                entidadesQ.isError   ? <ErrorState onRetry={() => void entidadesQ.refetch()} /> :

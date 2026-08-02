@@ -5440,3 +5440,57 @@ body,
   color: #92400e;
   flex: 1;
 }
+
+/* ─── Exportación (diálogo PDF / Excel / CSV) ──────────────────────────────── */
+.export-section-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.export-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+.export-check input[type='checkbox'] {
+  accent-color: #1e40af;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.export-check--col {
+  font-size: 0.76rem;
+  color: #475569;
+}
+.export-check--locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.export-check--locked input { cursor: not-allowed; }
+.export-check__meta {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.export-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 3px 12px;
+  margin: 7px 0 2px 22px;
+  padding-top: 7px;
+  border-top: 1px dashed #e2e8f0;
+}
+.export-money-dot {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 1.4;
+}

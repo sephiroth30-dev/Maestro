@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { ClipboardList, ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { useAuditoria, useAuditoriaAcciones } from '../api/auditoria.js';
+import { useAuditoria, useAuditoriaAcciones, fetchAuditoriaAll, AUDITORIA_EXPORT_MAX } from '../api/auditoria.js';
+import { ExportButton } from '../export/index.js';
+import { buildAuditoriaDoc } from '../export/docs/auditoriaDoc.js';
 import type { AuditLog } from '../types/index.js';
 
 // ─── Action display config ────────────────────────────────────────────────────
@@ -128,6 +130,48 @@ export default function Auditoria(): ReactElement {
     setSearchPending(false);
   }
 
+  // ── Exportación ────────────────────────────────────────────────────────────
+  // Única página cuyos datos NO están completos en el cliente: la API pagina.
+  // El diálogo se arma con la página visible y, al generar, `resolveDoc` trae
+  // todas las filas del filtro (con tope) para que el archivo sea el registro
+  // completo y no un recorte de 50 eventos.
+  const labelAccion = useCallback((a: string) => ACCION_LABELS[a] ?? a, []);
+
+  const periodLabel = activeFilters.desde || activeFilters.hasta
+    ? `${activeFilters.desde || 'inicio'} a ${activeFilters.hasta || 'hoy'}`
+    : 'Historico completo';
+
+  const exportFilters = useMemo(() => {
+    const f = [{ label: 'Periodo', value: periodLabel }];
+    if (activeFilters.accion) f.push({ label: 'Accion', value: labelAccion(activeFilters.accion) });
+    return f;
+  }, [periodLabel, activeFilters.accion, labelAccion]);
+
+  const buildExportDoc = useCallback(() => buildAuditoriaDoc({
+    periodLabel,
+    filters: exportFilters,
+    rows: data?.data ?? [],
+    note: `Al generar se descargaran todos los eventos del filtro (maximo ${AUDITORIA_EXPORT_MAX.toLocaleString('es-CO')}), no solo esta pagina.`,
+    labelAccion,
+  }), [periodLabel, exportFilters, data, labelAccion]);
+
+  const resolveExportDoc = useCallback(async () => {
+    const { rows, total, truncated } = await fetchAuditoriaAll({
+      accion: activeFilters.accion || undefined,
+      desde:  activeFilters.desde  || undefined,
+      hasta:  activeFilters.hasta  || undefined,
+    });
+    return buildAuditoriaDoc({
+      periodLabel,
+      filters: exportFilters,
+      rows,
+      note: truncated
+        ? `Se exportan ${rows.length.toLocaleString('es-CO')} de ${total.toLocaleString('es-CO')} eventos. Acota el rango de fechas para incluir el resto.`
+        : `${rows.length.toLocaleString('es-CO')} eventos.`,
+      labelAccion,
+    });
+  }, [activeFilters, periodLabel, exportFilters, labelAccion]);
+
   const hasActiveFilters = activeFilters.accion || activeFilters.desde || activeFilters.hasta;
 
   return (
@@ -140,11 +184,18 @@ export default function Auditoria(): ReactElement {
           </h1>
           <p className="page-subtitle">Registro de actividad del sistema</p>
         </div>
-        {data && (
-          <span style={{ fontSize: '0.8rem', color: '#64748b', alignSelf: 'center' }}>
-            {data.total.toLocaleString('es-MX')} registros
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {data && (
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+              {data.total.toLocaleString('es-MX')} registros
+            </span>
+          )}
+          <ExportButton
+            buildDoc={buildExportDoc}
+            resolveDoc={resolveExportDoc}
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       {/* ── Filtros ─────────────────────────────────────────────────────── */}
