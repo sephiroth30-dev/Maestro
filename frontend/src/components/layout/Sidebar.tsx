@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   BarChart2,
+  Users,
   DollarSign,
   ClipboardList,
   FileUp,
@@ -50,6 +51,13 @@ const NAV_SECTIONS: NavSection[] = [
         to: '/reportes',
         icon: <BarChart2 size={18} />,
         modulo: 'reportes',
+        roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'],
+      },
+      {
+        label: 'Pacientes',
+        to: '/pacientes',
+        icon: <Users size={18} />,
+        modulo: 'pacientes',
         roles: ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'],
       },
       {

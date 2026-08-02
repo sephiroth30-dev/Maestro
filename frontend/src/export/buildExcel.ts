@@ -96,7 +96,7 @@ export async function buildExcel(doc: ExportDoc): Promise<Blob> {
     cover.addRow([doc.subtitle]).font = { color: { argb: ARGB.notaTexto } };
   }
   cover.addRow([]);
-  cover.addRow(['Periodo', doc.periodLabel]).getCell(1).font = { bold: true };
+  cover.addRow(['Período', doc.periodLabel]).getCell(1).font = { bold: true };
   for (const f of doc.filters) {
     cover.addRow([f.label, f.value]).getCell(1).font = { bold: true };
   }

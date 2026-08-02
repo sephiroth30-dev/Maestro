@@ -21,7 +21,7 @@ function esc(v: string): string {
 export function buildCsv(doc: ExportDoc): Blob {
   const lines: string[] = [];
   lines.push(esc(doc.title));
-  lines.push(esc(`Periodo: ${doc.periodLabel}`));
+  lines.push(esc(`Período: ${doc.periodLabel}`));
   for (const f of doc.filters) lines.push(esc(`${f.label}: ${f.value}`));
   lines.push(esc(`Generado: ${fmtFechaLarga(new Date())}`));
 

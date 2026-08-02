@@ -12,6 +12,7 @@ import { errorHandler } from './middlewares/error.middleware.js';
 import { registerAuthRoutes } from './routes/auth.routes.js';
 import { registerConnectorRoutes } from './routes/connectors.routes.js';
 import { registerReportesRoutes } from './routes/reportes.routes.js';
+import { registerPacientesRoutes } from './routes/pacientes.routes.js';
 import { registerUsuariosRoutes } from './routes/usuarios.routes.js';
 import { registerAuditoriaRoutes } from './routes/auditoria.routes.js';
 import { registerCapacidadRoutes } from './routes/capacidad.routes.js';
@@ -95,6 +96,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerAuthRoutes(fastify);
   await registerConnectorRoutes(fastify);
   await registerReportesRoutes(fastify);
+  await registerPacientesRoutes(fastify);
   await registerUsuariosRoutes(fastify);
   await registerAuditoriaRoutes(fastify);
   await registerCapacidadRoutes(fastify);

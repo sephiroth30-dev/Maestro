@@ -17,11 +17,12 @@ export interface User {
   modulos?: string[];
 }
 
-export type Modulo = 'dashboard' | 'reportes' | 'honorarios' | 'capacidad' | 'auditoria' | 'configuracion' | 'aprobar';
+export type Modulo = 'dashboard' | 'reportes' | 'pacientes' | 'honorarios' | 'capacidad' | 'auditoria' | 'configuracion' | 'aprobar';
 
 export const MODULO_LABELS: Record<Modulo, string> = {
   dashboard: 'Dashboard',
   reportes: 'Reportes',
+  pacientes: 'Analítica de pacientes',
   honorarios: 'Honorarios',
   capacidad: 'Capacidad instalada',
   auditoria: 'Auditoría',

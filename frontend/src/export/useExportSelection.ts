@@ -37,7 +37,7 @@ function buildSelection(doc: ExportDoc, preset: PresetId, permitirValores: boole
     let on = true;
     if (preset === 'solo-tablas' && s.kind === 'chart') on = false;
     if (preset === 'resumen' && s.kind === 'table') on = false;
-    // Una seccion cuyas columnas son todas monetarias no aporta nada sin ellas.
+    // Una sección cuyas columnas son todas monetarias no aporta nada sin ellas.
     if (ocultarDinero && s.kind === 'table' && s.columns.length > 0 && s.columns.every((c) => c.money)) {
       on = false;
     }
@@ -155,7 +155,7 @@ export function applySelection(
   };
 
   const sections = doc.sections
-    // Estricto `=== true`: una seccion que no existia cuando se abrio el
+    // Estricto `=== true`: una sección que no existia cuando se abrio el
     // dialogo (porque su consulta aun cargaba) no debe colarse al exportar.
     .filter((s) => sel.sections[s.id] === true)
     .map((s): ExportSection | null => {

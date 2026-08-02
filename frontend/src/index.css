@@ -5494,3 +5494,47 @@ body,
   padding: 0 3px;
   line-height: 1.4;
 }
+
+/* ─── Analítica de pacientes ───────────────────────────────────────────────── */
+.pac-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 16px 0 14px;
+}
+.pac-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.pac-kpi__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.pac-kpi__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #0f172a;
+}
+.pac-kpi__sub {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+.pac-filtros {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pac-filtros .form-input {
+  width: auto;
+  min-width: 120px;
+}

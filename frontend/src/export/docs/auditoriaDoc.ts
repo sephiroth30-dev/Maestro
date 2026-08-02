@@ -21,8 +21,8 @@ export interface AuditoriaDocInput {
 export function buildAuditoriaDoc(i: AuditoriaDocInput): ExportDoc {
   return {
     fileBase: 'auditoria',
-    title: 'Registro de Auditoria',
-    subtitle: 'Clinica Neurofic',
+    title: 'Registro de Auditoría',
+    subtitle: 'Clínica Neurofic',
     periodLabel: i.periodLabel,
     filters: i.filters,
     // 8 columnas y un campo de detalle largo: vertical no alcanza.
@@ -36,7 +36,7 @@ export function buildAuditoriaDoc(i: AuditoriaDocInput): ExportDoc {
           { key: 'fecha', header: 'Fecha y hora', accessor: (r) => r.createdAt, format: 'datetime', width: 20 },
           { key: 'usuario', header: 'Usuario', accessor: (r) => r.usuarioNombre ?? '(sistema)', width: 24 },
           { key: 'email', header: 'Correo', accessor: (r) => r.usuarioEmail ?? '', width: 28, hidden: true },
-          { key: 'accion', header: 'Accion', accessor: (r) => i.labelAccion(r.accion), width: 24 },
+          { key: 'acción', header: 'Acción', accessor: (r) => i.labelAccion(r.accion), width: 24 },
           { key: 'entidad', header: 'Entidad', accessor: (r) => r.entidadTipo ?? '', width: 18 },
           { key: 'entidad_id', header: 'ID entidad', accessor: (r) => r.entidadId ?? '', width: 34, hidden: true },
           {

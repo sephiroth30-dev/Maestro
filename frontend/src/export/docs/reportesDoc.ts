@@ -50,16 +50,16 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
     sections.push({
       kind: 'kpis',
       id: 'kpis',
-      title: 'Indicadores del periodo',
+      title: 'Indicadores del período',
       items: [
-        { label: 'Facturacion bruta', value: k.facturacion_bruta, format: 'currency', money: true },
+        { label: 'Facturación bruta', value: k.facturacion_bruta, format: 'currency', money: true },
         { label: 'Presupuesto', value: k.presupuesto, format: 'currency', money: true },
         { label: 'Cumplimiento', value: k.cumplimiento_pct, format: 'percent' },
         { label: 'Atenciones', value: k.atenciones, format: 'number' },
         { label: 'Ticket promedio', value: k.ticket_promedio, format: 'currency', money: true },
         { label: 'Promedio diario', value: k.promedio_diario, format: 'currency', money: true },
-        { label: 'Proyeccion de cierre', value: k.proyeccion_cierre, format: 'currency', money: true },
-        { label: 'Proyeccion cumplimiento', value: k.proyeccion_cumplimiento_pct, format: 'percent' },
+        { label: 'Proyección de cierre', value: k.proyeccion_cierre, format: 'currency', money: true },
+        { label: 'Proyección cumplimiento', value: k.proyeccion_cumplimiento_pct, format: 'percent' },
         { label: 'Dias transcurridos', value: k.dias_transcurridos, format: 'number' },
         { label: 'Dias restantes', value: k.dias_restantes, format: 'number' },
         { label: 'Semanas en meta', value: `${k.semanas_en_meta} de ${k.semanas_total}` },
@@ -73,9 +73,9 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
       kind: 'kpis',
       id: 'flujo-caja',
       title: 'Flujo de caja',
-      note: `Meta: ${i.flujoTarget}% del ingreso del periodo entre particulares y entidades de pago inmediato.`,
+      note: `Meta: ${i.flujoTarget}% del ingreso del período entre particulares y entidades de pago inmediato.`,
       items: [
-        { label: 'Participacion flujo de caja', value: i.flujoPct, format: 'percent' },
+        { label: 'Participación flujo de caja', value: i.flujoPct, format: 'percent' },
         { label: 'Meta', value: i.flujoTarget, format: 'percent' },
         { label: 'Brecha (puntos)', value: Math.round((i.flujoPct - i.flujoTarget) * 10) / 10, format: 'number' },
       ],
@@ -107,7 +107,7 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
   }
 
   // ── Cumplimiento ───────────────────────────────────────────────────────────
-  // Debe seguir la MISMA variante que la grafica en pantalla (mensual en modo
+  // Debe seguir la MISMA variante que la gráfica en pantalla (mensual en modo
   // ano, diaria en modo rango, semanal en modo mes); si no, la imagen y la
   // tabla de detalle contarian cosas distintas.
   const cumplimientoTable = i.isRangoMode
@@ -158,7 +158,7 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
         id: 'cumplimiento',
         title: 'Cumplimiento semanal',
         columns: [
-          { key: 'numero', header: 'Semana', accessor: (r) => r.numero, format: 'number', width: 12 },
+          { key: 'número', header: 'Semana', accessor: (r) => r.numero, format: 'number', width: 12 },
           { key: 'ini', header: 'Desde', accessor: (r) => r.fecha_ini, format: 'date' },
           { key: 'fin', header: 'Hasta', accessor: (r) => r.fecha_fin, format: 'date' },
           { key: 'estimado', header: 'Estimado', accessor: (r) => r.estimado, format: 'currency', money: true },
@@ -216,21 +216,21 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
     });
   }
 
-  // ── Facturacion por entidad ────────────────────────────────────────────────
+  // ── Facturación por entidad ────────────────────────────────────────────────
   const valorFiltrado = i.entidades.reduce((s, r) => s + r.valor_bruto, 0);
-  const valorPeriodo = i.entidadesAll.reduce((s, r) => s + r.valor_bruto, 0);
+  const valorPeríodo = i.entidadesAll.reduce((s, r) => s + r.valor_bruto, 0);
   if (i.entidades.length > 0) {
     sections.push(
       defineTable<EntidadRow>({
         id: 'entidades',
-        title: 'Facturacion por entidad',
+        title: 'Facturación por entidad',
         note: `Se exportan las ${i.entidades.length} filas del filtro actual, no solo las visibles en pantalla.`,
         columns: [
           { key: 'entidad', header: 'Entidad', accessor: (r) => r.entidad, width: 34 },
           { key: 'tipo', header: 'Tipo', accessor: (r) => (r.es_grupo ? `${r.tipo} (caja)` : r.tipo) },
           { key: 'cantidad', header: 'Atenciones', accessor: (r) => r.cantidad, format: 'number' },
           { key: 'valor', header: 'Valor bruto', accessor: (r) => r.valor_bruto, format: 'currency', money: true },
-          { key: 'part', header: 'Participacion', accessor: (r) => r.participacion_pct, format: 'percent' },
+          { key: 'part', header: 'Participación', accessor: (r) => r.participacion_pct, format: 'percent' },
         ],
         rows: i.entidades,
         totals: {
@@ -238,9 +238,9 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
           values: {
             cantidad: i.entidades.reduce((s, r) => s + r.cantidad, 0),
             valor: valorFiltrado,
-            // Recalculado sobre el total del periodo: sumar los porcentajes ya
+            // Recalculado sobre el total del período: sumar los porcentajes ya
             // redondeados de la API da 100,3 % con muchas entidades.
-            part: valorPeriodo > 0 ? (valorFiltrado / valorPeriodo) * 100 : null,
+            part: valorPeríodo > 0 ? (valorFiltrado / valorPeríodo) * 100 : null,
           },
         },
       }),
@@ -292,8 +292,8 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
 
   return {
     fileBase: 'reportes-facturacion',
-    title: 'Reportes de Facturacion',
-    subtitle: 'Clinica Neurofic',
+    title: 'Reportes de Facturación',
+    subtitle: 'Clínica Neurofic',
     periodLabel: i.periodLabel,
     filters: i.filters,
     sections,

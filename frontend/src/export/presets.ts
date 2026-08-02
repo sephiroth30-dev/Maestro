@@ -13,22 +13,22 @@ export interface ExportPreset {
 }
 
 export const PRESETS: ExportPreset[] = [
-  { id: 'todo', label: 'Todo', hint: 'Incluye todas las secciones y columnas' },
+  { id: 'todo', label: 'Todo', hint: 'Incluye todas las secciónes y columnas' },
   {
     id: 'sin-valores',
-    label: 'Vista medicos (sin valores)',
+    label: 'Vista médicos (sin valores)',
     hint: 'Solo cantidades: oculta toda columna monetaria',
   },
-  { id: 'solo-tablas', label: 'Solo tablas', hint: 'Omite las graficas' },
+  { id: 'solo-tablas', label: 'Solo tablas', hint: 'Omite las gráficas' },
   {
     id: 'resumen',
     label: 'Resumen ejecutivo',
-    hint: 'Indicadores y graficas, sin tablas de detalle',
+    hint: 'Indicadores y gráficas, sin tablas de detalle',
   },
 ];
 
 /**
- * Roles que NO pueden ver informacion financiera.
+ * Roles que NO pueden ver información financiera.
  *
  * Para ellos el modo "sin valores" es obligatorio, no una comodidad: el
  * dialogo bloquea las columnas monetarias y el generador las descarta aunque

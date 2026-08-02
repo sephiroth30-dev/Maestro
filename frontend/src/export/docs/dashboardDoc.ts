@@ -31,13 +31,13 @@ export function buildDashboardDoc(i: DashboardDocInput): ExportDoc {
       id: 'hero',
       title: 'Indicadores acumulados del ano',
       items: [
-        { label: 'Facturacion bruta', value: k.facturacion_bruta, format: 'currency', money: true },
+        { label: 'Facturación bruta', value: k.facturacion_bruta, format: 'currency', money: true },
         { label: 'Presupuesto', value: k.presupuesto, format: 'currency', money: true },
         { label: 'Cumplimiento', value: k.cumplimiento_pct, format: 'percent' },
         { label: 'Atenciones', value: k.atenciones, format: 'number' },
         { label: 'Ticket promedio', value: k.ticket_promedio, format: 'currency', money: true },
         { label: 'Promedio diario', value: k.promedio_diario, format: 'currency', money: true },
-        { label: 'Proyeccion de cierre', value: k.proyeccion_cierre, format: 'currency', money: true },
+        { label: 'Proyección de cierre', value: k.proyeccion_cierre, format: 'currency', money: true },
         { label: 'Dias habiles restantes', value: k.dias_restantes, format: 'number' },
       ],
     });
@@ -103,13 +103,13 @@ export function buildDashboardDoc(i: DashboardDocInput): ExportDoc {
     sections.push(
       defineTable<EntidadRow>({
         id: 'entidades',
-        title: 'Facturacion por entidad',
+        title: 'Facturación por entidad',
         columns: [
           { key: 'entidad', header: 'Entidad', accessor: (r) => r.entidad, width: 34 },
           { key: 'tipo', header: 'Tipo', accessor: (r) => (r.es_grupo ? `${r.tipo} (caja)` : r.tipo) },
           { key: 'cantidad', header: 'Atenciones', accessor: (r) => r.cantidad, format: 'number' },
           { key: 'valor', header: 'Valor bruto', accessor: (r) => r.valor_bruto, format: 'currency', money: true },
-          { key: 'part', header: 'Participacion', accessor: (r) => r.participacion_pct, format: 'percent' },
+          { key: 'part', header: 'Participación', accessor: (r) => r.participacion_pct, format: 'percent' },
         ],
         rows: i.entidades,
         totals: {
@@ -127,10 +127,10 @@ export function buildDashboardDoc(i: DashboardDocInput): ExportDoc {
   return {
     fileBase: 'dashboard',
     title: 'Panel de Control',
-    subtitle: 'Clinica Neurofic',
+    subtitle: 'Clínica Neurofic',
     periodLabel: `Ano ${i.anio}`,
     filters: [
-      { label: 'Periodo', value: `Enero a ${i.mesNombre} de ${i.anio}` },
+      { label: 'Período', value: `Enero a ${i.mesNombre} de ${i.anio}` },
     ],
     sections,
     orientation: 'portrait',

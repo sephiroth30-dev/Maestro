@@ -49,7 +49,7 @@ export interface PresupuestoRow {
  * Returns a [whereClause, params] tuple for filtering atenciones by date range
  * or by mes_idx/anio.
  */
-function buildDateWhere(
+export function buildDateWhere(
   mesIdx?: number,
   anio?: number,
   startDate?: Date,

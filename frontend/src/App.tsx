@@ -12,6 +12,7 @@ import { useInactivityLogout } from './hooks/useInactivityLogout.js';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
+import Pacientes from './pages/Pacientes.js';
 import { Configuracion } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
@@ -75,6 +76,20 @@ function AdminRoute({ children }: { children: ReactElement }): ReactElement {
 // ─── Reportes Route ───────────────────────────────────────────────────────────
 
 const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'] as const;
+
+function PacientesRoute({ children }: { children: ReactElement }): ReactElement {
+  const { user, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!hasModuleAccess(user, 'pacientes', REPORTES_ROLES)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
 
 function ReportesRoute({ children }: { children: ReactElement }): ReactElement {
   const { user, isAuthenticated } = useAuth();
@@ -270,6 +285,18 @@ export default function App(): ReactElement {
                   <Reportes />
                 </AppLayout>
               </ReportesRoute>
+            }
+          />
+
+          {/* Analítica de pacientes */}
+          <Route
+            path="/pacientes"
+            element={
+              <PacientesRoute>
+                <AppLayout>
+                  <Pacientes />
+                </AppLayout>
+              </PacientesRoute>
             }
           />
 

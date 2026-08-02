@@ -3,7 +3,7 @@
  *
  * La pantalla muestra tarjetas, no una tabla; el descriptor convierte
  * `UtilizacionGrupo[]` en filas. No hay una sola columna monetaria, asi que el
- * preset "Vista medicos" se oculta automaticamente.
+ * preset "Vista médicos" se oculta automaticamente.
  */
 
 import type { UtilizacionGrupo } from '../../types/index.js';
@@ -22,7 +22,7 @@ export function buildCapacidadDoc(i: CapacidadDocInput): ExportDoc {
   return {
     fileBase: 'capacidad-instalada',
     title: 'Capacidad Instalada',
-    subtitle: 'Clinica Neurofic',
+    subtitle: 'Clínica Neurofic',
     periodLabel: i.periodLabel,
     filters: i.filters,
     orientation: 'portrait',
@@ -34,20 +34,20 @@ export function buildCapacidadDoc(i: CapacidadDocInput): ExportDoc {
         items: [
           { label: 'Sesiones realizadas', value: i.kpis.totalSesiones, format: 'number' },
           { label: 'Capacidad total', value: i.kpis.totalCapacidad, format: 'number' },
-          { label: 'Ocupacion global', value: i.kpis.pctGlobal, format: 'percent' },
+          { label: 'Ocupación global', value: i.kpis.pctGlobal, format: 'percent' },
           { label: 'Grupos con capacidad definida', value: i.kpis.gruposConCap, format: 'number' },
         ],
       },
       defineTable<UtilizacionGrupo>({
         id: 'utilizacion',
-        title: 'Utilizacion por servicio',
+        title: 'Utilización por servicio',
         note: 'Los grupos sin capacidad configurada aparecen sin porcentaje de ocupacion.',
         columns: [
           { key: 'nombre', header: 'Servicio', accessor: (r) => r.nombre, width: 32 },
           { key: 'grupo', header: 'Grupo', accessor: (r) => r.grupo, hidden: true },
           { key: 'capacidad', header: 'Capacidad', accessor: (r) => r.capacidad, format: 'number' },
           { key: 'sesiones', header: 'Sesiones', accessor: (r) => r.sesiones, format: 'number' },
-          { key: 'pct', header: 'Ocupacion', accessor: (r) => r.pctOcupacion, format: 'percent' },
+          { key: 'pct', header: 'Ocupación', accessor: (r) => r.pctOcupacion, format: 'percent' },
           { key: 'disponible', header: 'Disponible', accessor: (r) => r.disponible, format: 'number' },
           { key: 'estado', header: 'Estado', accessor: (r) => i.estadoDe(r.pctOcupacion) },
         ],

@@ -94,11 +94,55 @@ Permite analizar las atenciones en detalle con filtros flexibles.
 
 ### Tabla de detalle
 
-Muestra cada sesión registrada con: fecha, paciente, servicio, profesional, entidad y valor. Se puede exportar.
+Muestra cada sesión registrada con: fecha, paciente, servicio, profesional, entidad y valor.
+Se descarga con el botón **Detalle** del encabezado de Reportes (ver «Exportar reportes»).
 
 ---
 
-## 5. Honorarios
+## 5. Pacientes
+
+**Acceso:** ADMIN, Gerencia, Dirección, Facturación, Coordinadora, Admisiones
+(Admisiones solo ve el mes en curso).
+
+Responde cuántas **personas distintas** se atienden, cuántas son nuevas y con qué
+frecuencia vuelven. Es analítica de utilización, no de población.
+
+### Lo primero: la barra de cobertura
+
+Arriba de todo aparece siempre qué porcentaje de los registros del período trae
+identificación del paciente. **Todas las cifras de la página se calculan solo sobre esos
+registros.** Si dice 62 %, el resto de la pantalla habla del 62 % de la operación, no del
+total — y conviene revisar «Ver por fuente»: una fuente al 0 % es un Sheet cuya cabecera
+no tiene columna de paciente, y eso se arregla en el origen.
+
+### Indicadores
+
+- **Pacientes únicos** — personas distintas atendidas en el período.
+- **Nuevos** — sin ningún registro anterior en los datos disponibles. Ojo: alguien
+  atendido hace años, si ese período no está cargado, cuenta como nuevo. La fecha desde
+  la que hay historia se indica bajo los indicadores.
+- **Recurrentes** — ya tenían registros previos.
+- **Visitas por paciente** — una visita es una fecha distinta. Un EMG y un VCN el mismo
+  día son dos atenciones pero una sola visita; por eso se muestran los dos promedios.
+
+### Gráficas y tablas
+
+- **Distribución de frecuencia** — cuántos pacientes vinieron 1 vez, 2–3, 4–6 o 7+.
+- **Retención mes a mes** — qué porcentaje de los pacientes de cada mes vuelve al mes
+  siguiente. El último mes queda vacío a propósito: su mes siguiente aún no termina.
+- **Por tipo de pagador** y **por servicio** — un paciente atendido por dos pagadores (o
+  con dos servicios) se cuenta en ambos, así que **estas cifras no suman** el total de
+  pacientes únicos. Por eso se muestran como tabla y no como una torta.
+
+### Qué NO hay
+
+El sistema no guarda edad, sexo, ciudad ni régimen: la fuente solo aporta nombre y
+documento del paciente. Para segmentar por esos criterios habría que agregar primero esas
+columnas en el Sheet de origen.
+
+---
+
+## 6. Honorarios
 
 **Acceso:** ADMIN, Gerencia, Dirección, Facturación.
 
@@ -131,7 +175,7 @@ Dentro de cada liquidación se pueden agregar **ajustes** (bonos, descuentos, co
 
 ---
 
-## 6. Capacidad
+## 7. Capacidad
 
 **Acceso:** ADMIN, Gerencia, Dirección, Facturación.
 
@@ -161,7 +205,7 @@ Muestra la ocupación real de cada servicio frente a la capacidad instalada del 
 
 ---
 
-## 7. Auditoría
+## 8. Auditoría
 
 **Acceso:** ADMIN, Facturación.
 
@@ -178,7 +222,7 @@ Cada entrada muestra: fecha y hora, usuario que realizó la acción, tipo de acc
 
 ---
 
-## 8. Administración (solo ADMIN)
+## 9. Administración (solo ADMIN)
 
 ### 8.1 Gestión de usuarios
 
@@ -205,7 +249,7 @@ Permite ajustar la capacidad instalada de cada grupo de servicio por mes. Los ca
 
 ---
 
-## 9. Permisos por rol
+## 10. Permisos por rol
 
 | Función | Admin | Gerencia | Dirección | Facturación | Coordinadora | Admisiones |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -224,7 +268,7 @@ Permite ajustar la capacidad instalada de cada grupo de servicio por mes. Los ca
 
 ---
 
-## 10. Preguntas frecuentes
+## 11. Preguntas frecuentes
 
 **¿Qué hago si no puedo iniciar sesión?**  
 Verificar que el correo y la contraseña sean correctos. Si el problema persiste, contactar al administrador para restablecer la contraseña.
@@ -233,7 +277,28 @@ Verificar que el correo y la contraseña sean correctos. Si el problema persiste
 Los datos se sincronizan automáticamente desde la fuente. El Dashboard y los Reportes reflejan la información disponible al momento de cargar la página. Usar el botón de **actualizar** (↺) para refrescar manualmente.
 
 **¿Puedo exportar los reportes?**  
-Sí. En la sección de Reportes hay una opción de exportar la tabla de detalle.
+Sí. Dashboard, Reportes, Pacientes, Honorarios, Capacidad y Auditoría tienen un botón
+**Exportar** en el encabezado, con salida en **PDF**, **Excel** o **CSV**.
+
+Al pulsarlo se abre un diálogo donde se elige el formato y se marca qué secciones y qué
+columnas incluir. Por defecto va todo marcado. Los botones de preset son atajos:
+
+- **Todo** — el reporte completo.
+- **Vista médicos (sin valores)** — quita de un clic todas las columnas de dinero y deja
+  solo las cantidades. Es lo que suele necesitar un profesional para revisar su actividad.
+- **Solo tablas** — omite las gráficas.
+- **Resumen ejecutivo** — indicadores y gráficas, sin las tablas de detalle.
+
+El PDF sale con el logo, el período, los filtros que estaban aplicados y numeración de
+páginas, listo para imprimir o adjuntar. El Excel trae una hoja por sección y guarda los
+importes como números reales, así que se pueden sumar y usar en tablas dinámicas.
+
+En **Reportes** hay además un botón **Detalle**, que descarga una fila por atención del
+período (fecha, paciente, documento, entidad, profesional, servicio y valor) para armar
+análisis propios.
+
+> Los usuarios con rol **Admisiones** reciben siempre la versión sin valores: la
+> restricción se aplica al generar el archivo, no solo en pantalla.
 
 **¿Qué significa que una liquidación esté en "Calculado"?**  
 Que fue generada automáticamente pero aún no ha sido revisada ni aprobada. No refleja un pago definitivo.

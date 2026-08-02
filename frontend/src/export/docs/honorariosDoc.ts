@@ -2,10 +2,10 @@
  * Descriptor de exportacion de la pagina Honorarios.
  *
  * Los pivotes salen de `datos_snapshot` de cada liquidacion, NO del hook
- * `useHonorarios`: ese hook es solo por mes y con "Periodo parcial" activo
+ * `useHonorarios`: ese hook es solo por mes y con "Período parcial" activo
  * produciria un archivo que no coincide con lo que se ve en pantalla.
  *
- * El par montos / cantidades existe justamente para el preset "Vista medicos":
+ * El par montos / cantidades existe justamente para el preset "Vista médicos":
  * al ocultar los valores desaparece el pivote de montos y queda el de
  * cantidades, que es el que le sirve al medico.
  */
@@ -70,7 +70,7 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
         columns: [
           { key: 'profesional', header: 'Profesional', accessor: (r) => r.profesional_display, width: 30 },
           { key: 'especialidad', header: 'Especialidad', accessor: (r) => r.especialidad ?? '' },
-          { key: 'nomina', header: 'Nomina', accessor: (r) => (r.es_simulado ? 'Si' : 'No') },
+          { key: 'nomina', header: 'Nómina', accessor: (r) => (r.es_simulado ? 'Si' : 'No') },
           { key: 'desde', header: 'Desde', accessor: (r) => r.fecha_desde, format: 'date' },
           { key: 'hasta', header: 'Hasta', accessor: (r) => r.fecha_hasta, format: 'date' },
           { key: 'total', header: 'Total honorario', accessor: (r) => r.monto_total, format: 'currency', money: true },
@@ -111,7 +111,7 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
     sections.push(
       defineTable<LiquidacionRow>({
         id: 'pivot-montos',
-        title: 'Honorarios por categoria (montos)',
+        title: 'Honorarios por categoría (montos)',
         columns: colsMonto,
         rows: i.rows,
         totals: {
@@ -151,8 +151,8 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
     sections.push(
       defineTable<LiquidacionRow>({
         id: 'pivot-cantidades',
-        title: 'Procedimientos por categoria (cantidades)',
-        note: 'Solo cantidades, sin informacion economica.',
+        title: 'Procedimientos por categoría (cantidades)',
+        note: 'Solo cantidades, sin información económica.',
         columns: colsCnt,
         rows: i.rows,
         totals: {
@@ -190,10 +190,10 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
       sections.push(
         defineTable<DetalleFila>({
           id: 'detalle-categorias',
-          title: 'Detalle por profesional y categoria',
+          title: 'Detalle por profesional y categoría',
           columns: [
             { key: 'profesional', header: 'Profesional', accessor: (r) => r.profesional, width: 30 },
-            { key: 'categoria', header: 'Categoria', accessor: (r) => r.categoria, width: 24 },
+            { key: 'categoría', header: 'Categoría', accessor: (r) => r.categoria, width: 24 },
             { key: 'cantidad', header: 'Cantidad', accessor: (r) => r.cantidad, format: 'number' },
             { key: 'monto', header: 'Monto', accessor: (r) => r.monto, format: 'currency', money: true },
           ],
@@ -218,14 +218,14 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
     sections.push(
       defineTable<ContribucionRow>({
         id: 'contribucion',
-        title: 'Facturacion generada por medico',
+        title: 'Facturación generada por medico',
         columns: [
-          { key: 'medico', header: 'Medico', accessor: (r) => r.profesional_nombre, width: 30 },
+          { key: 'medico', header: 'Médico', accessor: (r) => r.profesional_nombre, width: 30 },
           { key: 'entidad', header: 'Facturado EPS/ARL', accessor: (r) => r.total_entidad, format: 'currency', money: true },
           { key: 'particular', header: 'Facturado particular', accessor: (r) => r.total_particular, format: 'currency', money: true },
           { key: 'total', header: 'Total facturado', accessor: (r) => r.total_bruto, format: 'currency', money: true },
           { key: 'hon', header: 'Honorarios a pagar', accessor: hon, format: 'currency', money: true },
-          { key: 'margen', header: 'Margen clinica', accessor: margen, format: 'currency', money: true },
+          { key: 'margen', header: 'Margen clínica', accessor: margen, format: 'currency', money: true },
           {
             key: 'margen_pct',
             header: 'Margen %',
@@ -251,8 +251,8 @@ export function buildHonorariosDoc(i: HonorariosDocInput): ExportDoc {
 
   return {
     fileBase: 'honorarios',
-    title: 'Honorarios Medicos',
-    subtitle: 'Clinica Neurofic',
+    title: 'Honorarios Médicos',
+    subtitle: 'Clínica Neurofic',
     periodLabel: i.periodLabel,
     filters: i.filters,
     sections,

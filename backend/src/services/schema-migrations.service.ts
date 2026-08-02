@@ -1,7 +1,24 @@
 import { pool } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
+import type { RowDataPacket } from 'mysql2';
 
-const MIGRATIONS: Array<{ id: string; sql: string }> = [
+interface Migration {
+  id: string;
+  sql: string;
+  /**
+   * Índice que esta migración crea. `CREATE INDEX IF NOT EXISTS` es sintaxis de
+   * MariaDB: MySQL 8 la rechaza con error de sintaxis, así que allí la
+   * migración fallaba siempre — incluso la primera vez, cuando el índice no
+   * existía — y el índice nunca se creaba. Declarándolo aquí, el runner
+   * consulta information_schema y emite el CREATE sin la cláusula, que ambos
+   * motores aceptan. El guardia mira la COLUMNA y no el nombre del índice: una
+   * clave foránea ya crea su propio índice con otro nombre, y comparar nombres
+   * construiría un duplicado sobre una tabla grande.
+   */
+  index?: { tabla: string; columna: string };
+}
+
+const MIGRATIONS: Migration[] = [
   {
     id: 'm01_entidad_nombre_raw',
     sql: 'ALTER TABLE atenciones ADD COLUMN IF NOT EXISTS entidad_nombre_raw VARCHAR(255) NULL',
@@ -28,7 +45,8 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
   },
   {
     id: 'm07_atenciones_servicio_id_idx',
-    sql: 'CREATE INDEX IF NOT EXISTS atenciones_servicio_id_idx ON atenciones (servicio_id)',
+    sql: 'CREATE INDEX atenciones_servicio_id_idx ON atenciones (servicio_id)',
+    index: { tabla: 'atenciones', columna: 'servicio_id' },
   },
   {
     id: 'm08_usuarios_rol_recursos_humanos',
@@ -78,11 +96,37 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     id: 'm13_liquidaciones_es_simulado',
     sql: 'ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS es_simulado TINYINT(1) NOT NULL DEFAULT 0',
   },
+  // Concede el módulo nuevo a quien ya tiene reportes. Sin esto,
+  // `hasModuleAccess` falla cerrado y todo usuario con lista explícita de
+  // módulos pierde la página hasta que un administrador se la marque a mano.
+  //
+  // El runner NO lleva registro de migraciones aplicadas: reejecuta la lista en
+  // cada arranque. Por eso la condición `NOT LIKE '%"pacientes"%'` no es un
+  // adorno — sin ella, cada reinicio añadiría otra copia de "pacientes" hasta
+  // desbordar la columna TEXT.
+  {
+    id: 'm16_usuarios_modulo_pacientes',
+    sql: `UPDATE usuarios
+          SET modulos = REPLACE(modulos, '"reportes"', '"reportes","pacientes"')
+          WHERE modulos LIKE '%"reportes"%' AND modulos NOT LIKE '%"pacientes"%'`,
+  },
 ];
+
+async function indiceExiste(tabla: string, columna: string): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT 1 FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1
+     LIMIT 1`,
+    [tabla, columna],
+  );
+  return rows.length > 0;
+}
 
 export async function runSchemaMigrations(): Promise<void> {
   for (const m of MIGRATIONS) {
     try {
+      if (m.index && (await indiceExiste(m.index.tabla, m.index.columna))) continue;
       await pool.execute(m.sql);
     } catch (err) {
       logger.warn(`Schema migration ${m.id} failed (non-fatal)`, {

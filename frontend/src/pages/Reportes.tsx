@@ -14,6 +14,8 @@ import TablaEntidades from '../components/widgets/TablaEntidades.js';
 import TablaServicios from '../components/widgets/TablaServicios.js';
 import { ExportButton } from '../export/index.js';
 import { buildReportesDoc } from '../export/docs/reportesDoc.js';
+import { buildDetalleDoc } from '../export/docs/pacientesDoc.js';
+import { fetchDetalleAtenciones } from '../api/pacientes.js';
 
 // ─── Month selector helper ────────────────────────────────────────────────────
 
@@ -598,6 +600,40 @@ export default function Reportes(): React.ReactElement {
   const diaLabel      = isDayFilter ? (DIA_NOMBRES[selectedDia!] ?? null) : null;
   const groupLabel    = selectedGroup === 'caja' ? 'Flujo de caja' : selectedGroup === 'cobro' ? 'Cobro a entidades' : null;
 
+  // El detalle fila-por-fila NO vive en el cliente: son miles de registros que
+  // solo se piden al exportar. Por eso va en su propio botón con `resolveDoc`,
+  // y no como una sección más del reporte agregado.
+  const detalleFilters = useMemo(
+    () => [
+      { label: 'Período', value: periodLabel },
+      ...(diaLabel ? [{ label: 'Día', value: diaLabel }] : []),
+      ...(selectedEntidadName ? [{ label: 'Entidad', value: selectedEntidadName }] : []),
+    ],
+    [periodLabel, diaLabel, selectedEntidadName],
+  );
+
+  const buildDetallePreview = useMemo(() => () => buildDetalleDoc({
+    periodLabel,
+    filters: detalleFilters,
+    rows: [],
+    total: 0,
+    truncado: false,
+  }), [periodLabel, detalleFilters]);
+
+  const resolveDetalleDoc = React.useCallback(async () => {
+    const res = await fetchDetalleAtenciones(
+      selected.mes, selected.anio, periodStart, periodEnd,
+      selectedEntidadId ?? undefined, diaSemana,
+    );
+    return buildDetalleDoc({
+      periodLabel,
+      filters: detalleFilters,
+      rows: res.rows,
+      total: res.total,
+      truncado: res.truncado,
+    });
+  }, [selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId, diaSemana, periodLabel, detalleFilters]);
+
   const buildExportDoc = useMemo(() => () => {
     const filters: { label: string; value: string }[] = [
       { label: 'Modo', value: filterMode === 'rango' ? 'Rango de fechas' : 'Mes' },
@@ -690,6 +726,13 @@ export default function Reportes(): React.ReactElement {
           )}
 
           <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
+
+          <ExportButton
+            buildDoc={buildDetallePreview}
+            resolveDoc={resolveDetalleDoc}
+            disabled={isLoading}
+            label="Detalle"
+          />
 
           <button type="button" className="btn btn--secondary btn--icon"
             onClick={handleRefresh} disabled={isLoading}

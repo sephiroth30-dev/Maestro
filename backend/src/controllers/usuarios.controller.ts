@@ -10,7 +10,7 @@ const BCRYPT_ROUNDS = 12;
 
 const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'] as const;
 
-const MODULOS_VALIDOS = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'] as const;
+const MODULOS_VALIDOS = ['dashboard', 'reportes', 'pacientes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'] as const;
 
 const createSchema = z.object({
   nombre: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),

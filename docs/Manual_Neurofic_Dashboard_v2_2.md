@@ -564,7 +564,11 @@ Los ajustes requieren autorización de un usuario diferente al creador, con mód
 El usuario queda inactivo y no puede iniciar sesión, pero su historial queda registrado en Auditoría y en las liquidaciones en que participó. Sus datos no se borran.
 
 **¿Se puede exportar la información?**
-Sí, desde Reportes se puede exportar el detalle de atenciones del período filtrado.
+Sí. Dashboard, Reportes, Pacientes, Honorarios, Capacidad y Auditoría tienen un botón
+**Exportar** que genera PDF, Excel o CSV. El diálogo permite marcar qué secciones y
+columnas incluir, e incluye el preset **Vista médicos (sin valores)** para entregar solo
+cantidades. En Reportes, el botón **Detalle** descarga una fila por atención del período
+filtrado.
 
 **¿Qué significa el porcentaje de ocupación en Capacidad?**
 Es la relación entre las sesiones únicas realizadas en un grupo y la capacidad mensual configurada. Ejemplo: EMG/VCN con capacidad 1.440 y 900 sesiones = 62.5% (Óptima).

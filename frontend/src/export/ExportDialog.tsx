@@ -1,5 +1,5 @@
 /**
- * Dialogo de exportacion: formato, presets, y checkboxes por seccion y columna.
+ * Dialogo de exportacion: formato, presets, y checkboxes por sección y columna.
  *
  * Reutiliza las clases .modal-* que ya existen en index.css.
  */
@@ -36,15 +36,15 @@ export function ExportDialog({
   const presets = PRESETS.filter((p) => p.id !== 'sin-valores' || (hayValores && permitirValores));
 
   const resumen = React.useMemo(() => {
-    let secciones = 0;
+    let secciónes = 0;
     let filas = 0;
     for (const s of doc.sections) {
       if (selection.sections[s.id] === false) continue;
-      secciones += 1;
+      secciónes += 1;
       if (s.kind === 'table') filas += s.rows.length;
       else if (s.kind === 'chart' && s.fallbackTable) filas += s.fallbackTable.rows.length;
     }
-    return { secciones, filas };
+    return { secciónes, filas };
   }, [doc, selection]);
 
   return (
@@ -64,7 +64,7 @@ export function ExportDialog({
           {!permitirValores && (
             <div className="entidades-config-banner" style={{ background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' }}>
               <Lock size={14} style={{ flexShrink: 0 }} />
-              <span>Tu rol no tiene acceso a informacion financiera: la exportacion incluira unicamente cantidades.</span>
+              <span>Tu rol no tiene acceso a información financiera: la exportacion incluira únicamente cantidades.</span>
             </div>
           )}
 
@@ -141,12 +141,12 @@ export function ExportDialog({
                       <span style={{ fontWeight: 600 }}>{s.title}</span>
                       <span className="export-check__meta">
                         {chartMissing
-                          ? 'grafica no visible en la vista actual'
+                          ? 'gráfica no visible en la vista actual'
                           : s.kind === 'table'
                             ? `${s.rows.length} filas`
                             : s.kind === 'kpis'
                               ? `${s.items.length} indicadores`
-                              : 'grafica'}
+                              : 'gráfica'}
                       </span>
                     </label>
 
@@ -187,7 +187,7 @@ export function ExportDialog({
                 disabled={generating}
                 onChange={(e) => setOrientation(e.target.checked ? 'landscape' : 'portrait')}
               />
-              <span>Orientacion horizontal</span>
+              <span>Orientación horizontal</span>
               <span className="export-check__meta">recomendada con muchas columnas</span>
             </label>
           )}
@@ -208,7 +208,7 @@ export function ExportDialog({
 
         <div className="modal-footer" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-            {resumen.secciones} {resumen.secciones === 1 ? 'seccion' : 'secciones'} · {resumen.filas.toLocaleString('es-CO')} filas
+            {resumen.secciónes} {resumen.secciónes === 1 ? 'sección' : 'secciónes'} · {resumen.filas.toLocaleString('es-CO')} filas
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="btn btn--secondary" onClick={onClose} disabled={generating}>
@@ -217,7 +217,7 @@ export function ExportDialog({
             <button
               type="button"
               className="btn btn--primary"
-              disabled={generating || resumen.secciones === 0}
+              disabled={generating || resumen.secciónes === 0}
               onClick={() => onGenerate(selection.format, selection.orientation, selection)}
             >
               {generating ? (<><Loader2 size={14} className="spin" /> Generando…</>) : 'Generar'}

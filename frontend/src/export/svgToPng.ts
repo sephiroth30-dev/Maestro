@@ -66,14 +66,14 @@ export async function rasterizeSvgString(
 
 /**
  * Captura el primer <svg> dentro de `host` y lo devuelve como PNG.
- * Devuelve null (nunca lanza) si la grafica no esta montada o no mide nada,
+ * Devuelve null (nunca lanza) si la gráfica no esta montada o no mide nada,
  * para que una grafica ausente no tumbe la exportacion completa.
  */
 export async function svgToPng(host: HTMLElement | null): Promise<RasterResult | null> {
   if (!host) return null;
   // La superficie de recharts primero: si la tarjeta esta en estado de error o
   // de carga, el primer <svg> del contenedor es el icono de lucide y acabaria
-  // incrustado a media pagina como si fuera la grafica.
+  // incrustado a media pagina como si fuera la gráfica.
   const svg =
     host.querySelector<SVGSVGElement>('svg.recharts-surface') ?? host.querySelector('svg');
   if (!svg) return null;

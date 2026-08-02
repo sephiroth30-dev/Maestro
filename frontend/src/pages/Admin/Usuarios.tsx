@@ -63,6 +63,8 @@ const MODULES: ModuleAccess[] = [
   { label: 'Dashboard',    color: '#6366f1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES','RECURSOS_HUMANOS'] },
   { label: 'Reportes',     color: '#0891b2', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'],
     note: (r) => r === 'ADMISIONES' ? 'solo mes actual' : undefined },
+  { label: 'Pacientes',    color: '#0e7490', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','COORDINADORA','ADMISIONES'],
+    note: (r) => r === 'ADMISIONES' ? 'solo mes actual' : undefined },
   { label: 'Honorarios',   color: '#0369a1', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION','RECURSOS_HUMANOS'] },
   { label: 'Capacidad',    color: '#065f46', roles: ['ADMIN','GERENCIA','DIRECCION','FACTURACION'] },
   { label: 'Auditoría',    color: '#7c3aed', roles: ['ADMIN','FACTURACION'] },
@@ -105,11 +107,12 @@ function AccessChips({ rol }: { rol: Rol }): React.ReactElement {
 
 // ─── Module helpers ───────────────────────────────────────────────────────────
 
-const ALL_MODULOS: Modulo[] = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
+const ALL_MODULOS: Modulo[] = ['dashboard', 'reportes', 'pacientes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
 
 const MODULO_COLORS: Record<Modulo, string> = {
   dashboard:    '#6366f1',
   reportes:     '#0891b2',
+  pacientes:    '#0e7490',
   honorarios:   '#0369a1',
   capacidad:    '#065f46',
   auditoria:    '#7c3aed',
@@ -123,7 +126,7 @@ function deriveRolFromModulos(mods: Modulo[]): Rol {
   if (has('aprobar')) return 'GERENCIA';
   if (has('honorarios') && has('reportes')) return 'FACTURACION';
   if (has('honorarios')) return 'RECURSOS_HUMANOS';
-  if (has('reportes') || has('capacidad') || has('auditoria')) return 'COORDINADORA';
+  if (has('reportes') || has('pacientes') || has('capacidad') || has('auditoria')) return 'COORDINADORA';
   return 'ADMISIONES';
 }
 

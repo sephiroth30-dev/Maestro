@@ -24,6 +24,15 @@ export interface PdfBuildResult {
 /** Alto de la banda azul del encabezado. */
 const BAND_H = 70;
 
+/**
+ * Tope de filas por PDF.
+ *
+ * autoTable maqueta todo el cuerpo de forma síncrona en el hilo principal:
+ * 5.000 filas son ~170 páginas y varios minutos de pestaña congelada. Por
+ * encima de esto se avisa y se sugiere Excel, que sí escala.
+ */
+const MAX_FILAS_PDF = 2000;
+
 export async function buildPdf(doc: ExportDoc): Promise<PdfBuildResult> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
@@ -62,7 +71,7 @@ export async function buildPdf(doc: ExportDoc): Promise<PdfBuildResult> {
   pdf.setFontSize(8.5);
   pdf.text(toPdfSafe(BRAND.descriptor), textX, PAGE.marginTop + 28);
 
-  // Chip del periodo, alineado a la derecha de la banda.
+  // Chip del período, alineado a la derecha de la banda.
   const chip = toPdfSafe(doc.periodLabel);
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
@@ -164,6 +173,13 @@ export async function buildPdf(doc: ExportDoc): Promise<PdfBuildResult> {
   // ── Tablas ─────────────────────────────────────────────────────────────────
   const drawTable = (t: ExportTableSection, titleOverride?: string): void => {
     if (t.columns.length === 0) return;
+    if (t.rows.length > MAX_FILAS_PDF) {
+      warnings.push(
+        `"${t.title}" tiene ${t.rows.length.toLocaleString('es-CO')} filas y se omitió del PDF ` +
+        `(máximo ${MAX_FILAS_PDF.toLocaleString('es-CO')}). Usa Excel o CSV para ese detalle.`,
+      );
+      return;
+    }
     // Titulo + encabezado + un par de filas: evita el titulo huerfano.
     ensure(46 + 60);
     sectionTitle(titleOverride ?? t.title, t.note);
@@ -229,7 +245,7 @@ export async function buildPdf(doc: ExportDoc): Promise<PdfBuildResult> {
     const drawW = Math.min(W, 460);
     const drawH = (drawW * shot.h) / shot.w;
     // Reservar titulo + imagen juntos: si se reserva solo el titulo, este queda
-    // huerfano al pie de una pagina y la grafica arranca sola en la siguiente.
+    // huerfano al pie de una pagina y la gráfica arranca sola en la siguiente.
     ensure(46 + drawH + 10);
     sectionTitle(s.title, s.note);
     pdf.addImage(shot.dataUrl, 'PNG', X + (W - drawW) / 2, y, drawW, drawH, `chart-${s.id}`, 'FAST');

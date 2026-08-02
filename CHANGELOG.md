@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.8.0] - 2026-08-02
 
 ### Added
+- **Analítica de pacientes** (nueva página `/pacientes`, módulo `pacientes`): pacientes únicos, nuevos vs. recurrentes, distribución de frecuencia de visitas, retención mes a mes, y pacientes por tipo de pagador y por servicio. Endpoint `GET /api/reportes/pacientes`.
+  - **Barra de cobertura siempre visible**: la base solo guarda `paciente_nombre` y `paciente_documento`, ambos opcionales, así que la página informa qué porcentaje de los registros trae identificación —y el desglose por fuente— antes de mostrar ninguna cifra. Todo se calcula únicamente sobre esos registros.
+  - Los conteos por pagador y por servicio **no suman** el total de pacientes únicos (una persona atendida por dos pagadores cuenta en ambos); se advierte en pantalla y en el archivo exportado, y se representan como tabla y no como torta.
+  - No hay demografía poblacional: el sistema no almacena edad, sexo, ciudad ni régimen. La página lo dice explícitamente para que nadie la busque.
+- **Exportación del detalle de atenciones** (`GET /api/reportes/detalle-atenciones`): una fila por atención del período —fecha, paciente, documento, entidad, profesional, servicio y valor—, disponible con el botón **Detalle** en Reportes. Es lo que los manuales ya prometían y no existía.
 - **Exportación de reportes a PDF, Excel y CSV** en Dashboard, Reportes, Honorarios, Capacidad Instalada y Auditoría. Botón "Exportar" en el encabezado de cada página.
 - **Diálogo de exportación** con casilla por sección y por columna (todo marcado por defecto), resumen de filas a exportar y elección de orientación para el PDF.
 - **Presets de exportación**: `Todo`, `Vista médicos (sin valores)` — oculta de un clic toda columna monetaria para quienes solo necesitan cantidades —, `Solo tablas` y `Resumen ejecutivo`.
@@ -27,6 +32,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - `descargarPDF` no insertaba el enlace en el DOM antes de pulsarlo; algunas versiones de Firefox no disparaban la descarga. La utilidad compartida `saveBlob` lo corrige.
+- **Las migraciones de índice nunca se aplicaban en MySQL**: `CREATE INDEX IF NOT EXISTS` es sintaxis de MariaDB y MySQL 8 la rechaza con error de sintaxis, así que `m07` fallaba en cada arranque —incluso la primera vez— y el índice sobre `atenciones(servicio_id)` no llegaba a crearse. El runner ahora consulta `information_schema` y emite el `CREATE` sin la cláusula, que ambos motores aceptan.
+- Los manuales afirmaban que los reportes ya se podían exportar y que la tabla de detalle era descargable. Ahora es cierto; la documentación se reescribió para describir el diálogo real.
+
+### Security
+- **Admisiones podía saltarse el candado de período.** `enforceAdmisionesPeriod` solo reescribía `mes_idx`/`anio`, pero `buildDateWhere` prefiere `start_date`/`end_date` y descarta el mes cuando ambas fechas vienen: bastaba `?start_date=2020-01-01&end_date=2030-12-31` para obtener el histórico completo. Ahora el guardia anula también el rango, en los seis endpoints afectados. En `/detalle-atenciones` esto habría expuesto nombres y documentos de paciente de todos los tiempos.
+
+### Migrations
+- `m16`: concede el módulo `pacientes` a los usuarios que ya tenían `reportes`. Sin esto, `hasModuleAccess` falla cerrado y todo usuario con lista de módulos explícita perdería la página nueva hasta que un administrador se la marcara una por una. La condición `NOT LIKE '%"pacientes"%'` es obligatoria: el runner reejecuta la lista completa en cada arranque y sin ella cada reinicio añadiría otra copia hasta desbordar la columna.
 
 ---
 
