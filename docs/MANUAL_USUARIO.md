@@ -1,8 +1,12 @@
 # Manual de Usuario — Neurofic Admin Dashboard
 
-**Versión:** 1.6  
-**Fecha:** Mayo 2026  
+**Versión del sistema:** 1.8.5  
+**Actualizado:** agosto de 2026  
+**Sistema:** https://dashboard.neurofic.com  
 **Soporte:** resultados@neurofic.com
+
+> Última incorporación: exportación de reportes a PDF, Excel y CSV, y la sección
+> Analítica de Pacientes.
 
 ---
 
@@ -224,7 +228,7 @@ Cada entrada muestra: fecha y hora, usuario que realizó la acción, tipo de acc
 
 ## 9. Administración (solo ADMIN)
 
-### 8.1 Gestión de usuarios
+### Gestión de usuarios
 
 Ruta: **Admin → Usuarios**
 
@@ -235,13 +239,13 @@ Ruta: **Admin → Usuarios**
 
 > No puede editar su propio rol ni desactivar su propia cuenta.
 
-### 8.2 Configuración
+### Configuración
 
 Ruta: **Admin → Configuración**
 
 Parámetros generales del sistema: meta de facturación mensual, reglas de honorarios por categoría de servicio y conectores de datos.
 
-### 8.3 Capacidad instalada
+### Capacidad instalada
 
 Ruta: **Admin → Cap. Instalada**
 

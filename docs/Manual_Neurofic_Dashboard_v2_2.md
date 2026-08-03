@@ -3,8 +3,9 @@
 
 | Campo | Valor |
 |---|---|
-| **Versión** | 2.2 |
-| **Fecha** | Junio 2026 |
+| **Versión del documento** | 2.3 |
+| **Versión del sistema** | 1.8.5 |
+| **Fecha** | Agosto 2026 |
 | **URL del sistema** | dashboard.neurofic.com |
 | **Usuario de soporte** | soporte@neurofic.com |
 | **Elaborado por** | Equipo de Tecnología — Neurofic |

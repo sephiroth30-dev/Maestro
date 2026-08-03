@@ -42,6 +42,23 @@ el [CHANGELOG](../CHANGELOG.md).**
 
 ---
 
+## Generar los manuales en PDF
+
+```bash
+pip install markdown                       # una sola vez
+python3 scripts/md-a-pdf.py docs/MANUAL_USUARIO.md docs/Manual_Neurofic_Dashboard_v2_2.md
+python3 scripts/md-a-pdf.py --todos        # todos los documentos de docs/
+```
+
+Salen en `docs/pdf/` con portada, índice navegable, numeración de páginas y la
+identidad de Neurofic. La carpeta está en `.gitignore`: **los PDF se regeneran**, no se
+versionan, para que nadie se lleve uno desactualizado del repositorio.
+
+Requiere las dependencias de `frontend/` instaladas (el renderizado usa el Chromium de
+Playwright).
+
+---
+
 ## Tres cosas que conviene saber antes de tocar nada
 
 **1. `backend/dist` está versionado.** Hostinger no compila. Todo cambio en
