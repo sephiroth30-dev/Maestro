@@ -65,7 +65,27 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            APP_DIR=~/domains/neurofic.easystem.co/nodejs
+
+            # El directorio de la app no se fija a un dominio concreto: al mover
+            # el sitio a otro subdominio, Hostinger crea ~/domains/<dominio>/ y
+            # un APP_DIR quemado deja el despliegue apuntando al sitio viejo sin
+            # que nada falle de forma visible. Se puede forzar con el secreto
+            # APP_DIR; si no, se busca el checkout real.
+            APP_DIR="${{ secrets.APP_DIR }}"
+            if [ -z "$APP_DIR" ]; then
+              for d in ~/domains/dashboard.neurofic.com/nodejs \
+                       ~/domains/neurofic.easystem.co/nodejs; do
+                if [ -d "$d/.git" ]; then APP_DIR="$d"; break; fi
+              done
+            fi
+            if [ -z "$APP_DIR" ] || [ ! -d "$APP_DIR/.git" ]; then
+              echo "ERROR: no se encontró el checkout de la app."
+              echo "Dominios disponibles en el servidor:"
+              ls -1 ~/domains 2>/dev/null || echo "  (no existe ~/domains)"
+              echo "Define el secreto APP_DIR con la ruta correcta (la que contiene .git)."
+              exit 1
+            fi
+            echo "=== APP_DIR: $APP_DIR ==="
 
             echo "=== Pulling latest code ==="
             cd "$APP_DIR"

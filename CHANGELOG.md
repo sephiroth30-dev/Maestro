@@ -31,6 +31,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - La contribución por médico se consulta desde la página de Honorarios y no al desplegar la sección, para que la exportación no dependa de que el usuario la haya abierto antes.
 
 ### Fixed
+- **Migración a `dashboard.neurofic.com`**: el pie de los PDFs (tanto los nuevos como el comprobante de honorarios) seguía imprimiendo el dominio anterior, y el manual daba la URL vieja. El despliegue ya no fija el directorio a un dominio concreto: busca el checkout real y se puede forzar con el secreto `APP_DIR`; antes, mover el sitio habría dejado el despliegue actualizando en silencio la ubicación abandonada.
 - `descargarPDF` no insertaba el enlace en el DOM antes de pulsarlo; algunas versiones de Firefox no disparaban la descarga. La utilidad compartida `saveBlob` lo corrige.
 - **Las migraciones de índice nunca se aplicaban en MySQL**: `CREATE INDEX IF NOT EXISTS` es sintaxis de MariaDB y MySQL 8 la rechaza con error de sintaxis, así que `m07` fallaba en cada arranque —incluso la primera vez— y el índice sobre `atenciones(servicio_id)` no llegaba a crearse. El runner ahora consulta `information_schema` y emite el `CREATE` sin la cláusula, que ambos motores aceptan.
 - Los manuales afirmaban que los reportes ya se podían exportar y que la tabla de detalle era descargable. Ahora es cierto; la documentación se reescribió para describir el diálogo real.

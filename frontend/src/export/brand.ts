@@ -9,7 +9,7 @@
 export const BRAND = {
   nombre: 'NEUROFIC',
   descriptor: 'Centro de Neurofisiología Clínica',
-  sitio: 'neurofic.easystem.co',
+  sitio: 'dashboard.neurofic.com',
 } as const;
 
 /** Paleta en RGB — jsPDF trabaja con componentes, no con hex. */

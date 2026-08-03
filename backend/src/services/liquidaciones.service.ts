@@ -236,7 +236,7 @@ export async function generarPDFLiquidacion(id: string): Promise<Buffer> {
     doc.moveTo(X, footerY - 8).lineTo(X + W, footerY - 8).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
     doc.fillColor(GRAY).fontSize(7.5).font('Helvetica')
        .text(
-         `Generado el ${fmtFecha(new Date().toISOString())} · Neurofic Admin · neurofic.easystem.co`,
+         `Generado el ${fmtFecha(new Date().toISOString())} · Neurofic Admin · dashboard.neurofic.com`,
          X, footerY, { width: W, align: 'center' },
        );
 

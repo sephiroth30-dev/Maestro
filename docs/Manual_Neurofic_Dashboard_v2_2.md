@@ -5,7 +5,7 @@
 |---|---|
 | **Versión** | 2.2 |
 | **Fecha** | Junio 2026 |
-| **URL del sistema** | neurofic.easystem.co |
+| **URL del sistema** | dashboard.neurofic.com |
 | **Usuario de soporte** | soporte@neurofic.com |
 | **Elaborado por** | Equipo de Tecnología — Neurofic |
 | **Soporte** | resultados@neurofic.com |
@@ -22,7 +22,7 @@
 
 El sistema está disponible en la siguiente dirección web:
 
-**https://neurofic.easystem.co**
+**https://dashboard.neurofic.com**
 
 Abrir esta dirección en cualquier navegador moderno (Chrome, Firefox, Edge o Safari actualizados).
 
@@ -595,7 +595,7 @@ El Neurofic Admin Dashboard es una aplicación web de arquitectura moderna compu
 | Backend / API | Fastify 4 + Node.js 20 + TypeScript | Servidor REST. Lógica de negocio y seguridad. |
 | Base de datos | MySQL 8 (Hostinger) + mysql2 | Persistencia de todos los datos del sistema. |
 | Proceso | PM2 (gestor de procesos) | Reinicio automático ante caídas. Producción. |
-| Dominio | neurofic.easystem.co | Subdominio activo. Alojado en easystem.co. |
+| Dominio | dashboard.neurofic.com | Subdominio activo. Alojado en Hostinger. |
 
 ### 12.1 Frontend
 
@@ -674,9 +674,9 @@ El esquema se gestiona con migraciones versionadas, aplicadas automáticamente a
 
 ### 15.1 Infraestructura
 
-El sistema está alojado en los servidores de easystem.co. El proceso es gestionado por PM2, que garantiza reinicio automático ante cualquier caída inesperada.
+El sistema está alojado en Hostinger. El proceso lo gestiona Passenger, que lo levanta bajo demanda y lo reinicia automáticamente ante cualquier caída; el despliegue lo reinicia tocando `tmp/restart.txt`.
 
-**URL de acceso:** https://neurofic.easystem.co
+**URL de acceso:** https://dashboard.neurofic.com
 
 ### 15.2 Variables de entorno en producción
 
