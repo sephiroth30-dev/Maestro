@@ -53,7 +53,8 @@ export class SyncService {
       const conector = await connectorService.getById(conectorId);
       const instance = connectorService.instantiate(conector);
 
-      // Fetch data
+      // La consulta va vacía a propósito: cada conector saca de su propia
+      // configuración la ruta y los parámetros que necesita.
       const dataset = await instance.fetch({});
       const durationMs = Date.now() - start;
 
@@ -61,13 +62,29 @@ export class SyncService {
       const ttl = FRECUENCIA_TTL[conector.frecuenciaSync] ?? DEFAULT_TTL;
       await this.storeInCache(conectorId, dataset, ttl);
 
-      // Persist rows to atenciones table (Google Sheets only)
+      // Persistir en atenciones.
+      //
+      // Antes esto estaba condicionado a GOOGLE_SHEETS, así que un conector
+      // REST sincronizaba en verde e insertaba cero filas sin avisar de nada.
+      // El mapeador es agnóstico del origen: recibe objetos planos, y tanto el
+      // conector de Sheets como el REST producen esa misma forma.
       let filasNuevas = 0;
-      if (conector.tipo === 'GOOGLE_SHEETS' && dataset.rows.length > 0) {
+      if (dataset.rows.length > 0) {
         const mapResult = await mapRowsToAtenciones(dataset.rows, conectorId);
         filasNuevas = mapResult.created;
-        logger.info('Sheet rows mapped to atenciones', mapResult);
+        logger.info('Rows mapped to atenciones', { tipo: conector.tipo, ...mapResult });
         flushReportesCache();
+
+        // El mapeador se rinde en silencio cuando no reconoce ninguna columna
+        // útil: la sincronización quedaría "Completada" con cero filas y sin
+        // pista de por qué. Se convierte en un fallo explícito.
+        if (mapResult.created === 0) {
+          throw new Error(
+            `Se leyeron ${dataset.rows.length} registros pero no se pudo mapear ninguno. ` +
+            `Columnas recibidas: ${dataset.columns.slice(0, 12).join(', ')}. ` +
+            'Revisa la correspondencia de campos del conector.',
+          );
+        }
       }
 
       // Update sync record
@@ -85,7 +102,7 @@ export class SyncService {
         conectorId,
         success: true,
         rowsRead: dataset.totalRows,
-        rowsNew: dataset.rows.length,
+        rowsNew: filasNuevas,
         durationMs,
       };
 

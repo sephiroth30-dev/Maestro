@@ -5771,3 +5771,43 @@ body,
 @media (max-width: 640px) {
   .help-panel { width: 100%; }
 }
+
+/* ─── Conectores: correspondencia de campos ────────────────────────────────── */
+.mapeo-campos {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mapeo-campos__fila {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.mapeo-campos__etiqueta {
+  font-size: 0.8rem;
+  color: #475569;
+}
+.mapeo-campos__req {
+  color: #dc2626;
+  margin-left: 3px;
+}
+.conn-avanzado {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0 12px;
+  margin-top: 12px;
+  background: #f8fafc;
+}
+.conn-avanzado > summary {
+  padding: 9px 0;
+  cursor: pointer;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+}
+.conn-avanzado[open] > summary { border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; }
+@media (max-width: 560px) {
+  .mapeo-campos__fila { grid-template-columns: 1fr; gap: 3px; }
+}

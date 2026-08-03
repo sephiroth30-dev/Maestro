@@ -66,7 +66,8 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [...adminOnly] },
     async (_req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const list = await connectorService.list();
-      await reply.send(list);
+      // Nunca se devuelven credenciales al navegador.
+      await reply.send(list.map((c) => connectorService.publicView(c)));
     }
   );
 
@@ -133,7 +134,7 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
     async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const { id } = req.params as { id: string };
       const conector = await connectorService.getById(id);
-      await reply.send(conector);
+      await reply.send(connectorService.publicView(conector));
     }
   );
 

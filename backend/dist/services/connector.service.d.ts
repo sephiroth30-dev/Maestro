@@ -90,21 +90,63 @@ export declare const SheetsConfigSchema: z.ZodEffects<z.ZodObject<{
     folderId?: string | undefined;
     fileNamePattern?: string | undefined;
 }>;
-export declare const RestConfigSchema: z.ZodObject<{
+export declare const RestConfigSchema: z.ZodEffects<z.ZodObject<{
     baseUrl: z.ZodString;
+    /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
+    endpoint: z.ZodOptional<z.ZodString>;
+    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
     headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
-    authType: z.ZodOptional<z.ZodEnum<["none", "bearer", "basic"]>>;
+    authType: z.ZodOptional<z.ZodEnum<["none", "bearer", "basic", "apiKeyHeader"]>>;
     authValue: z.ZodOptional<z.ZodString>;
+    authHeaderName: z.ZodOptional<z.ZodString>;
+    /** Campo canónico -> campo tal como llega del origen. */
+    fieldMap: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+    dataPath: z.ZodOptional<z.ZodString>;
+    timeoutSec: z.ZodOptional<z.ZodNumber>;
 }, "strip", z.ZodTypeAny, {
     baseUrl: string;
+    params?: Record<string, string> | undefined;
     headers?: Record<string, string> | undefined;
-    authType?: "none" | "bearer" | "basic" | undefined;
+    endpoint?: string | undefined;
+    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
     authValue?: string | undefined;
+    authHeaderName?: string | undefined;
+    fieldMap?: Record<string, string> | undefined;
+    dataPath?: string | undefined;
+    timeoutSec?: number | undefined;
 }, {
     baseUrl: string;
+    params?: Record<string, string> | undefined;
     headers?: Record<string, string> | undefined;
-    authType?: "none" | "bearer" | "basic" | undefined;
+    endpoint?: string | undefined;
+    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
     authValue?: string | undefined;
+    authHeaderName?: string | undefined;
+    fieldMap?: Record<string, string> | undefined;
+    dataPath?: string | undefined;
+    timeoutSec?: number | undefined;
+}>, {
+    baseUrl: string;
+    params?: Record<string, string> | undefined;
+    headers?: Record<string, string> | undefined;
+    endpoint?: string | undefined;
+    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
+    authValue?: string | undefined;
+    authHeaderName?: string | undefined;
+    fieldMap?: Record<string, string> | undefined;
+    dataPath?: string | undefined;
+    timeoutSec?: number | undefined;
+}, {
+    baseUrl: string;
+    params?: Record<string, string> | undefined;
+    headers?: Record<string, string> | undefined;
+    endpoint?: string | undefined;
+    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
+    authValue?: string | undefined;
+    authHeaderName?: string | undefined;
+    fieldMap?: Record<string, string> | undefined;
+    dataPath?: string | undefined;
+    timeoutSec?: number | undefined;
 }>;
 export declare const FrecuenciaSyncSchema: z.ZodEnum<["30min", "1h", "4h", "daily", "manual"]>;
 export interface CreateConnectorDto {
@@ -121,7 +163,20 @@ export interface UpdateConnectorDto {
 }
 export declare class ConnectorService {
     private validateConfig;
+    private static readonly MASCARA;
+    /** Claves cuyo contenido nunca debe salir del servidor. */
+    private static readonly CLAVES_SECRETAS;
     private maskConfig;
+    /** Repone los valores reales donde el cliente devolvió la máscara. */
+    private preservarSecretos;
+    /**
+     * Versión del conector apta para enviar al navegador.
+     *
+     * Antes `GET /connectors` devolvía el `config` íntegro —con la clave privada
+     * de Google y el token de la API— a cualquier sesión de administrador. El
+     * frontend solo necesita saber SI hay credencial, no cuál es.
+     */
+    publicView(conector: Conector): Conector;
     create(data: CreateConnectorDto): Promise<Conector>;
     list(): Promise<Conector[]>;
     getById(id: string): Promise<Conector>;

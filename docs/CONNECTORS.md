@@ -215,3 +215,76 @@ Historial de sincronizaciones.
 - Auth: ADMIN, FACTURACION
 - Query: `?limit=20`
 - Response: `Sincronizacion[]`
+
+---
+
+## Conectores REST
+
+### Estado
+
+Un conector REST **sí escribe en `atenciones`**. Hasta la versión 1.8.7 no lo hacía: la
+persistencia estaba condicionada a `tipo === 'GOOGLE_SHEETS'`, de modo que un conector
+REST sincronizaba en verde, reportaba filas leídas e insertaba cero registros sin avisar.
+
+### Configurar uno
+
+| Campo | Para qué |
+|---|---|
+| **URL base** | El servidor, sin la ruta. `https://api.ejemplo.com/v2` |
+| **Ruta del endpoint** | Lo que se cuelga de la base. `facturacion/atenciones` |
+| **Autenticación** | `Sin autenticación`, `Bearer token`, `Basic auth` o **`Token en cabecera propia`** |
+| **Nombre de la cabecera** | Solo con la última opción. P. ej. `X-Auth-Token` |
+| **Correspondencia de campos** | Cómo se llama cada dato en la respuesta |
+| **Ruta al listado** | Si la respuesta envuelve los registros: `resultado.items` |
+| **Tiempo máximo** | Por defecto 10 s; el histórico completo suele necesitar más |
+
+`Basic auth` es usuario y contraseña en base64 — **dos** datos. Una API que pide un token
+en una cabecera propia necesita `Token en cabecera propia`, no Basic.
+
+### La correspondencia de campos es lo que hace que funcione
+
+El mapeador detecta columnas con expresiones regulares pensadas para hojas en español.
+Casi ninguna API devuelve esos nombres, y varias formas habituales fallan de manera poco
+evidente:
+
+| Nombre en el origen | ¿Lo reconoce? | Por qué |
+|---|---|---|
+| `fechaAtencion` | Sí | Empieza por «fecha» |
+| `valor_total` | **No** | `\b` no coincide antes de `_` |
+| `numero_documento` | **No** | El patrón espera espacios, no guiones bajos |
+| `nombreConvenio` | **No** | El patrón exige que empiece por «convenio» |
+
+Con `valor_total` sin mapear, **todo el valor bruto entraría en cero** y el dashboard
+mostraría atenciones sin facturación. Por eso el formulario pide la correspondencia de los
+ocho campos canónicos: `fecha`, `valor`, `descripcion`, `entidad`, `profesional`,
+`paciente`, `documento`, `autorizacion`.
+
+> `entidad` y `profesional` se resuelven **por el texto del nombre** contra los alias de
+> los catálogos. Si la API devuelve códigos en vez de nombres, esas columnas quedan nulas
+> y los reportes por entidad y los honorarios salen vacíos aunque las filas se inserten.
+> En ese caso hay que cargar los códigos como alias en Configuración → Entidades.
+
+### Ahora la sincronización falla cuando no puede mapear
+
+Si se leen registros pero no se mapea ninguno, la sincronización se marca **Fallida** y el
+mensaje incluye las columnas recibidas. Antes quedaba «Completada» con cero filas, que era
+indistinguible de un período sin actividad.
+
+### Credenciales
+
+`GET /api/connectors` y `GET /api/connectors/:id` devuelven las credenciales
+**enmascaradas** como `[REDACTED]`: tokens, contraseñas, la clave privada de Google y
+cualquier cabecera cuyo nombre contenga token, key, auth o secret. Al editar, ese valor se
+reenvía tal cual y el servidor repone el real, así que cambiar el nombre de un conector no
+borra su token.
+
+> **Siguen guardándose sin cifrar** en la columna `config`. El enmascaramiento evita que
+> salgan por la API, no protege un volcado de la base de datos.
+
+### Limitaciones vigentes
+
+- **Sin paginación.** Una sola petición por sincronización.
+- **Reemplazo total.** Cada sync borra las atenciones del conector y reinserta. Si la API
+  devuelve solo los últimos días, se pierde el resto del histórico de esa fuente.
+- **Sin renovación de token.** El valor configurado se usa tal cual; si caduca, la
+  sincronización falla y hay que actualizarlo a mano.

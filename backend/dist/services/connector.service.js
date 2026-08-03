@@ -32,9 +32,21 @@ exports.SheetsConfigSchema = zod_1.z
 });
 exports.RestConfigSchema = zod_1.z.object({
     baseUrl: zod_1.z.string().url('baseUrl debe ser una URL válida'),
+    /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
+    endpoint: zod_1.z.string().optional(),
+    params: zod_1.z.record(zod_1.z.string()).optional(),
     headers: zod_1.z.record(zod_1.z.string()).optional(),
-    authType: zod_1.z.enum(['none', 'bearer', 'basic']).optional(),
+    authType: zod_1.z.enum(['none', 'bearer', 'basic', 'apiKeyHeader']).optional(),
     authValue: zod_1.z.string().optional(),
+    authHeaderName: zod_1.z.string().optional(),
+    /** Campo canónico -> campo tal como llega del origen. */
+    fieldMap: zod_1.z.record(zod_1.z.string()).optional(),
+    dataPath: zod_1.z.string().optional(),
+    timeoutSec: zod_1.z.number().int().min(1).max(300).optional(),
+})
+    .refine((d) => d.authType !== 'apiKeyHeader' || Boolean(d.authHeaderName), {
+    message: 'Con autenticación por cabecera hay que indicar el nombre de la cabecera',
+    path: ['authHeaderName'],
 });
 exports.FrecuenciaSyncSchema = zod_1.z.enum([
     '30min',
@@ -61,16 +73,52 @@ class ConnectorService {
         }
         // POSTGRESQL and CSV: validation deferred to future stages
     }
-    // ─── Mask credentials in logs ─────────────────────────────────────────────
+    // ─── Ocultar credenciales ─────────────────────────────────────────────────
+    static MASCARA = '[REDACTED]';
+    /** Claves cuyo contenido nunca debe salir del servidor. */
+    static CLAVES_SECRETAS = [
+        'credentials', 'authValue', 'password', 'apiKey', 'secret', 'privateKey',
+    ];
     maskConfig(config) {
         const masked = { ...config };
-        if ('credentials' in masked) {
-            masked['credentials'] = '[REDACTED]';
+        for (const clave of ConnectorService.CLAVES_SECRETAS) {
+            if (clave in masked && masked[clave])
+                masked[clave] = ConnectorService.MASCARA;
         }
-        if ('authValue' in masked) {
-            masked['authValue'] = '[REDACTED]';
+        // Las cabeceras libres son el sitio habitual para meter una API key.
+        if (masked['headers'] && typeof masked['headers'] === 'object') {
+            const h = masked['headers'];
+            masked['headers'] = Object.fromEntries(Object.keys(h).map((k) => [k, /token|key|auth|secret/i.test(k) ? ConnectorService.MASCARA : h[k]]));
         }
         return masked;
+    }
+    /** Repone los valores reales donde el cliente devolvió la máscara. */
+    preservarSecretos(entrante, guardado) {
+        const salida = { ...entrante };
+        for (const clave of ConnectorService.CLAVES_SECRETAS) {
+            if (salida[clave] === ConnectorService.MASCARA && guardado[clave] !== undefined) {
+                salida[clave] = guardado[clave];
+            }
+        }
+        if (salida['headers'] && typeof salida['headers'] === 'object') {
+            const nuevos = salida['headers'];
+            const viejos = (guardado['headers'] ?? {});
+            salida['headers'] = Object.fromEntries(Object.entries(nuevos).map(([k, v]) => v === ConnectorService.MASCARA && viejos[k] !== undefined ? [k, viejos[k]] : [k, v]));
+        }
+        return salida;
+    }
+    /**
+     * Versión del conector apta para enviar al navegador.
+     *
+     * Antes `GET /connectors` devolvía el `config` íntegro —con la clave privada
+     * de Google y el token de la API— a cualquier sesión de administrador. El
+     * frontend solo necesita saber SI hay credencial, no cuál es.
+     */
+    publicView(conector) {
+        return {
+            ...conector,
+            config: this.maskConfig(conector.config),
+        };
     }
     // ─── CRUD ─────────────────────────────────────────────────────────────────
     async create(data) {
@@ -107,8 +155,13 @@ class ConnectorService {
     }
     async update(id, data) {
         const conector = await this.getById(id);
+        // Como la lectura devuelve las credenciales enmascaradas, el formulario de
+        // edición las reenvía como '[REDACTED]'. Reponerlas evita que guardar un
+        // simple cambio de nombre borre el token sin que nadie se entere.
         if (data.config) {
-            this.validateConfig(conector.tipo, data.config);
+            const config = this.preservarSecretos(data.config, (conector.config ?? {}));
+            this.validateConfig(conector.tipo, config);
+            data = { ...data, config };
         }
         if (data.frecuenciaSync) {
             const result = exports.FrecuenciaSyncSchema.safeParse(data.frecuenciaSync);

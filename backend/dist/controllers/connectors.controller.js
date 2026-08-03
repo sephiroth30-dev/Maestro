@@ -52,7 +52,8 @@ async function connectorRoutes(fastify) {
     // GET /api/connectors
     fastify.get('/connectors', { preHandler: [...adminOnly] }, async (_req, reply) => {
         const list = await connector_service_js_1.connectorService.list();
-        await reply.send(list);
+        // Nunca se devuelven credenciales al navegador.
+        await reply.send(list.map((c) => connector_service_js_1.connectorService.publicView(c)));
     });
     // POST /api/connectors
     fastify.post('/connectors', { preHandler: [...adminOnly] }, async (req, reply) => {
@@ -101,7 +102,7 @@ async function connectorRoutes(fastify) {
     fastify.get('/connectors/:id', { preHandler: [...adminOnly] }, async (req, reply) => {
         const { id } = req.params;
         const conector = await connector_service_js_1.connectorService.getById(id);
-        await reply.send(conector);
+        await reply.send(connector_service_js_1.connectorService.publicView(conector));
     });
     // PUT /api/connectors/:id
     fastify.put('/connectors/:id', { preHandler: [...adminOnly] }, async (req, reply) => {

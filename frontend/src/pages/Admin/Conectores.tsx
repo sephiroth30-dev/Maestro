@@ -619,10 +619,35 @@ interface ConnectorFormState {
   credentialsJson: string;
   // REST fields
   baseUrl: string;
-  authType: 'none' | 'bearer' | 'basic';
+  endpoint: string;
+  authType: 'none' | 'bearer' | 'basic' | 'apiKeyHeader';
   authValue: string;
+  authHeaderName: string;
   headers: Array<{ key: string; value: string }>;
+  /** Ruta al arreglo dentro del JSON, p. ej. 'data.items'. */
+  dataPath: string;
+  timeoutSec: string;
+  /** Campo canónico -> nombre en el origen. */
+  fieldMap: Record<string, string>;
 }
+
+/**
+ * Los ocho campos que el mapeador de atenciones sabe reconocer.
+ *
+ * Se declaran aquí porque casi ninguna API devuelve exactamente estos nombres:
+ * sin la correspondencia, la sincronización lee los registros pero no logra
+ * mapear ninguno.
+ */
+const CAMPOS_CANONICOS: Array<{ clave: string; etiqueta: string; obligatorio?: boolean }> = [
+  { clave: 'fecha', etiqueta: 'Fecha de la atención', obligatorio: true },
+  { clave: 'valor', etiqueta: 'Valor facturado', obligatorio: true },
+  { clave: 'descripcion', etiqueta: 'Descripción / procedimiento' },
+  { clave: 'entidad', etiqueta: 'Entidad o pagador' },
+  { clave: 'profesional', etiqueta: 'Profesional' },
+  { clave: 'paciente', etiqueta: 'Nombre del paciente' },
+  { clave: 'documento', etiqueta: 'Documento del paciente' },
+  { clave: 'autorizacion', etiqueta: 'Número de autorización' },
+];
 
 const DEFAULT_FORM: ConnectorFormState = {
   nombre: '',
@@ -635,9 +660,14 @@ const DEFAULT_FORM: ConnectorFormState = {
   sheetName: '',
   credentialsJson: '',
   baseUrl: '',
+  endpoint: '',
   authType: 'none',
   authValue: '',
+  authHeaderName: '',
   headers: [],
+  dataPath: '',
+  timeoutSec: '',
+  fieldMap: {},
 };
 
 interface ConnectorModalProps {
@@ -672,9 +702,14 @@ function ConnectorModal({
       sheetName: '',
       credentialsJson: '',
       baseUrl: '',
+      endpoint: '',
       authType: 'none',
       authValue: '',
+      authHeaderName: '',
       headers: [],
+      dataPath: '',
+      timeoutSec: '',
+      fieldMap: {},
     };
     if (editing.tipo === 'GOOGLE_SHEETS') {
       base.folderId = (cfg['folderId'] as string) ?? '';
@@ -688,8 +723,16 @@ function ConnectorModal({
           : (cfg['credentials'] as string) ?? '';
     } else if (editing.tipo === 'REST_API') {
       base.baseUrl = (cfg['baseUrl'] as string) ?? '';
-      base.authType = (cfg['authType'] as 'none' | 'bearer' | 'basic') ?? 'none';
+      base.endpoint = (cfg['endpoint'] as string) ?? '';
+      base.authType = (cfg[
+        'authType'] as 'none' | 'bearer' | 'basic' | 'apiKeyHeader') ?? 'none';
+      // El backend devuelve las credenciales enmascaradas; si no se tocan, se
+      // reenvían tal cual y el servidor repone el valor real.
       base.authValue = (cfg['authValue'] as string) ?? '';
+      base.authHeaderName = (cfg['authHeaderName'] as string) ?? '';
+      base.dataPath = (cfg['dataPath'] as string) ?? '';
+      base.timeoutSec = cfg['timeoutSec'] ? String(cfg['timeoutSec']) : '';
+      base.fieldMap = (cfg['fieldMap'] as Record<string, string>) ?? {};
       const hdrs = cfg['headers'] as Record<string, string> | undefined;
       if (hdrs) {
         base.headers = Object.entries(hdrs).map(([key, value]) => ({ key, value }));
@@ -738,11 +781,20 @@ function ConnectorModal({
       for (const h of form.headers) {
         if (h.key.trim()) headersObj[h.key.trim()] = h.value;
       }
+      const fieldMap: Record<string, string> = {};
+      for (const [k, v] of Object.entries(form.fieldMap)) {
+        if (v.trim()) fieldMap[k] = v.trim();
+      }
       return {
-        baseUrl: form.baseUrl,
+        baseUrl: form.baseUrl.trim(),
+        ...(form.endpoint.trim() && { endpoint: form.endpoint.trim() }),
         ...(Object.keys(headersObj).length > 0 && { headers: headersObj }),
         authType: form.authType,
         ...(form.authValue && { authValue: form.authValue }),
+        ...(form.authType === 'apiKeyHeader' && { authHeaderName: form.authHeaderName.trim() }),
+        ...(form.dataPath.trim() && { dataPath: form.dataPath.trim() }),
+        ...(form.timeoutSec.trim() && { timeoutSec: Number(form.timeoutSec) }),
+        ...(Object.keys(fieldMap).length > 0 && { fieldMap }),
       };
     }
     return {};
@@ -760,6 +812,9 @@ function ConnectorModal({
       if (!form.credentialsJson.trim()) errs['credentialsJson'] = 'Las credenciales son requeridas';
     }
     if (form.tipo === 'REST_API') {
+      if (form.authType === 'apiKeyHeader' && !form.authHeaderName.trim()) {
+        errs['authHeaderName'] = 'Indica el nombre de la cabecera (p. ej. X-Auth-Token)';
+      }
       if (!form.baseUrl.trim()) errs['baseUrl'] = 'La URL base es requerida';
       try {
         new URL(form.baseUrl);
@@ -1100,6 +1155,24 @@ function ConnectorModal({
                   </div>
 
                   <div className="form-group">
+                    <label className="form-label" htmlFor="conn-endpoint">
+                      Ruta del endpoint
+                    </label>
+                    <input
+                      id="conn-endpoint"
+                      type="text"
+                      className="form-input"
+                      value={form.endpoint}
+                      onChange={(e) => setField('endpoint', e.target.value)}
+                      placeholder="facturacion/atenciones"
+                    />
+                    <span className="form-hint">
+                      Se cuelga de la URL base. Sin ella se consulta la raíz, que casi
+                      nunca devuelve los datos.
+                    </span>
+                  </div>
+
+                  <div className="form-group">
                     <label className="form-label">
                       Autenticación
                     </label>
@@ -1107,19 +1180,52 @@ function ConnectorModal({
                       className="form-input form-select"
                       value={form.authType}
                       onChange={(e) =>
-                        setField('authType', e.target.value as 'none' | 'bearer' | 'basic')
+                        setField(
+                          'authType',
+                          e.target.value as 'none' | 'bearer' | 'basic' | 'apiKeyHeader',
+                        )
                       }
                     >
                       <option value="none">Sin autenticación</option>
                       <option value="bearer">Bearer token</option>
                       <option value="basic">Basic auth</option>
+                      <option value="apiKeyHeader">Token en cabecera propia</option>
                     </select>
+                    {form.authType === 'basic' && (
+                      <span className="form-hint">
+                        Basic auth es usuario y contraseña en base64. Si tu API pide un
+                        token en una cabecera propia, usa la última opción.
+                      </span>
+                    )}
                   </div>
+
+                  {form.authType === 'apiKeyHeader' && (
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-auth-header">
+                        Nombre de la cabecera
+                      </label>
+                      <input
+                        id="conn-auth-header"
+                        type="text"
+                        className={`form-input ${errors['authHeaderName'] ? 'form-input--error' : ''}`}
+                        value={form.authHeaderName}
+                        onChange={(e) => setField('authHeaderName', e.target.value)}
+                        placeholder="X-Auth-Token"
+                      />
+                      {errors['authHeaderName'] && (
+                        <span className="form-error">{errors['authHeaderName']}</span>
+                      )}
+                    </div>
+                  )}
 
                   {form.authType !== 'none' && (
                     <div className="form-group">
                       <label className="form-label" htmlFor="conn-auth-value">
-                        {form.authType === 'bearer' ? 'Token' : 'Credenciales (base64)'}
+                        {form.authType === 'bearer'
+                          ? 'Token'
+                          : form.authType === 'apiKeyHeader'
+                            ? 'Valor del token'
+                            : 'Credenciales (base64)'}
                       </label>
                       <input
                         id="conn-auth-value"
@@ -1194,6 +1300,77 @@ function ConnectorModal({
                       </div>
                     ))}
                   </div>
+
+                  {/* ── Correspondencia de campos ──────────────────────── */}
+                  <div className="form-group">
+                    <label className="form-label">Correspondencia de campos</label>
+                    <span className="form-hint">
+                      Indica cómo se llama cada dato en la respuesta de la API. Sin esto,
+                      la sincronización lee los registros pero no logra guardar ninguno.
+                      Déjalo vacío si el nombre ya coincide.
+                    </span>
+                    <div className="mapeo-campos">
+                      {CAMPOS_CANONICOS.map((c) => (
+                        <div key={c.clave} className="mapeo-campos__fila">
+                          <label className="mapeo-campos__etiqueta" htmlFor={`map-${c.clave}`}>
+                            {c.etiqueta}
+                            {c.obligatorio && <span className="mapeo-campos__req">*</span>}
+                          </label>
+                          <input
+                            id={`map-${c.clave}`}
+                            type="text"
+                            className="form-input"
+                            placeholder={c.clave}
+                            value={form.fieldMap[c.clave] ?? ''}
+                            onChange={(e) =>
+                              setField('fieldMap', { ...form.fieldMap, [c.clave]: e.target.value })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Opciones avanzadas ─────────────────────────────── */}
+                  <details className="conn-avanzado">
+                    <summary>Opciones avanzadas</summary>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-datapath">
+                        Ruta al listado dentro del JSON
+                      </label>
+                      <input
+                        id="conn-datapath"
+                        type="text"
+                        className="form-input"
+                        value={form.dataPath}
+                        onChange={(e) => setField('dataPath', e.target.value)}
+                        placeholder="data.items"
+                      />
+                      <span className="form-hint">
+                        Solo si la respuesta envuelve los registros. Se detectan solas las
+                        envolturas habituales: data, datos, items, results, resultado.
+                      </span>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="conn-timeout">
+                        Tiempo máximo de espera (segundos)
+                      </label>
+                      <input
+                        id="conn-timeout"
+                        type="number"
+                        min={1}
+                        max={300}
+                        className="form-input"
+                        value={form.timeoutSec}
+                        onChange={(e) => setField('timeoutSec', e.target.value)}
+                        placeholder="10"
+                      />
+                      <span className="form-hint">
+                        Cada sincronización pide el histórico completo; 10 segundos suele
+                        quedarse corto con volúmenes grandes.
+                      </span>
+                    </div>
+                  </details>
                 </>
               )}
 

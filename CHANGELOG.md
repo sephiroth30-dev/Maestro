@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.7] - 2026-08-03
+
+### Fixed
+- **Un conector REST sincronizaba en verde e insertaba cero filas.** La escritura a `atenciones` estaba condicionada a `tipo === 'GOOGLE_SHEETS'`, así que cualquier fuente REST se creaba, probaba conexión, reportaba filas leídas y no guardaba nada — sin un solo error a la vista. El mapeador siempre fue agnóstico del origen; simplemente no se le llamaba.
+- La sincronización informaba como «filas nuevas» las filas **leídas**, no las escritas.
+- Cuando el mapeador no reconoce ninguna columna se rendía en silencio y la sincronización quedaba «Completada» con cero filas, indistinguible de un período sin actividad. Ahora falla con las columnas recibidas en el mensaje.
+- «Probar conexión» comprobaba solo la URL base: daba verde aunque el endpoint no existiera o no autorizara. Ahora prueba la ruta real que usará la sincronización.
+
+### Added
+- **Ruta del endpoint** y parámetros de consulta en los conectores REST. Antes solo se podía pedir la URL base tal cual, lo que hacía imposible apuntar a un recurso concreto.
+- **Autenticación por cabecera propia** (`Token en cabecera propia`), para las APIs que no usan `Authorization` — como Medifolios, que autentica con `X-Auth-Token`.
+- **Correspondencia de campos** configurable. El mapeador detecta columnas con expresiones pensadas para hojas en español y falla con nombres como `valor_total` (`\b` no coincide antes de `_`) o `nombreConvenio`; sin traducirlos, el valor bruto entraría en cero.
+- Ruta al listado dentro del JSON (`dataPath`) y tiempo máximo de espera configurable.
+
+### Security
+- **`GET /api/connectors` devolvía el `config` íntegro** —con la clave privada de Google y los tokens— a cualquier sesión de administrador. Ahora se enmascaran credenciales y cabeceras sensibles. Al editar, el valor enmascarado se repone en el servidor para que guardar un cambio de nombre no borre el token.
+- Las credenciales **siguen guardándose sin cifrar** en la base de datos; el enmascaramiento cubre la API, no un volcado.
+
+---
+
 ## [1.8.6] - 2026-08-03
 
 ### Added

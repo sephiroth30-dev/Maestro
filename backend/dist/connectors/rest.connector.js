@@ -1,9 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RestConnector = void 0;
+exports.RestConnector = exports.CAMPOS_CANONICOS = void 0;
 const logger_js_1 = require("../config/logger.js");
 const base_connector_js_1 = require("./base.connector.js");
-const REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+/**
+ * Campos que el mapeador de atenciones sabe reconocer. `fieldMap` traduce a
+ * estos nombres exactos, elegidos para caer siempre dentro de los patrones de
+ * `sheet-atencion-mapper.ts`.
+ */
+exports.CAMPOS_CANONICOS = [
+    'fecha',
+    'descripcion',
+    'autorizacion',
+    'entidad',
+    'profesional',
+    'valor',
+    'paciente',
+    'documento',
+];
 // ─── Implementation ───────────────────────────────────────────────────────────
 class RestConnector extends base_connector_js_1.BaseConnector {
     config;
@@ -11,6 +26,11 @@ class RestConnector extends base_connector_js_1.BaseConnector {
     constructor(config) {
         super();
         this.config = config;
+    }
+    timeoutMs() {
+        const s = this.config.timeoutSec;
+        // Tope de 5 minutos: por encima el cron se solaparía con la corrida siguiente.
+        return s && s > 0 ? Math.min(s, 300) * 1000 : DEFAULT_TIMEOUT_MS;
     }
     // ─── Build headers ────────────────────────────────────────────────────────
     buildHeaders() {
@@ -25,12 +45,15 @@ class RestConnector extends base_connector_js_1.BaseConnector {
         else if (this.config.authType === 'basic' && this.config.authValue) {
             headers['Authorization'] = `Basic ${this.config.authValue}`;
         }
+        else if (this.config.authType === 'apiKeyHeader' && this.config.authValue) {
+            headers[this.config.authHeaderName || 'X-Auth-Token'] = this.config.authValue;
+        }
         return headers;
     }
     // ─── Fetch with timeout ───────────────────────────────────────────────────
     async fetchWithTimeout(url, options = {}) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs());
         try {
             const response = await fetch(url, {
                 ...options,
@@ -46,7 +69,9 @@ class RestConnector extends base_connector_js_1.BaseConnector {
     // ─── test() ───────────────────────────────────────────────────────────────
     async test() {
         const start = Date.now();
-        const url = this.config.baseUrl;
+        // Se prueba la ruta REAL que usará la sincronización: comprobar solo la URL
+        // base daría verde aunque el endpoint no exista o no autorice.
+        const url = this.buildUrl({});
         try {
             const response = await this.fetchWithTimeout(url);
             const latencyMs = Date.now() - start;
@@ -69,7 +94,7 @@ class RestConnector extends base_connector_js_1.BaseConnector {
             const latencyMs = Date.now() - start;
             const isTimeout = err instanceof Error && err.name === 'AbortError';
             const message = isTimeout
-                ? 'Timeout después de 10 segundos'
+                ? `Timeout después de ${this.timeoutMs() / 1000} segundos`
                 : err instanceof Error
                     ? err.message
                     : 'Error de conexión';
@@ -85,49 +110,81 @@ class RestConnector extends base_connector_js_1.BaseConnector {
         }
     }
     // ─── fetch() ─────────────────────────────────────────────────────────────
-    async fetch(query) {
+    /** La ruta y los parámetros salen de la configuración; la consulta puede
+     *  añadir o sobrescribir. */
+    buildUrl(query) {
         const base = this.config.baseUrl.replace(/\/$/, '');
-        const endpoint = query.endpoint ? `/${query.endpoint.replace(/^\//, '')}` : '';
-        let url = `${base}${endpoint}`;
-        // Append query params
-        if (query.params && Object.keys(query.params).length > 0) {
-            const searchParams = new URLSearchParams(query.params);
-            if (query.limit)
-                searchParams.set('limit', String(query.limit));
-            if (query.offset)
-                searchParams.set('offset', String(query.offset));
-            url = `${url}?${searchParams.toString()}`;
+        const ruta = query.endpoint ?? this.config.endpoint ?? '';
+        const endpoint = ruta ? `/${ruta.replace(/^\//, '')}` : '';
+        const searchParams = new URLSearchParams({
+            ...(this.config.params ?? {}),
+            ...(query.params ?? {}),
+        });
+        if (query.limit)
+            searchParams.set('limit', String(query.limit));
+        if (query.offset)
+            searchParams.set('offset', String(query.offset));
+        const qs = searchParams.toString();
+        return qs ? `${base}${endpoint}?${qs}` : `${base}${endpoint}`;
+    }
+    /**
+     * Localiza el arreglo de registros dentro de la respuesta.
+     *
+     * Con `dataPath` se navega la ruta indicada ('resultado.items'); sin él se
+     * prueban las envolturas habituales. Devolver el objeto entero envuelto es el
+     * último recurso: es lo que provoca que el mapeador vea una sola fila sin
+     * columnas reconocibles y aborte sin insertar nada.
+     */
+    extraerArreglo(json) {
+        if (this.config.dataPath) {
+            let nodo = json;
+            for (const parte of this.config.dataPath.split('.')) {
+                if (nodo === null || typeof nodo !== 'object')
+                    break;
+                nodo = nodo[parte];
+            }
+            if (Array.isArray(nodo))
+                return nodo;
+            logger_js_1.logger.warn('RestConnector: dataPath no apunta a un arreglo', {
+                dataPath: this.config.dataPath,
+            });
         }
-        else {
-            const searchParams = new URLSearchParams();
-            if (query.limit)
-                searchParams.set('limit', String(query.limit));
-            if (query.offset)
-                searchParams.set('offset', String(query.offset));
-            const qs = searchParams.toString();
-            if (qs)
-                url = `${url}?${qs}`;
+        if (Array.isArray(json))
+            return json;
+        if (json !== null && typeof json === 'object') {
+            const obj = json;
+            for (const clave of ['data', 'datos', 'items', 'results', 'resultado', 'registros']) {
+                if (Array.isArray(obj[clave]))
+                    return obj[clave];
+            }
         }
+        return [json];
+    }
+    /**
+     * Renombra los campos del origen a los nombres canónicos que el mapeador
+     * reconoce. Los campos no mapeados se conservan tal cual: no estorban y
+     * ayudan a diagnosticar desde el diagnóstico de columnas.
+     */
+    traducir(row) {
+        const mapa = this.config.fieldMap;
+        if (!mapa || Object.keys(mapa).length === 0)
+            return row;
+        const salida = { ...row };
+        for (const [canonico, origen] of Object.entries(mapa)) {
+            if (!origen || !(origen in row))
+                continue;
+            salida[canonico] = row[origen];
+        }
+        return salida;
+    }
+    async fetch(query) {
+        const url = this.buildUrl(query);
         const response = await this.fetchWithTimeout(url);
         if (!response.ok) {
             throw new Error(`REST API error: HTTP ${response.status} ${response.statusText}`);
         }
         const json = await response.json();
-        // Support both array and envelope { data: [...] }
-        let rawArray;
-        if (Array.isArray(json)) {
-            rawArray = json;
-        }
-        else if (json !== null &&
-            typeof json === 'object' &&
-            'data' in json &&
-            Array.isArray(json['data'])) {
-            rawArray = json['data'];
-        }
-        else {
-            // Single object — wrap it
-            rawArray = [json];
-        }
+        const rawArray = this.extraerArreglo(json);
         if (rawArray.length === 0) {
             return {
                 columns: [],
@@ -158,10 +215,12 @@ class RestConnector extends base_connector_js_1.BaseConnector {
                     row[k] = JSON.stringify(v);
                 }
             }
-            return row;
+            return this.traducir(row);
         });
         return {
-            columns,
+            // Las columnas se toman de una fila ya traducida: es lo que verá el
+            // mapeador, y lo que debe mostrar el diagnóstico de columnas.
+            columns: rows.length > 0 ? Object.keys(rows[0]) : columns,
             rows,
             totalRows: rows.length,
             fetchedAt: new Date(),
