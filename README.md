@@ -79,7 +79,13 @@ Todos los usuarios tienen la contraseña: `Neurofic2026!`
 | `DIRECCION` | 3 | Dirección, reportes y métricas |
 | `FACTURACION` | 4 | Gestión de facturación y cartera |
 | `COORDINADORA` | 5 | Coordinación de servicios clínicos |
-| `ADMISIONES` | 6 | Proceso de admisión de pacientes |
+| `ADMISIONES` | 6 | Proceso de admisión de pacientes. **Limitado al mes en curso** y sin acceso a valores monetarios en las exportaciones. |
+| `RECURSOS_HUMANOS` | 7 | Liquidaciones de honorarios, sin aprobación ni pago |
+
+> El acceso real se controla por **módulos** asignados a cada usuario
+> (`dashboard`, `reportes`, `pacientes`, `honorarios`, `capacidad`, `auditoria`,
+> `configuracion`, `aprobar`), no solo por el rol. Se configuran en
+> Configuración → Usuarios.
 
 ---
 
@@ -98,9 +104,17 @@ Maestro/
 
 ## Documentación
 
-- [Arquitectura del sistema](docs/ARCHITECTURE.md)
-- [API de autenticación](docs/API-AUTH.md)
-- [Variables de entorno](docs/ENV.md)
+**Índice completo en [docs/README.md](docs/README.md).**
+
+| | |
+|---|---|
+| **Usar** | [Manual de usuario](docs/MANUAL_USUARIO.md) · [Manual extenso v2.2](docs/Manual_Neurofic_Dashboard_v2_2.md) |
+| **Desarrollar** | [Arquitectura](docs/ARCHITECTURE.md) · [Modelo de datos](docs/MODELO-DATOS.md) · [Referencia de la API](docs/API-REFERENCE.md) · [Autenticación](docs/API-AUTH.md) · [Reportes](docs/API-REPORTES.md) · [Conectores](docs/CONNECTORS.md) · [Exportación](docs/EXPORTACION.md) |
+| **Operar** | [Despliegue](docs/DEPLOY.md) · [Variables de entorno](docs/ENV.md) |
+
+> Dos trampas conocidas: `backend/dist` está versionado y hay que recompilarlo tras
+> cualquier cambio en el backend, y un import sin usar rompe el build del frontend por
+> completo. Ambas en [DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
