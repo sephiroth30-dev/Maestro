@@ -30,7 +30,8 @@ const MIGRATIONS = [
     },
     {
         id: 'm07_atenciones_servicio_id_idx',
-        sql: 'CREATE INDEX IF NOT EXISTS atenciones_servicio_id_idx ON atenciones (servicio_id)',
+        sql: 'CREATE INDEX atenciones_servicio_id_idx ON atenciones (servicio_id)',
+        index: { tabla: 'atenciones', columna: 'servicio_id' },
     },
     {
         id: 'm08_usuarios_rol_recursos_humanos',
@@ -72,10 +73,41 @@ const MIGRATIONS = [
         id: 'm11_usuarios_modulos',
         sql: 'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS modulos TEXT NULL',
     },
+    {
+        id: 'm12_atenciones_profesional_nombre_raw',
+        sql: 'ALTER TABLE atenciones ADD COLUMN IF NOT EXISTS profesional_nombre_raw VARCHAR(200) NULL',
+    },
+    {
+        id: 'm13_liquidaciones_es_simulado',
+        sql: 'ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS es_simulado TINYINT(1) NOT NULL DEFAULT 0',
+    },
+    // Concede el módulo nuevo a quien ya tiene reportes. Sin esto,
+    // `hasModuleAccess` falla cerrado y todo usuario con lista explícita de
+    // módulos pierde la página hasta que un administrador se la marque a mano.
+    //
+    // El runner NO lleva registro de migraciones aplicadas: reejecuta la lista en
+    // cada arranque. Por eso la condición `NOT LIKE '%"pacientes"%'` no es un
+    // adorno — sin ella, cada reinicio añadiría otra copia de "pacientes" hasta
+    // desbordar la columna TEXT.
+    {
+        id: 'm16_usuarios_modulo_pacientes',
+        sql: `UPDATE usuarios
+          SET modulos = REPLACE(modulos, '"reportes"', '"reportes","pacientes"')
+          WHERE modulos LIKE '%"reportes"%' AND modulos NOT LIKE '%"pacientes"%'`,
+    },
 ];
+async function indiceExiste(tabla, columna) {
+    const [rows] = await prisma_js_1.pool.query(`SELECT 1 FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       AND COLUMN_NAME = ? AND SEQ_IN_INDEX = 1
+     LIMIT 1`, [tabla, columna]);
+    return rows.length > 0;
+}
 async function runSchemaMigrations() {
     for (const m of MIGRATIONS) {
         try {
+            if (m.index && (await indiceExiste(m.index.tabla, m.index.columna)))
+                continue;
             await prisma_js_1.pool.execute(m.sql);
         }
         catch (err) {

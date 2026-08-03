@@ -22,7 +22,9 @@ export interface CreateSincronizacionData {
 }
 export declare class ConectoresRepository {
     create(data: CreateConectorData): Promise<Conector>;
-    findAll(): Promise<Conector[]>;
+    findAll(): Promise<(Conector & {
+        lastSyncEstado: string | null;
+    })[]>;
     findAllActive(): Promise<Conector[]>;
     findById(id: string): Promise<Conector | null>;
     update(id: string, data: UpdateConectorData): Promise<Conector>;

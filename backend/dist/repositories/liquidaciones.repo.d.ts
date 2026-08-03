@@ -9,6 +9,7 @@ export interface LiquidacionDB {
     fecha_desde: string;
     fecha_hasta: string;
     estado: EstadoLiquidacion;
+    es_simulado: boolean;
     monto_total: number;
     monto_ajustes: number;
     ajustes_pendientes: number;
@@ -32,6 +33,7 @@ export declare function upsertLiquidacion(data: {
     fecha_hasta: string;
     monto_total: number;
     datos_snapshot: HonorariosProfesionalRow;
+    es_simulado?: boolean;
 }): Promise<string>;
 export declare function actualizarEstado(id: string, estado: 'APROBADO' | 'PAGADO', usuarioId: string, notas?: string): Promise<void>;
 export declare function actualizarEstadoLote(ids: string[], estado: 'APROBADO' | 'PAGADO', usuarioId: string): Promise<void>;

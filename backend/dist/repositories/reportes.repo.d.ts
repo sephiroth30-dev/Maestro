@@ -30,6 +30,11 @@ export interface PresupuestoRow {
     monto: number;
     notas: string | null;
 }
+/**
+ * Returns a [whereClause, params] tuple for filtering atenciones by date range
+ * or by mes_idx/anio.
+ */
+export declare function buildDateWhere(mesIdx?: number, anio?: number, startDate?: Date, endDate?: Date, diaSemana?: number): [string, (Date | number)[]];
 export declare function getAgregadoMes(mesIdx: number, anio: number, entidadId?: string, startDate?: Date, endDate?: Date, diaSemana?: number): Promise<{
     total: number;
     atenciones: number;
@@ -70,17 +75,33 @@ export interface EntidadCatalogRow {
     es_grupo_caja: boolean;
     activa: boolean;
     nombres_raw: string[];
+    total_atenciones: number;
 }
 export declare function listEntidades(): Promise<EntidadCatalogRow[]>;
 export declare function updateEntidadGrupoCaja(id: string, esGrupoCaja: boolean): Promise<void>;
 export declare const TIPOS_VALIDOS: readonly ["EPS", "ARL", "CONVENIO", "PARTICULAR", "OTRO"];
 export type TipoEntidad = typeof TIPOS_VALIDOS[number];
 export interface PatchEntidadFields {
+    nombre?: string;
     es_grupo_caja?: boolean;
     tipo?: TipoEntidad;
     nombres_raw?: string[];
 }
 export declare function patchEntidad(id: string, fields: PatchEntidadFields): Promise<void>;
+export declare function deleteEntidad(id: string): Promise<{
+    nullified: number;
+}>;
+export interface CrearEntidadResult {
+    id: string;
+    nombre: string;
+    tipo: string;
+    reassigned: number;
+}
+export declare function createEntidadFromRaw(nombre: string, tipo: TipoEntidad, nombreRaw: string): Promise<CrearEntidadResult>;
+export declare function reclasificarEntidades(): Promise<{
+    updated: number;
+    sin_entidad: number;
+}>;
 export interface DiagnosticoRow {
     conector_id: string;
     conector_nombre: string;
@@ -102,10 +123,24 @@ export interface ProfesionalRow {
     total_atenciones: number;
 }
 export declare function listProfesionales(): Promise<ProfesionalRow[]>;
+export declare function createProfesional(nombre: string, nombreCompleto: string | null, especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null, nombresRaw: string[]): Promise<{
+    id: string;
+}>;
 export declare function patchProfesional(id: string, fields: {
     especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
     nombre_completo?: string | null;
+    es_nomina?: boolean;
 }): Promise<void>;
+export interface SinProfesionalRow {
+    nombre_raw: string;
+    cnt: number;
+    total: number;
+}
+export declare function getSinProfesionalDiagnostico(): Promise<SinProfesionalRow[]>;
+export declare function reclasificarProfesionales(): Promise<{
+    updated: number;
+    sin_profesional: number;
+}>;
 export interface SinEntidadRow {
     nombre_raw: string | null;
     cnt: number;

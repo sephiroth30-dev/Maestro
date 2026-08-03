@@ -152,9 +152,9 @@ const ENTIDADES_CONSULTA_REDUCIDA = new Set(['NUEVA EPS', 'VIVA 1A']);
 const PROFESIONALES_CONSULTA_REDUCIDA = new Set(['PERLAZA', 'LAVERDE', 'ESCOBAR', 'TERAN']);
 // ─── Motor de cálculo ─────────────────────────────────────────────────────────
 function nuevaCelda() { return { monto: 0, cnt: 0 }; }
-function nuevaFila(profesional_id, nombre) {
+function nuevaFila(profesional_id, nombre, esNomina = false) {
     return {
-        profesional_id, nombre,
+        profesional_id, nombre, es_nomina: esNomina,
         consulta: nuevaCelda(),
         emg_vcn: nuevaCelda(),
         infiltracion: nuevaCelda(),
@@ -191,7 +191,7 @@ async function calcularHonorarios(mesIdx, anio) {
     for (const l of lineas) {
         let fila = mapaFilas.get(l.profesional_id);
         if (!fila) {
-            fila = nuevaFila(l.profesional_id, l.profesional_display);
+            fila = nuevaFila(l.profesional_id, l.profesional_display, l.es_nomina);
             mapaFilas.set(l.profesional_id, fila);
         }
         const cat = l.servicio_nombre ? (SERVICIO_CAT[l.servicio_nombre] ?? 'sin_regla') : 'sin_regla';
@@ -265,7 +265,7 @@ function aplicarReglasSync(lineas, REGLAS, especiales) {
     for (const l of lineas) {
         let fila = mapaFilas.get(l.profesional_id);
         if (!fila) {
-            fila = nuevaFila(l.profesional_id, l.profesional_display);
+            fila = nuevaFila(l.profesional_id, l.profesional_display, l.es_nomina);
             mapaFilas.set(l.profesional_id, fila);
         }
         const cat = l.servicio_nombre ? (SERVICIO_CAT[l.servicio_nombre] ?? 'sin_regla') : 'sin_regla';

@@ -12,7 +12,7 @@ const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const BCRYPT_ROUNDS = 12;
 const ROLES_VALIDOS = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES', 'RECURSOS_HUMANOS'];
-const MODULOS_VALIDOS = ['dashboard', 'reportes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
+const MODULOS_VALIDOS = ['dashboard', 'reportes', 'pacientes', 'honorarios', 'capacidad', 'auditoria', 'configuracion', 'aprobar'];
 const createSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
     email: zod_1.z.string().email('Email inválido').max(191),

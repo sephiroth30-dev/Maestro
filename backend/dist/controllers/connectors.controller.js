@@ -6,10 +6,27 @@ const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const connector_service_js_1 = require("../services/connector.service.js");
 const sync_service_js_1 = require("../services/sync.service.js");
+const cron_service_js_1 = require("../services/cron.service.js");
 const logger_js_1 = require("../config/logger.js");
 const prisma_js_1 = require("../config/prisma.js");
 const redis_js_1 = require("../config/redis.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
+// ─── Cron helper ──────────────────────────────────────────────────────────────
+function applyConnectorCron(conector) {
+    (0, cron_service_js_1.unscheduleConnector)(conector.id);
+    if (!conector.activo || conector.frecuenciaSync === 'manual')
+        return;
+    const expr = cron_service_js_1.CRON_SCHEDULES[conector.frecuenciaSync];
+    if (expr) {
+        (0, cron_service_js_1.scheduleConnector)(conector.id, conector.nombre, expr);
+    }
+    else {
+        logger_js_1.logger.warn('applyConnectorCron: unknown frecuenciaSync', {
+            id: conector.id,
+            frecuenciaSync: conector.frecuenciaSync,
+        });
+    }
+}
 // ─── Request schemas ──────────────────────────────────────────────────────────
 const CreateConnectorSchema = zod_1.z.object({
     nombre: zod_1.z.string().min(1, 'nombre es requerido').max(100),
@@ -52,6 +69,12 @@ async function connectorRoutes(fastify) {
             ...parsed.data,
             tipo: parsed.data.tipo,
             config: parsed.data.config,
+        });
+        applyConnectorCron({
+            id: conector.id,
+            nombre: conector.nombre,
+            activo: conector.activo,
+            frecuenciaSync: conector.frecuenciaSync,
         });
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_CREADO, entidadTipo: 'conector', entidadId: conector.id, ip: req.ip, detalle: { nombre: parsed.data.nombre, tipo: parsed.data.tipo } }).catch(() => { });
         await reply.status(201).send(conector);
@@ -96,6 +119,12 @@ async function connectorRoutes(fastify) {
             ...parsed.data,
             config: parsed.data.config,
         });
+        applyConnectorCron({
+            id: conector.id,
+            nombre: conector.nombre,
+            activo: conector.activo,
+            frecuenciaSync: conector.frecuenciaSync,
+        });
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ACTUALIZADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.send(conector);
     });
@@ -103,6 +132,7 @@ async function connectorRoutes(fastify) {
     fastify.delete('/connectors/:id', { preHandler: [...adminOnly] }, async (req, reply) => {
         const { id } = req.params;
         await connector_service_js_1.connectorService.delete(id);
+        (0, cron_service_js_1.unscheduleConnector)(id);
         (0, redis_js_1.flushReportesCache)();
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ELIMINADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.status(204).send();

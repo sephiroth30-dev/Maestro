@@ -18,6 +18,7 @@ const SELECT_LIQUIDACIONES = `
     DATE_FORMAT(l.fecha_desde, '%Y-%m-%d') AS fecha_desde,
     DATE_FORMAT(l.fecha_hasta, '%Y-%m-%d') AS fecha_hasta,
     l.estado,
+    l.es_simulado,
     CAST(l.monto_total AS DECIMAL(15,2)) AS monto_total,
     COALESCE((
       SELECT SUM(a.valor_total) FROM liquidacion_ajustes a
@@ -52,6 +53,7 @@ function mapRow(r) {
         fecha_desde: r.fecha_desde,
         fecha_hasta: r.fecha_hasta,
         estado: r.estado,
+        es_simulado: Boolean(r.es_simulado),
         monto_total: Number(r.monto_total),
         monto_ajustes: Number(r.monto_ajustes ?? 0),
         ajustes_pendientes: Number(r.ajustes_pendientes ?? 0),
@@ -94,18 +96,19 @@ async function getLiquidacionById(id) {
 }
 async function upsertLiquidacion(data) {
     const snapshot = JSON.stringify(data.datos_snapshot);
+    const esSimulado = data.es_simulado ? 1 : 0;
     // Only upsert if not already APROBADO or PAGADO
     const [existing] = await prisma_js_1.pool.query(`SELECT id, estado FROM liquidaciones WHERE profesional_id = ? AND fecha_desde = ? AND fecha_hasta = ?`, [data.profesional_id, data.fecha_desde, data.fecha_hasta]);
     if (existing.length && existing[0].estado !== 'CALCULADO') {
         return existing[0].id;
     }
     if (existing.length) {
-        await prisma_js_1.pool.execute(`UPDATE liquidaciones SET monto_total = ?, datos_snapshot = ?, updated_at = NOW()
-       WHERE id = ?`, [data.monto_total, snapshot, existing[0].id]);
+        await prisma_js_1.pool.execute(`UPDATE liquidaciones SET monto_total = ?, datos_snapshot = ?, es_simulado = ?, updated_at = NOW()
+       WHERE id = ?`, [data.monto_total, snapshot, esSimulado, existing[0].id]);
         return existing[0].id;
     }
-    const [result] = await prisma_js_1.pool.execute(`INSERT INTO liquidaciones (profesional_id, fecha_desde, fecha_hasta, monto_total, datos_snapshot)
-     VALUES (?, ?, ?, ?, ?)`, [data.profesional_id, data.fecha_desde, data.fecha_hasta, data.monto_total, snapshot]);
+    const [result] = await prisma_js_1.pool.execute(`INSERT INTO liquidaciones (profesional_id, fecha_desde, fecha_hasta, monto_total, datos_snapshot, es_simulado)
+     VALUES (?, ?, ?, ?, ?, ?)`, [data.profesional_id, data.fecha_desde, data.fecha_hasta, data.monto_total, snapshot, esSimulado]);
     // Fetch the generated UUID
     const [rows] = await prisma_js_1.pool.query(`SELECT id FROM liquidaciones WHERE profesional_id = ? AND fecha_desde = ? AND fecha_hasta = ?`, [data.profesional_id, data.fecha_desde, data.fecha_hasta]);
     void result;

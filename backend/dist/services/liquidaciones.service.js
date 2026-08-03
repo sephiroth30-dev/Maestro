@@ -34,6 +34,7 @@ async function generarLiquidaciones(fechaDesde, fechaHasta) {
             fecha_hasta: fechaHasta,
             monto_total: row.total,
             datos_snapshot: row,
+            es_simulado: row.es_nomina,
         });
     }
     return (0, liquidaciones_repo_js_1.getLiquidacionesByPeriodo)(fechaDesde, fechaHasta);
@@ -193,7 +194,7 @@ async function generarPDFLiquidacion(id) {
         const footerY = doc.page.height - 50;
         doc.moveTo(X, footerY - 8).lineTo(X + W, footerY - 8).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
         doc.fillColor(GRAY).fontSize(7.5).font('Helvetica')
-            .text(`Generado el ${fmtFecha(new Date().toISOString())} · Neurofic Admin · neurofic.easystem.co`, X, footerY, { width: W, align: 'center' });
+            .text(`Generado el ${fmtFecha(new Date().toISOString())} · Neurofic Admin · dashboard.neurofic.com`, X, footerY, { width: W, align: 'center' });
         doc.end();
     });
 }

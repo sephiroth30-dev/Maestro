@@ -343,6 +343,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
                 entidadId,
                 entidadNombreRaw: rawEntidad,
                 profesionalId,
+                profesionalNombreRaw: rawProfesional,
                 servicioId,
                 pacienteNombre: rawPaciente || null,
                 pacienteDocumento: rawDocumento || null,
@@ -382,6 +383,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             item.hashFila,
             item.entidadId,
             item.profesionalId,
+            item.profesionalNombreRaw || null,
             item.servicioId,
             item.conectorId,
             item.entidadNombreRaw || null,
@@ -398,7 +400,7 @@ async function mapRowsToAtenciones(rows, conectorId) {
             try {
                 await conn.beginTransaction();
                 await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
-                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?', [values]);
+                const [res] = await conn.query('INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, profesional_nombre_raw, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?', [values]);
                 await conn.commit();
                 insertResult = res;
                 break;

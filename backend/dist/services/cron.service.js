@@ -21,31 +21,6 @@ exports.CRON_SCHEDULES = {
 };
 // ─── CronService ─────────────────────────────────────────────────────────────
 const scheduledTasks = new Map();
-// Schedule all active connectors with their configured intervals
-async function scheduleActiveConnectors() {
-    try {
-        const activos = await conectores_repo_js_1.conectoresRepo.findAllActive();
-        for (const conector of activos) {
-            if (conector.frecuenciaSync === 'manual')
-                continue;
-            const cronExpr = exports.CRON_SCHEDULES[conector.frecuenciaSync];
-            if (!cronExpr) {
-                logger_js_1.logger.warn('Unknown frecuenciaSync, skipping cron', {
-                    id: conector.id,
-                    frecuenciaSync: conector.frecuenciaSync,
-                });
-                continue;
-            }
-            scheduleConnector(conector.id, conector.nombre, cronExpr);
-        }
-        logger_js_1.logger.info('Cron jobs scheduled', { count: scheduledTasks.size });
-    }
-    catch (err) {
-        logger_js_1.logger.error('Failed to schedule cron jobs', {
-            error: err instanceof Error ? err.message : 'unknown',
-        });
-    }
-}
 function scheduleConnector(conectorId, nombre, cronExpression) {
     // Cancel existing task for this connector
     const existing = scheduledTasks.get(conectorId);
@@ -97,9 +72,58 @@ function unscheduleConnector(conectorId) {
         logger_js_1.logger.info('Connector unscheduled', { conectorId });
     }
 }
+const CATCH_UP_INTERVAL_MS = {
+    '30min': 30 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '4h': 4 * 60 * 60 * 1000,
+    'daily': 24 * 60 * 60 * 1000,
+};
+async function catchUpSyncs(activos) {
+    const now = Date.now();
+    for (const conector of activos) {
+        if (conector.frecuenciaSync === 'manual')
+            continue;
+        const intervalMs = CATCH_UP_INTERVAL_MS[conector.frecuenciaSync];
+        if (!intervalMs)
+            continue;
+        const ultimaSync = conector.ultimaSync;
+        if (!ultimaSync) {
+            logger_js_1.logger.info('Catch-up: connector never synced, triggering now', { id: conector.id, nombre: conector.nombre });
+            void sync_service_js_1.syncService.runSync(conector.id);
+            continue;
+        }
+        const elapsedMs = now - new Date(ultimaSync).getTime();
+        if (elapsedMs > intervalMs) {
+            logger_js_1.logger.info('Catch-up: sync overdue, triggering now', {
+                id: conector.id,
+                nombre: conector.nombre,
+                elapsedMin: Math.round(elapsedMs / 60_000),
+                intervalMin: intervalMs / 60_000,
+            });
+            void sync_service_js_1.syncService.runSync(conector.id);
+        }
+    }
+}
 async function initCron() {
     logger_js_1.logger.info('Initializing cron service');
-    await scheduleActiveConnectors();
+    try {
+        const activos = await conectores_repo_js_1.conectoresRepo.findAllActive();
+        for (const conector of activos) {
+            if (conector.frecuenciaSync === 'manual')
+                continue;
+            const cronExpr = exports.CRON_SCHEDULES[conector.frecuenciaSync];
+            if (!cronExpr) {
+                logger_js_1.logger.warn('Unknown frecuenciaSync, skipping cron', { id: conector.id, frecuenciaSync: conector.frecuenciaSync });
+                continue;
+            }
+            scheduleConnector(conector.id, conector.nombre, cronExpr);
+        }
+        logger_js_1.logger.info('Cron jobs scheduled', { count: scheduledTasks.size });
+        await catchUpSyncs(activos);
+    }
+    catch (err) {
+        logger_js_1.logger.error('Failed to initialize cron jobs', { error: err instanceof Error ? err.message : 'unknown' });
+    }
 }
 function stopCron() {
     for (const [conectorId, task] of scheduledTasks) {

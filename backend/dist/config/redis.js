@@ -35,7 +35,7 @@ async function disconnectRedis() {
     memCache.clear();
 }
 function flushReportesCache() {
-    const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:'];
+    const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:'];
     for (const key of memCache.keys()) {
         if (prefixes.some((p) => key.startsWith(p))) {
             memCache.delete(key);

@@ -18,6 +18,7 @@ const error_middleware_js_1 = require("./middlewares/error.middleware.js");
 const auth_routes_js_1 = require("./routes/auth.routes.js");
 const connectors_routes_js_1 = require("./routes/connectors.routes.js");
 const reportes_routes_js_1 = require("./routes/reportes.routes.js");
+const pacientes_routes_js_1 = require("./routes/pacientes.routes.js");
 const usuarios_routes_js_1 = require("./routes/usuarios.routes.js");
 const auditoria_routes_js_1 = require("./routes/auditoria.routes.js");
 const capacidad_routes_js_1 = require("./routes/capacidad.routes.js");
@@ -83,12 +84,13 @@ async function buildApp() {
     fastify.setErrorHandler(error_middleware_js_1.errorHandler);
     // ─── Version endpoint (public) ───────────────────────────────────────────
     fastify.get('/api/version', async (_request, reply) => {
-        return reply.send({ version: APP_VERSION, env: env_js_1.env.NODE_ENV });
+        return reply.send({ version: APP_VERSION, commit: process.env.COMMIT_SHA ?? 'local', env: env_js_1.env.NODE_ENV });
     });
     // ─── Routes ───────────────────────────────────────────────────────────────
     await (0, auth_routes_js_1.registerAuthRoutes)(fastify);
     await (0, connectors_routes_js_1.registerConnectorRoutes)(fastify);
     await (0, reportes_routes_js_1.registerReportesRoutes)(fastify);
+    await (0, pacientes_routes_js_1.registerPacientesRoutes)(fastify);
     await (0, usuarios_routes_js_1.registerUsuariosRoutes)(fastify);
     await (0, auditoria_routes_js_1.registerAuditoriaRoutes)(fastify);
     await (0, capacidad_routes_js_1.registerCapacidadRoutes)(fastify);

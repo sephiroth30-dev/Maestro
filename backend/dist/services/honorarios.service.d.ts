@@ -13,6 +13,7 @@ export interface HonorariosCeldas {
 export interface HonorariosProfesionalRow {
     profesional_id: string;
     nombre: string;
+    es_nomina: boolean;
     consulta: HonorariosCeldas;
     emg_vcn: HonorariosCeldas;
     infiltracion: HonorariosCeldas;

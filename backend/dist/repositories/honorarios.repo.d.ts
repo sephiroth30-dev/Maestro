@@ -2,6 +2,7 @@ export interface HonorariosLineaDB {
     profesional_id: string;
     profesional_nombre: string;
     profesional_display: string;
+    es_nomina: boolean;
     servicio_nombre: string | null;
     servicio_tipo_conteo: string;
     entidad_tipo: string | null;

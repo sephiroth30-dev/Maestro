@@ -28,6 +28,19 @@ async function registerReglasHonorariosRoutes(fastify) {
         await (0, reglas_honorarios_repo_js_1.deleteRegla)(request.params.id);
         return reply.status(204).send();
     });
+    // POST /api/reglas-honorarios/duplicar — copia las reglas de un profesional a otro
+    fastify.post('/api/reglas-honorarios/duplicar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const { from, to } = request.body;
+        if (!from || !to) {
+            return reply.status(400).send({ error: 'Bad Request', message: 'from y to son requeridos', statusCode: 400 });
+        }
+        if (from === to) {
+            return reply.status(400).send({ error: 'Bad Request', message: 'from y to deben ser diferentes', statusCode: 400 });
+        }
+        const result = await (0, reglas_honorarios_repo_js_1.duplicarReglas)(from, to);
+        const reglas = await (0, reglas_honorarios_repo_js_1.findAllReglas)();
+        return reply.send({ ...result, reglas });
+    });
     // PATCH /api/reglas-honorarios/especiales/:id — actualizar valor de regla especial
     fastify.patch('/api/reglas-honorarios/especiales/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
         const { valor, descripcion } = request.body;

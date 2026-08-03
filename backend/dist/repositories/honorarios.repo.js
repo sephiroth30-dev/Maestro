@@ -8,6 +8,7 @@ async function getLineasHonorarios(mesIdx, anio) {
         p.id                                                  AS profesional_id,
         p.nombre                                              AS profesional_nombre,
         COALESCE(p.nombre_completo, p.nombre)                 AS profesional_display,
+        p.es_nomina                                           AS es_nomina,
         s.nombre                                              AS servicio_nombre,
         COALESCE(s.tipo_conteo, 'unidad')                     AS servicio_tipo_conteo,
         e.tipo                                                AS entidad_tipo,
@@ -25,7 +26,7 @@ async function getLineasHonorarios(mesIdx, anio) {
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
      WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL
      GROUP BY
-        p.id, p.nombre, p.nombre_completo,
+        p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`, [mesIdx, anio]);
@@ -33,6 +34,7 @@ async function getLineasHonorarios(mesIdx, anio) {
         profesional_id: r.profesional_id,
         profesional_nombre: r.profesional_nombre,
         profesional_display: r.profesional_display,
+        es_nomina: Boolean(r.es_nomina),
         servicio_nombre: r.servicio_nombre ?? null,
         servicio_tipo_conteo: r.servicio_tipo_conteo ?? 'unidad',
         entidad_tipo: r.entidad_tipo ?? null,
@@ -48,6 +50,7 @@ fechaHasta) {
         p.id                                                  AS profesional_id,
         p.nombre                                              AS profesional_nombre,
         COALESCE(p.nombre_completo, p.nombre)                 AS profesional_display,
+        p.es_nomina                                           AS es_nomina,
         s.nombre                                              AS servicio_nombre,
         COALESCE(s.tipo_conteo, 'unidad')                     AS servicio_tipo_conteo,
         e.tipo                                                AS entidad_tipo,
@@ -66,7 +69,7 @@ fechaHasta) {
      WHERE DATE(a.fecha_dia) >= ? AND DATE(a.fecha_dia) <= ?
        AND a.profesional_id IS NOT NULL
      GROUP BY
-        p.id, p.nombre, p.nombre_completo,
+        p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`, [fechaDesde, fechaHasta]);
@@ -74,6 +77,7 @@ fechaHasta) {
         profesional_id: r.profesional_id,
         profesional_nombre: r.profesional_nombre,
         profesional_display: r.profesional_display,
+        es_nomina: Boolean(r.es_nomina),
         servicio_nombre: r.servicio_nombre ?? null,
         servicio_tipo_conteo: r.servicio_tipo_conteo ?? 'unidad',
         entidad_tipo: r.entidad_tipo ?? null,

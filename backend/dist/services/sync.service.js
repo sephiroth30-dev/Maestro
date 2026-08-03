@@ -44,6 +44,7 @@ class SyncService {
                 const mapResult = await (0, sheet_atencion_mapper_js_1.mapRowsToAtenciones)(dataset.rows, conectorId);
                 filasNuevas = mapResult.created;
                 logger_js_1.logger.info('Sheet rows mapped to atenciones', mapResult);
+                (0, redis_js_1.flushReportesCache)();
             }
             // Update sync record
             await conectores_repo_js_1.conectoresRepo.updateSincronizacion(syncRecord.id, {

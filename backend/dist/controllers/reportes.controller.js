@@ -46,12 +46,23 @@ const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
 const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
-// ADMISIONES can only see current month — override any period params
+// ADMISIONES can only see current month — override any period params.
+//
+// start_date/end_date must be cleared too: buildDateWhere PREFERS the range and
+// ignores mes_idx/anio when both dates are present, so overriding only the month
+// left the lock open — ?start_date=2020-01-01&end_date=2030-12-31 returned the
+// full history.
 function enforceAdmisionesPeriod(rol, params) {
     if (rol !== 'ADMISIONES')
         return params;
     const now = new Date();
-    return { mes_idx: now.getMonth() + 1, anio: now.getFullYear() };
+    return {
+        ...params,
+        mes_idx: now.getMonth() + 1,
+        anio: now.getFullYear(),
+        start_date: undefined,
+        end_date: undefined,
+    };
 }
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 const now = new Date();
@@ -93,12 +104,16 @@ const tendenciaQuerySchema = zod_1.z.object({
 });
 const patchEntidadBodySchema = zod_1.z
     .object({
+    nombre: zod_1.z.string().min(1).max(200).optional(),
     es_grupo_caja: zod_1.z.boolean().optional(),
     tipo: zod_1.z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']).optional(),
     nombres_raw: zod_1.z.array(zod_1.z.string().min(1)).min(1).optional(),
 })
-    .refine((d) => d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined, {
-    message: 'Se requiere al menos un campo: es_grupo_caja, tipo o nombres_raw',
+    .refine((d) => d.nombre !== undefined || d.es_grupo_caja !== undefined || d.tipo !== undefined || d.nombres_raw !== undefined, { message: 'Se requiere al menos un campo: nombre, es_grupo_caja, tipo o nombres_raw' });
+const crearEntidadFromRawBodySchema = zod_1.z.object({
+    nombre: zod_1.z.string().min(1).max(200),
+    tipo: zod_1.z.enum(['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO']),
+    nombre_raw: zod_1.z.string().min(1),
 });
 const presupuestoBodySchema = zod_1.z.object({
     anio: zod_1.z.number().int().min(2020).max(2100),
@@ -119,8 +134,8 @@ async function registerReportesController(fastify) {
             });
         }
         const userRol = request.user?.rol ?? '';
-        const { mes_idx, anio } = enforceAdmisionesPeriod(userRol, parsed.data);
-        const { entidad_id, start_date, end_date, dia_semana } = parsed.data;
+        const { mes_idx, anio, start_date, end_date } = enforceAdmisionesPeriod(userRol, parsed.data);
+        const { entidad_id, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getKpis({
             mesIdx: mes_idx,
             anio,
@@ -142,8 +157,8 @@ async function registerReportesController(fastify) {
             });
         }
         const userRol2 = request.user?.rol ?? '';
-        const { mes_idx: mes_idx2, anio: anio2 } = enforceAdmisionesPeriod(userRol2, parsed.data);
-        const { start_date, end_date, dia_semana } = parsed.data;
+        const { mes_idx: mes_idx2, anio: anio2, start_date, end_date } = enforceAdmisionesPeriod(userRol2, parsed.data);
+        const { dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getEntidades({
             mesIdx: mes_idx2,
             anio: anio2,
@@ -164,8 +179,7 @@ async function registerReportesController(fastify) {
             });
         }
         const userRol3 = request.user?.rol ?? '';
-        const { mes_idx: mes_idx3, anio: anio3 } = enforceAdmisionesPeriod(userRol3, parsed.data);
-        const { start_date, end_date } = parsed.data;
+        const { mes_idx: mes_idx3, anio: anio3, start_date, end_date } = enforceAdmisionesPeriod(userRol3, parsed.data);
         const result = await reportes_service_js_1.reportesService.getCumplimientoSemanal({
             mesIdx: mes_idx3,
             anio: anio3,
@@ -185,8 +199,7 @@ async function registerReportesController(fastify) {
             });
         }
         const userRol4 = request.user?.rol ?? '';
-        const { mes_idx: mes_idx4, anio: anio4 } = enforceAdmisionesPeriod(userRol4, parsed.data);
-        const { start_date: sd4, end_date: ed4 } = parsed.data;
+        const { mes_idx: mes_idx4, anio: anio4, start_date: sd4, end_date: ed4 } = enforceAdmisionesPeriod(userRol4, parsed.data);
         const result = await reportes_service_js_1.reportesService.getDiasSemana({
             mesIdx: mes_idx4,
             anio: anio4,
@@ -222,8 +235,8 @@ async function registerReportesController(fastify) {
             });
         }
         const userRol5 = request.user?.rol ?? '';
-        const { mes_idx: mes_idx5, anio: anio5 } = enforceAdmisionesPeriod(userRol5, parsed.data);
-        const { start_date, end_date, entidad_id, dia_semana } = parsed.data;
+        const { mes_idx: mes_idx5, anio: anio5, start_date, end_date } = enforceAdmisionesPeriod(userRol5, parsed.data);
+        const { entidad_id, dia_semana } = parsed.data;
         const result = await reportes_service_js_1.reportesService.getServicios({
             mesIdx: mes_idx5,
             anio: anio5,
@@ -259,6 +272,35 @@ async function registerReportesController(fastify) {
         const rows = await repo.listProfesionales();
         return reply.send(rows);
     });
+    // POST /api/profesionales (ADMIN — create a new professional)
+    fastify.post('/api/profesionales', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const body = request.body;
+        const nombresRaw = (body.nombres_raw ?? [])
+            .map((n) => String(n).trim().toUpperCase())
+            .filter((n) => n.length > 0);
+        if (nombresRaw.length === 0) {
+            return reply.status(400).send({ error: 'Bad Request', message: 'Se requiere al menos un nombre en el sheet', statusCode: 400 });
+        }
+        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null, undefined];
+        if (!allowed.includes(body.especialidad ?? null)) {
+            return reply.status(400).send({ error: 'Bad Request', message: 'especialidad inválida', statusCode: 400 });
+        }
+        const especialidad = (body.especialidad ?? null);
+        const nc = body.nombre_completo;
+        const nombreCompleto = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+        const result = await repo.createProfesional(nombresRaw[0], nombreCompleto, especialidad, nombresRaw);
+        return reply.status(201).send(result);
+    });
+    // GET /api/diagnostico/sin-profesional (ADMIN — unmatched professional names)
+    fastify.get('/api/diagnostico/sin-profesional', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const rows = await repo.getSinProfesionalDiagnostico();
+        return reply.send(rows);
+    });
+    // POST /api/admin/reclasificar-profesionales (ADMIN — reassign profesional_id from nombres_raw)
+    fastify.post('/api/admin/reclasificar-profesionales', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const result = await repo.reclasificarProfesionales();
+        return reply.send(result);
+    });
     // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
     fastify.patch('/api/profesionales/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
         const { id } = request.params;
@@ -274,6 +316,9 @@ async function registerReportesController(fastify) {
         if ('nombre_completo' in body) {
             const nc = body.nombre_completo;
             fields.nombre_completo = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
+        }
+        if ('es_nomina' in body) {
+            fields.es_nomina = Boolean(body.es_nomina);
         }
         await repo.patchProfesional(id, fields);
         return reply.send({ ok: true });
@@ -292,6 +337,20 @@ async function registerReportesController(fastify) {
         const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio);
         return reply.send(rows);
     });
+    // POST /api/diagnostico/sin-entidad/crear-entidad (ADMIN — create entity from unmatched raw name)
+    fastify.post('/api/diagnostico/sin-entidad/crear-entidad', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const parsed = crearEntidadFromRawBodySchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: parsed.error.issues.map((i) => i.message).join(', '),
+                statusCode: 400,
+            });
+        }
+        const { nombre, tipo, nombre_raw } = parsed.data;
+        const result = await repo.createEntidadFromRaw(nombre, tipo, nombre_raw);
+        return reply.status(201).send(result);
+    });
     // GET /api/entidades (catalog for config UI — ADMIN only)
     fastify.get('/api/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const rows = await repo.listEntidades();
@@ -309,11 +368,23 @@ async function registerReportesController(fastify) {
             });
         }
         await repo.patchEntidad(id, {
+            nombre: parsed.data.nombre,
             es_grupo_caja: parsed.data.es_grupo_caja,
             tipo: parsed.data.tipo,
             nombres_raw: parsed.data.nombres_raw,
         });
         return reply.status(200).send({ ok: true });
+    });
+    // POST /api/entidades/reclasificar (re-match all atenciones against current nombres_raw — ADMIN only)
+    fastify.post('/api/entidades/reclasificar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
+        const result = await repo.reclasificarEntidades();
+        return reply.send(result);
+    });
+    // DELETE /api/entidades/:id (ADMIN only — nullifies atenciones so they can be reclassified)
+    fastify.delete('/api/entidades/:id', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
+        const { id } = request.params;
+        const result = await repo.deleteEntidad(id);
+        return reply.send(result);
     });
     // GET /api/servicios (catalog for config UI — ADMIN only)
     fastify.get('/api/servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
@@ -382,14 +453,16 @@ async function registerReportesController(fastify) {
         if (!rangoQ.success)
             return reply.status(400).send({ error: 'Bad Request' });
         const [rows] = await prisma_js_1.pool.query(`SELECT
-          profesional_nombre,
-          SUM(CASE WHEN entidad_tipo = 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_particular,
-          SUM(CASE WHEN entidad_tipo != 'PARTICULAR' THEN COALESCE(valor_bruto, 0) ELSE 0 END) AS total_entidad,
-          SUM(COALESCE(valor_bruto, 0)) AS total_bruto
-        FROM atenciones
-        WHERE fecha_atencion BETWEEN ? AND ?
-          AND profesional_nombre IS NOT NULL
-        GROUP BY profesional_nombre
+          COALESCE(p.nombre_completo, p.nombre)                                                          AS profesional_nombre,
+          SUM(CASE WHEN e.tipo = 'PARTICULAR' THEN COALESCE(a.valor_bruto, 0) ELSE 0 END)               AS total_particular,
+          SUM(CASE WHEN COALESCE(e.tipo,'') != 'PARTICULAR' THEN COALESCE(a.valor_bruto, 0) ELSE 0 END) AS total_entidad,
+          SUM(COALESCE(a.valor_bruto, 0))                                                                AS total_bruto
+        FROM atenciones a
+        INNER JOIN profesionales p ON p.id = a.profesional_id
+        LEFT  JOIN entidades     e ON e.id = a.entidad_id
+        WHERE DATE(a.fecha_dia) BETWEEN ? AND ?
+          AND a.profesional_id IS NOT NULL
+        GROUP BY p.id, COALESCE(p.nombre_completo, p.nombre)
         ORDER BY total_bruto DESC`, [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]);
         return reply.send(rows.map((r) => ({
             profesional_nombre: r.profesional_nombre,
@@ -479,7 +552,7 @@ async function registerReportesController(fastify) {
     const ajusteBodySchema = zod_1.z.object({
         categoria: zod_1.z.string().min(2),
         descripcion: zod_1.z.string().min(3).max(255),
-        cantidad: zod_1.z.number().int().min(1).max(999),
+        cantidad: zod_1.z.number().int().min(-999).max(999).refine(n => n !== 0, 'La cantidad no puede ser cero'),
         valor_unitario: zod_1.z.number().min(1),
         justificacion: zod_1.z.string().min(10, 'Justificación mínimo 10 caracteres'),
         referencia_doc: zod_1.z.string().max(255).optional(),

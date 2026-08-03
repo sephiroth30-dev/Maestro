@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TIPOS_VALIDOS = void 0;
+exports.buildDateWhere = buildDateWhere;
 exports.getAgregadoMes = getAgregadoMes;
 exports.getFacturacionDia = getFacturacionDia;
 exports.getDiasTranscurridos = getDiasTranscurridos;
@@ -14,9 +15,15 @@ exports.listPresupuestos = listPresupuestos;
 exports.listEntidades = listEntidades;
 exports.updateEntidadGrupoCaja = updateEntidadGrupoCaja;
 exports.patchEntidad = patchEntidad;
+exports.deleteEntidad = deleteEntidad;
+exports.createEntidadFromRaw = createEntidadFromRaw;
+exports.reclasificarEntidades = reclasificarEntidades;
 exports.getDiagnosticoConectores = getDiagnosticoConectores;
 exports.listProfesionales = listProfesionales;
+exports.createProfesional = createProfesional;
 exports.patchProfesional = patchProfesional;
+exports.getSinProfesionalDiagnostico = getSinProfesionalDiagnostico;
+exports.reclasificarProfesionales = reclasificarProfesionales;
 exports.getSinEntidadDiagnostico = getSinEntidadDiagnostico;
 exports.getSinServicioDiagnostico = getSinServicioDiagnostico;
 exports.getServiciosDiagnostico = getServiciosDiagnostico;
@@ -174,7 +181,10 @@ async function listPresupuestos() {
     }));
 }
 async function listEntidades() {
-    const [rows] = await prisma_js_1.pool.query('SELECT id, nombre, tipo, es_grupo_caja, activa, nombres_raw FROM entidades ORDER BY tipo ASC, nombre ASC');
+    const [rows] = await prisma_js_1.pool.query(`SELECT e.id, e.nombre, e.tipo, e.es_grupo_caja, e.activa, e.nombres_raw,
+      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id) AS total_atenciones
+     FROM entidades e
+     ORDER BY e.tipo ASC, e.nombre ASC`);
     return rows.map((r) => ({
         id: r.id,
         nombre: r.nombre,
@@ -189,6 +199,7 @@ async function listEntidades() {
                 return [];
             }
         })(),
+        total_atenciones: Number(r.total_atenciones),
     }));
 }
 async function updateEntidadGrupoCaja(id, esGrupoCaja) {
@@ -198,6 +209,10 @@ exports.TIPOS_VALIDOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'];
 async function patchEntidad(id, fields) {
     const sets = [];
     const params = [];
+    if (fields.nombre !== undefined) {
+        sets.push('nombre = ?');
+        params.push(fields.nombre.trim().toUpperCase());
+    }
     if (fields.es_grupo_caja !== undefined) {
         sets.push('es_grupo_caja = ?');
         params.push(fields.es_grupo_caja ? 1 : 0);
@@ -214,6 +229,56 @@ async function patchEntidad(id, fields) {
         return;
     params.push(id);
     await prisma_js_1.pool.execute(`UPDATE entidades SET ${sets.join(', ')} WHERE id = ?`, params);
+}
+// ─── Delete entity (nullify atenciones so they can be reclassified) ──────────
+async function deleteEntidad(id) {
+    const [res] = await prisma_js_1.pool.execute('UPDATE atenciones SET entidad_id = NULL WHERE entidad_id = ?', [id]);
+    await prisma_js_1.pool.execute('DELETE FROM entidades WHERE id = ?', [id]);
+    return { nullified: res.affectedRows };
+}
+async function createEntidadFromRaw(nombre, tipo, nombreRaw) {
+    const id = (0, node_crypto_1.randomUUID)();
+    await prisma_js_1.pool.execute('INSERT INTO entidades (id, nombre, nombres_raw, tipo, es_grupo_caja, activa, created_at) VALUES (?, ?, ?, ?, 0, 1, NOW())', [id, nombre.trim().toUpperCase(), JSON.stringify([nombreRaw]), tipo]);
+    const [res] = await prisma_js_1.pool.execute('UPDATE atenciones SET entidad_id = ? WHERE entidad_id IS NULL AND entidad_nombre_raw = ?', [id, nombreRaw]);
+    return { id, nombre: nombre.trim().toUpperCase(), tipo, reassigned: res.affectedRows };
+}
+// ─── Reclassify all atenciones against current entidades nombres_raw ──────────
+async function reclasificarEntidades() {
+    const [entRows] = await prisma_js_1.pool.query('SELECT id, nombres_raw FROM entidades WHERE activa = 1');
+    // Build normalized name → entity_id map
+    const nameMap = new Map();
+    for (const row of entRows) {
+        let names = [];
+        try {
+            names = JSON.parse(row['nombres_raw']);
+        }
+        catch { /* skip */ }
+        for (const n of names) {
+            const key = n.trim().toUpperCase();
+            if (key)
+                nameMap.set(key, row['id']);
+        }
+    }
+    // Get all distinct raw names in atenciones
+    const [rawRows] = await prisma_js_1.pool.query('SELECT DISTINCT entidad_nombre_raw FROM atenciones WHERE entidad_nombre_raw IS NOT NULL');
+    let updated = 0;
+    for (const row of rawRows) {
+        const raw = row['entidad_nombre_raw'];
+        const entidadId = nameMap.get(raw.trim().toUpperCase());
+        if (entidadId) {
+            const [res] = await prisma_js_1.pool.execute('UPDATE atenciones SET entidad_id = ? WHERE entidad_nombre_raw = ? AND (entidad_id IS NULL OR entidad_id != ?)', [entidadId, raw, entidadId]);
+            updated += res.affectedRows;
+        }
+        else {
+            // Raw name doesn't match any entity — clear any stale assignment so it shows as sin_entidad
+            await prisma_js_1.pool.execute('UPDATE atenciones SET entidad_id = NULL WHERE entidad_nombre_raw = ? AND entidad_id IS NOT NULL', [raw]);
+        }
+    }
+    const [sinRows] = await prisma_js_1.pool.query('SELECT COUNT(*) AS cnt FROM atenciones WHERE entidad_id IS NULL AND entidad_nombre_raw IS NOT NULL');
+    return {
+        updated,
+        sin_entidad: Number((sinRows[0] ?? {})['cnt'] ?? 0),
+    };
 }
 async function getDiagnosticoConectores() {
     const [rows] = await prisma_js_1.pool.query(`SELECT
@@ -260,6 +325,11 @@ async function listProfesionales() {
         total_atenciones: Number(r['total_atenciones']),
     }));
 }
+async function createProfesional(nombre, nombreCompleto, especialidad, nombresRaw) {
+    const id = (0, node_crypto_1.randomUUID)();
+    await prisma_js_1.pool.execute('INSERT INTO profesionales (id, nombre, nombre_completo, nombres_raw, es_nomina, especialidad, activo) VALUES (?, ?, ?, ?, 0, ?, 1)', [id, nombre, nombreCompleto ?? null, JSON.stringify(nombresRaw), especialidad ?? null]);
+    return { id };
+}
 async function patchProfesional(id, fields) {
     const parts = [];
     const vals = [];
@@ -271,10 +341,62 @@ async function patchProfesional(id, fields) {
         parts.push('nombre_completo = ?');
         vals.push(fields.nombre_completo ?? null);
     }
+    if ('es_nomina' in fields) {
+        parts.push('es_nomina = ?');
+        vals.push(fields.es_nomina ? 1 : 0);
+    }
     if (parts.length === 0)
         return;
     vals.push(id);
     await prisma_js_1.pool.execute(`UPDATE profesionales SET ${parts.join(', ')} WHERE id = ?`, vals);
+}
+async function getSinProfesionalDiagnostico() {
+    const [rows] = await prisma_js_1.pool.query(`SELECT
+      profesional_nombre_raw AS nombre_raw,
+      COUNT(*) AS cnt,
+      SUM(valor_bruto) AS total
+    FROM atenciones
+    WHERE profesional_id IS NULL
+      AND profesional_nombre_raw IS NOT NULL
+      AND profesional_nombre_raw != ''
+    GROUP BY profesional_nombre_raw
+    ORDER BY cnt DESC`);
+    return rows.map((r) => ({
+        nombre_raw: r.nombre_raw,
+        cnt: Number(r.cnt),
+        total: Number(r.total),
+    }));
+}
+async function reclasificarProfesionales() {
+    const [profRows] = await prisma_js_1.pool.query('SELECT id, nombres_raw FROM profesionales WHERE activo = 1');
+    const nameMap = new Map();
+    for (const row of profRows) {
+        let names = [];
+        try {
+            names = JSON.parse(row['nombres_raw']);
+        }
+        catch { /* skip */ }
+        for (const n of names) {
+            const key = n.trim().toUpperCase();
+            if (key)
+                nameMap.set(key, row['id']);
+        }
+    }
+    const [rawRows] = await prisma_js_1.pool.query('SELECT DISTINCT profesional_nombre_raw FROM atenciones WHERE profesional_nombre_raw IS NOT NULL AND profesional_nombre_raw != \'\'');
+    let updated = 0;
+    for (const row of rawRows) {
+        const raw = row['profesional_nombre_raw'];
+        const profId = nameMap.get(raw.trim().toUpperCase());
+        if (profId) {
+            const [res] = await prisma_js_1.pool.execute('UPDATE atenciones SET profesional_id = ? WHERE profesional_nombre_raw = ? AND (profesional_id IS NULL OR profesional_id != ?)', [profId, raw, profId]);
+            updated += res.affectedRows;
+        }
+    }
+    const [sinRows] = await prisma_js_1.pool.query('SELECT COUNT(*) AS cnt FROM atenciones WHERE profesional_id IS NULL AND profesional_nombre_raw IS NOT NULL AND profesional_nombre_raw != \'\'');
+    return {
+        updated,
+        sin_profesional: Number((sinRows[0] ?? {})['cnt'] ?? 0),
+    };
 }
 async function getSinEntidadDiagnostico(mesIdx, anio, startDate, endDate) {
     const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate);

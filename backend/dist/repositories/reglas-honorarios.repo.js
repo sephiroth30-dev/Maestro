@@ -8,6 +8,7 @@ exports.findAllReglasEspeciales = findAllReglasEspeciales;
 exports.countReglasEspeciales = countReglasEspeciales;
 exports.insertReglaEspecial = insertReglaEspecial;
 exports.updateReglaEspecial = updateReglaEspecial;
+exports.duplicarReglas = duplicarReglas;
 const node_crypto_1 = require("node:crypto");
 const prisma_js_1 = require("../config/prisma.js");
 async function findAllReglas() {
@@ -65,5 +66,21 @@ async function insertReglaEspecial(tipo_regla, profesional_nombre, condicion, va
 }
 async function updateReglaEspecial(id, valor, descripcion) {
     await prisma_js_1.pool.execute('UPDATE reglas_especiales_honorarios SET valor = ?, descripcion = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?', [valor, descripcion, id]);
+}
+async function duplicarReglas(from, to) {
+    const [rows] = await prisma_js_1.pool.query('SELECT categoria, tipo, valor_entidad, valor_particular, notas FROM reglas_honorarios WHERE profesional_nombre = ? AND activo = 1', [from]);
+    for (const row of rows) {
+        await prisma_js_1.pool.execute(`INSERT INTO reglas_honorarios
+         (id, profesional_nombre, categoria, tipo, valor_entidad, valor_particular, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         tipo = VALUES(tipo),
+         valor_entidad = VALUES(valor_entidad),
+         valor_particular = VALUES(valor_particular),
+         notas = VALUES(notas),
+         activo = 1,
+         updated_at = CURRENT_TIMESTAMP(3)`, [(0, node_crypto_1.randomUUID)(), to, row.categoria, row.tipo, Number(row.valor_entidad), Number(row.valor_particular), row.notas ?? null]);
+    }
+    return { copiadas: rows.length };
 }
 //# sourceMappingURL=reglas-honorarios.repo.js.map
