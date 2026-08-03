@@ -1,0 +1,72 @@
+name: Auto-versión y validación de build
+
+# Sustituye a la parte automática de deploy.yml, que quedó en manual porque el
+# despliegue lo hace Hostinger por su cuenta.
+#
+# Este flujo NO despliega y no necesita ningún secreto SSH: solo sube el número
+# de versión en los tres package.json y comprueba que ambos proyectos compilan.
+# Así el número de versión que muestra la aplicación sigue avanzando en cada
+# cambio, y un error de TypeScript se detecta aquí y no en el servidor.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Versión y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Evita el bucle infinito con el commit que genera este mismo flujo.
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Subir versión de parche
+        id: version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm version patch --no-git-tag-version
+          npm version patch --no-git-tag-version --prefix frontend
+          npm version patch --no-git-tag-version --prefix backend
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          git add package.json frontend/package.json backend/package.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
+
+      - name: Validar build del frontend
+        run: |
+          npm install --include=dev --prefix frontend
+          npm run build --prefix frontend
+
+      # backend/dist está versionado (Hostinger no compila), así que aquí no
+      # basta con validar: hay que confirmar que el dist commiteado corresponde
+      # al código fuente. Si alguien olvida recompilarlo, el servidor seguiría
+      # ejecutando la versión anterior sin que nada falle a la vista.
+      - name: Validar que backend/dist esté al día
+        run: |
+          npm install --include=dev --prefix backend
+          npm run build --prefix backend
+          if ! git diff --quiet -- backend/dist; then
+            echo "::error::backend/dist está desactualizado respecto al código fuente."
+            echo "Ejecuta 'npm run build --prefix backend' y commitea backend/dist."
+            git diff --stat -- backend/dist
+            exit 1
+          fi
+          echo "backend/dist está al día."

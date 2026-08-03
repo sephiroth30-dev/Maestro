@@ -72,6 +72,7 @@ La barra lateral izquierda es el menú principal del sistema. En escritorio siem
 |---|---|---|
 | Dashboard | Resumen ejecutivo del mes en curso | `dashboard` (todos) |
 | Reportes | Facturación detallada con filtros avanzados | `reportes` |
+| Pacientes | Personas atendidas, pacientes nuevos y frecuencia de retorno | `pacientes` |
 | Honorarios | Liquidaciones y pagos a profesionales | `honorarios` |
 | Capacidad | Ocupación real vs. capacidad instalada | `capacidad` |
 | Auditoría | Registro de todas las acciones del sistema | `auditoria` |
@@ -168,13 +169,96 @@ Los filtros aplicados aparecen como etiquetas de color sobre los gráficos. Son 
 
 Muestra el desglose de facturación por tipo de procedimiento: nombre del servicio, volumen de sesiones, monto facturado y porcentaje de participación en los ingresos totales.
 
+### 4.6 Exportar reportes
+
+Todas las secciones con datos tienen un botón **Exportar** en el encabezado: Dashboard,
+Reportes, Pacientes, Honorarios, Capacidad y Auditoría. Genera **PDF**, **Excel** o **CSV**.
+
+Al pulsarlo se abre un cuadro de diálogo donde se elige el formato y se marca qué
+secciones y qué columnas incluir. Por defecto viene todo marcado; los presets son atajos:
+
+| Preset | Qué hace |
+|---|---|
+| **Todo** | El reporte completo. |
+| **Vista médicos (sin valores)** | Quita de un clic todas las columnas de dinero y deja solo cantidades. Pensado para entregar a un profesional su actividad sin exponer tarifas. |
+| **Solo tablas** | Omite las gráficas. |
+| **Resumen ejecutivo** | Indicadores y gráficas, sin las tablas de detalle. |
+
+**Qué esperar de cada formato**
+
+- **PDF** — Trae el logotipo, el período, los filtros que estaban aplicados, las gráficas
+  y numeración de páginas. Es el formato para imprimir o adjuntar a una presentación.
+  Rechaza tablas de más de 2.000 filas; para volúmenes mayores usar Excel o CSV.
+- **Excel** — Una hoja por sección más una portada con el período y los filtros. El
+  encabezado queda fijo y con autofiltro, y **los importes se guardan como números
+  reales**, así que se pueden sumar y usar en tablas dinámicas.
+- **CSV** — Volcado plano, útil para archivos muy grandes o para cargar en otra herramienta.
+
+**Restricción por rol.** Los usuarios de Admisiones reciben siempre la versión sin
+valores monetarios. La restricción se aplica al generar el archivo, no solo en pantalla,
+y también sustituye las gráficas por su tabla equivalente (una gráfica de facturación
+lleva las cifras dibujadas dentro de la imagen).
+
+**Detalle de atenciones.** En Reportes hay además un botón **Detalle**, que descarga una
+fila por atención del período filtrado: fecha, paciente, documento, entidad, profesional,
+servicio y valor. Es la base para armar análisis propios en Excel. Máximo 5.000
+atenciones por descarga; si el período tiene más, el archivo lo indica y hay que acotar
+el rango.
+
 ---
 
-## 5. Honorarios
+## 5. Pacientes
+
+Acceso: módulo `pacientes`. Responde cuántas **personas distintas** se atienden, cuántas
+son nuevas y con qué frecuencia regresan. Es analítica de utilización, no de población.
+
+### 5.1 Antes de leer cualquier cifra: la barra de cobertura
+
+En la parte superior aparece siempre qué porcentaje de los registros del período trae
+identificación del paciente. **Todas las cifras de la página se calculan únicamente sobre
+esos registros.** Si indica 62 %, el resto de la pantalla describe el 62 % de la
+operación, no el total.
+
+El enlace **Ver por fuente** desglosa la cobertura por cada origen de datos. Una fuente
+al 0 % es una hoja de cálculo cuya cabecera no tiene columna de paciente: eso se corrige
+en el archivo de origen, no en el sistema.
+
+### 5.2 Indicadores
+
+| Indicador | Significado |
+|---|---|
+| Pacientes únicos | Personas distintas atendidas en el período. |
+| Nuevos | Sin ningún registro anterior **en los datos disponibles**. Alguien atendido hace años, si ese período no está cargado, cuenta como nuevo. La fecha desde la que hay historia se indica bajo los indicadores. |
+| Recurrentes | Ya tenían registros previos. |
+| Visitas por paciente | Una visita es una fecha distinta. Un EMG y un VCN el mismo día son dos atenciones pero una sola visita; por eso se muestran los dos promedios. |
+
+### 5.3 Gráficas
+
+- **Distribución de frecuencia** — Cuántos pacientes vinieron 1 vez, 2–3, 4–6 o 7 o más.
+- **Retención mes a mes** — Qué porcentaje de los pacientes de cada mes regresa al mes
+  siguiente. Los dos últimos meses aparecen vacíos a propósito: su mes siguiente todavía
+  no ha terminado y puntuarlos daría una caída ficticia.
+
+### 5.4 Por pagador y por servicio
+
+> **Estas cifras no suman el total de pacientes únicos.** Un paciente atendido por dos
+> pagadores (o con dos servicios) se cuenta en ambas filas. Por eso se presentan como
+> tabla y nunca como gráfico de torta. La página informa además cuántos pacientes se
+> atendieron con más de un pagador.
+
+### 5.5 Qué no incluye
+
+El sistema **no almacena edad, sexo, ciudad ni régimen** del paciente: la fuente de datos
+solo aporta nombre y documento. Para segmentar por esos criterios habría que agregar
+primero esas columnas en el archivo de origen.
+
+---
+
+## 6. Honorarios
 
 Acceso: módulo `honorarios` (incluye usuarios de Recursos Humanos asignados a este módulo). Gestiona las liquidaciones de honorarios de los profesionales de la clínica.
 
-### 5.1 Flujo de trabajo — Generar → Aprobar → Pagar
+### 6.1 Flujo de trabajo — Generar → Aprobar → Pagar
 
 En la parte superior de la página se muestra un indicador visual de los tres pasos del proceso:
 
@@ -186,12 +270,12 @@ En la parte superior de la página se muestra un indicador visual de los tres pa
 
 > Si el usuario no tiene permiso para aprobar, el botón "Aprobar" no aparece. En su lugar se muestra la etiqueta **"Pendiente aprobación"** para que sea visible el estado sin generar confusión.
 
-### 5.2 Selección del período
+### 6.2 Selección del período
 
 - **Mes completo** (predeterminado) — navegar con flechas izquierda/derecha entre meses. No es posible ir a meses futuros.
 - **Período parcial** — hacer clic en *"Período parcial"* para ingresar fechas exactas de inicio y fin. Ideal para liquidar una fracción de mes.
 
-### 5.3 Estados de una liquidación
+### 6.3 Estados de una liquidación
 
 | Estado | Color | Significado |
 |---|---|---|
@@ -199,13 +283,13 @@ En la parte superior de la página se muestra un indicador visual de los tres pa
 | Aprobado | Ámbar | Revisado y aprobado. Pendiente de pago. |
 | Pagado | Verde | Pago registrado. Liquidación bloqueada. |
 
-### 5.4 Generar liquidaciones
+### 6.4 Generar liquidaciones
 
 1. Seleccionar el período y hacer clic en **"Generar liquidaciones"**. El sistema calculará los honorarios de cada profesional según las reglas configuradas. Las liquidaciones aparecen en estado *Calculado*.
 
 2. Si ya existen liquidaciones y se hace clic en **"Recalcular"**, solo se actualizan las que están en estado *Calculado*. Las *Aprobadas* y *Pagadas* quedan protegidas y no se modifican.
 
-### 5.5 Flujo completo de aprobación y pago
+### 6.5 Flujo completo de aprobación y pago
 
 1. **Calculado** → revisar el desglose expandiendo la fila del profesional.
 2. **Aprobar** → hacer clic en *"Aprobar"* (disponible solo para usuarios con módulo `aprobar`). La liquidación pasa a *Aprobado*.
@@ -213,7 +297,7 @@ En la parte superior de la página se muestra un indicador visual de los tres pa
 4. **Revertir** → si se detecta un error después de aprobar, hacer clic en *"Revertir"*, ingresar la razón y confirmar. Vuelve a *Calculado*.
 5. **PDF** → desde estado *Pagado* se puede generar el comprobante de la liquidación en PDF.
 
-### 5.6 Ajuste rápido de Ondas de Choque
+### 6.6 Ajuste rápido de Ondas de Choque
 
 Las sesiones de **Terapia Ondas de Choque** no siempre se pueden pagar en el mismo mes en que se realizan. Para ajustar cuántas se incluyen en la liquidación:
 
@@ -224,11 +308,11 @@ Las sesiones de **Terapia Ondas de Choque** no siempre se pueden pagar en el mis
 
 > Este ajuste queda en estado **Pendiente** y requiere autorización de un usuario con módulo `aprobar`, igual que todos los ajustes manuales.
 
-### 5.7 Selección masiva
+### 6.7 Selección masiva
 
 Marcar la casilla al inicio de varias filas para aprobar o registrar pago de múltiples liquidaciones al mismo tiempo con los botones de la barra de selección masiva.
 
-### 5.8 Ajustes manuales
+### 6.8 Ajustes manuales
 
 Los ajustes son bonificaciones, descuentos o correcciones que se suman al valor calculado. Se agregan dentro del detalle expandido de cada liquidación.
 
@@ -254,7 +338,7 @@ Los ajustes son bonificaciones, descuentos o correcciones que se suman al valor 
 | Autorizado | Aprobado. Se suma al total de la liquidación. |
 | Rechazado | No aprobado. Muestra el motivo. No afecta el total. |
 
-### 5.9 Facturación generada por médico
+### 6.9 Facturación generada por médico
 
 Al final de la página de Honorarios hay un panel colapsable **"Facturación generada por médico"**. Hacer clic en el título para expandirlo.
 
@@ -273,17 +357,17 @@ Este panel muestra, para cada profesional en el período seleccionado:
 
 ---
 
-## 6. Capacidad
+## 7. Capacidad
 
 Acceso: módulo `capacidad`. Compara la demanda real de atenciones con la capacidad instalada de cada grupo de servicio. Permite detectar cuellos de botella, servicios subutilizados y oportunidades de crecimiento.
 
-### 6.1 Indicadores de resumen
+### 7.1 Indicadores de resumen
 
 - **Total sesiones** — número total de sesiones únicas registradas en todos los servicios del período.
 - **Capacidad total** — suma de la capacidad instalada configurada para todos los grupos.
 - **Ocupación global** — porcentaje promedio de utilización de los servicios con capacidad configurada.
 
-### 6.2 Grupos de servicio monitoreados
+### 7.2 Grupos de servicio monitoreados
 
 | # | Grupo | Descripción |
 |---|---|---|
@@ -300,7 +384,7 @@ Acceso: módulo `capacidad`. Compara la demanda real de atenciones con la capaci
 | 11 | Terapia Ondas de Choque | Procedimientos de ondas de choque extracorpóreas |
 | 12 | Ecografía como Guía | Ecografía de apoyo a procedimientos |
 
-### 6.3 Niveles de ocupación
+### 7.3 Niveles de ocupación
 
 | Estado | Rango | Interpretación |
 |---|---|---|
@@ -312,17 +396,17 @@ Acceso: módulo `capacidad`. Compara la demanda real de atenciones con la capaci
 
 ---
 
-## 7. Auditoría
+## 8. Auditoría
 
 Acceso: módulo `auditoria`. Registro completo e inmutable de todas las acciones realizadas en el sistema. Este módulo es de solo lectura: ningún usuario puede modificar ni eliminar registros del log.
 
-### 7.1 Filtros disponibles
+### 8.1 Filtros disponibles
 
 - **Tipo de acción** — menú con todas las categorías (inicio de sesión, cambio de contraseña, usuarios, ajustes, liquidaciones, conectores, sincronización, datos eliminados).
 - **Rango de fechas** — campos "Desde" y "Hasta" para acotar el período de búsqueda.
 - **Botón Buscar** — aplica los filtros. **Botón Limpiar** — elimina todos los filtros.
 
-### 7.2 Columnas de la tabla
+### 8.2 Columnas de la tabla
 
 | Columna | Descripción |
 |---|---|
@@ -333,7 +417,7 @@ Acceso: módulo `auditoria`. Registro completo e inmutable de todas las acciones
 | Detalle | Información adicional del evento (máximo 3 campos clave) |
 | IP | Dirección IP desde donde se realizó la acción |
 
-### 7.3 Colores de los badges de acción
+### 8.3 Colores de los badges de acción
 
 | Color | Tipos de acción |
 |---|---|
@@ -356,21 +440,21 @@ El log muestra 50 registros por página. Navegar con los botones **Anterior** y 
 
 ---
 
-## 8. Sección Datos
+## 9. Sección Datos
 
-### 8.1 Entidades
+### 9.1 Entidades
 
 Catálogo de entidades pagadoras reconocidas por el sistema. Aquí se puede clasificar cada entidad como EPS, ARL, Convenio, Particular u Otro, y marcar si pertenece a un grupo de caja.
 
-### 8.2 Profesionales
+### 9.2 Profesionales
 
 Catálogo de los profesionales de la clínica con sus especialidades. Esta lista se usa en la generación de honorarios y en los reportes.
 
-### 8.3 Servicios
+### 9.3 Servicios
 
 Catálogo de procedimientos y servicios con su correspondencia a los grupos de capacidad instalada y al tipo de conteo (por unidad o por sesión).
 
-### 8.4 Presupuestos
+### 9.4 Presupuestos
 
 Define la meta de facturación mensual para cada mes del año. Es el denominador del porcentaje de cumplimiento en Dashboard y Reportes.
 
@@ -382,21 +466,21 @@ Un ícono verde confirma el guardado. La fila inferior muestra el total anual ca
 
 ---
 
-## 9. Sección Calidad
+## 10. Sección Calidad
 
-### 9.1 Diagnóstico
+### 10.1 Diagnóstico
 
 Muestra el estado de salud de la conexión a la base de datos, el volumen de atenciones por mes y año, y las últimas sincronizaciones realizadas por cada conector. Útil para verificar que los datos estén llegando correctamente desde las fuentes externas.
 
-### 9.2 Sin Entidad
+### 10.2 Sin Entidad
 
 Lista las atenciones que llegaron de la fuente externa sin una entidad pagadora reconocida. Si hay registros pendientes, aparece un ícono rojo de alerta en el menú lateral. Resolver estos registros garantiza que la facturación esté completa en los reportes.
 
 ---
 
-## 10. Sección Administración
+## 11. Sección Administración
 
-### 10.1 Gestión de Usuarios
+### 11.1 Gestión de Usuarios
 
 Permite crear, editar, desactivar y gestionar los accesos al sistema con base en módulos.
 
@@ -440,7 +524,7 @@ Clic en el ícono de llave en la fila del usuario. Ingresar la nueva contraseña
 
 Clic en el ícono de papelera rojo. La eliminación desactiva el acceso pero no borra historial ni registros. Es reversible: editar el usuario y activar *"Usuario activo"*.
 
-### 10.2 Reglas de Honorarios
+### 11.2 Reglas de Honorarios
 
 Panel de configuración de las reglas de liquidación por profesional. Muestra una matriz de 9 profesionales × 10 categorías de servicio.
 
@@ -457,7 +541,7 @@ Los cambios aplican inmediatamente en la siguiente generación de liquidaciones.
 
 **Reglas especiales** (tabla inferior): configuraciones específicas como tarifas reducidas para ciertas entidades, diferenciación entre PSG y Latencia Múltiple, o excepciones por convenio particular.
 
-### 10.3 Capacidad Instalada
+### 11.3 Capacidad Instalada
 
 Define la capacidad mensual (en sesiones) de cada grupo de servicio para un año. Los valores aquí configurados son los denominadores del módulo de Capacidad.
 
@@ -477,13 +561,13 @@ Si se requieren valores diferentes por mes, editar cada fila individualmente y g
 
 ---
 
-## 11. Sección Sistema — Fuentes de datos
+## 12. Sección Sistema — Fuentes de datos
 
 > Esta sección está al final del menú de Configuración con un color diferenciado (gris/rojo) para indicar que su uso modifica el origen de los datos del sistema. Proceder con cuidado.
 
 Los conectores son las conexiones a las fuentes externas de facturación. Cada conector sincroniza atenciones, servicios y entidades desde el sistema externo hacia la base de datos de Neurofic.
 
-### 11.1 Tarjeta de cada conector
+### 12.1 Tarjeta de cada conector
 
 Cada conector muestra:
 
@@ -492,18 +576,18 @@ Cada conector muestra:
 - **Estado** — activo/inactivo.
 - **Frecuencia de sincronización** — cada 30 min, 1h, 4h, diaria o manual.
 
-### 11.2 Sincronización
+### 12.2 Sincronización
 
 - **Sincronización automática**: el sistema sincroniza en el intervalo configurado sin intervención manual. Las sincronizaciones automáticas se realizan en zona horaria Colombia (UTC-5).
 - **Sincronización manual**: hacer clic en el botón **"Sincronizar"** de la tarjeta para iniciar una sincronización inmediata. El proceso corre en segundo plano; el estado cambia a *"En proceso"* y luego a *"Completada"* o *"Fallida"*.
 
 > El botón de actualizar (↺) en la parte superior de Reportes **recalcula los indicadores desde los datos ya almacenados** en la base de datos local. **No** dispara una nueva sincronización desde la fuente externa. Para obtener los datos más recientes de la fuente, usar el botón *"Sincronizar"* en esta sección.
 
-### 11.3 Historial de sincronizaciones
+### 12.3 Historial de sincronizaciones
 
 Hacer clic en el ícono de historial de cada conector para ver el registro de las últimas sincronizaciones con: hora de inicio, hora de fin, filas leídas, filas nuevas y errores encontrados.
 
-### 11.4 Diagnóstico de columnas
+### 12.4 Diagnóstico de columnas
 
 Opción disponible en cada conector para verificar el mapeo de columnas y detectar atenciones sin valor o sin entidad reconocida.
 
@@ -585,7 +669,7 @@ En versiones anteriores del sistema se asignaba un *rol* a cada usuario (Gerenci
 
 > Esta sección está dirigida al equipo de dirección y tecnología. Describe la arquitectura, las decisiones de ingeniería y el trabajo técnico que sostiene la plataforma.
 
-## 12. Arquitectura general
+## 13. Arquitectura general
 
 El Neurofic Admin Dashboard es una aplicación web de arquitectura moderna compuesta por tres capas:
 
@@ -597,7 +681,7 @@ El Neurofic Admin Dashboard es una aplicación web de arquitectura moderna compu
 | Proceso | PM2 (gestor de procesos) | Reinicio automático ante caídas. Producción. |
 | Dominio | dashboard.neurofic.com | Subdominio activo. Alojado en Hostinger. |
 
-### 12.1 Frontend
+### 13.1 Frontend
 
 Construido como SPA (Single Page Application): la navegación entre páginas no recarga la página completa. Características clave:
 
@@ -606,7 +690,7 @@ Construido como SPA (Single Page Application): la navegación entre páginas no 
 - **Gráficos interactivos con Recharts**: clic en barras y segmentos de torta aplica filtros en cascada sobre todos los indicadores.
 - **Diseño responsive**: funciona en escritorio, tablet y móvil.
 
-### 12.2 Backend (API REST)
+### 13.2 Backend (API REST)
 
 El servidor expone una API REST. Responsabilidades:
 
@@ -618,26 +702,26 @@ El servidor expone una API REST. Responsabilidades:
 - Auto-seed de datos de referencia al arrancar.
 - Migraciones de esquema de base de datos automáticas y versionadas (actualmente 11 migraciones).
 
-### 12.3 Arranque resiliente
+### 13.3 Arranque resiliente
 
 El servidor inicia y acepta solicitudes HTTP en menos de 2 segundos, antes de conectarse a la base de datos. La conexión se realiza en paralelo con reintentos exponenciales (2s, 4s, 8s… hasta 30s máximo).
 
 ---
 
-## 13. Seguridad implementada
+## 14. Seguridad implementada
 
-### 13.1 Autenticación con JWT de doble token
+### 14.1 Autenticación con JWT de doble token
 
 | Token | Duración | Propósito |
 |---|---|---|
 | Access Token | Corta (15 min) | Autoriza cada solicitud al API. |
 | Refresh Token | Larga | Renueva el Access Token sin re-login. |
 
-### 13.2 Control de acceso basado en módulos
+### 14.2 Control de acceso basado en módulos
 
 Cada endpoint del API verifica: (1) que el token sea válido y vigente, y (2) que el rol derivado del usuario tenga permiso para ejecutar esa operación. La verificación ocurre en el servidor — nadie puede saltarse la seguridad accediendo directamente al API.
 
-### 13.3 Otras protecciones
+### 14.3 Otras protecciones
 
 | Protección | Descripción |
 |---|---|
@@ -649,7 +733,7 @@ Cada endpoint del API verifica: (1) que el token sea válido y vigente, y (2) qu
 
 ---
 
-## 14. Estructura de la base de datos
+## 15. Estructura de la base de datos
 
 El esquema se gestiona con migraciones versionadas, aplicadas automáticamente al arrancar el servidor.
 
@@ -670,15 +754,15 @@ El esquema se gestiona con migraciones versionadas, aplicadas automáticamente a
 
 ---
 
-## 15. Despliegue y operación en producción
+## 16. Despliegue y operación en producción
 
-### 15.1 Infraestructura
+### 16.1 Infraestructura
 
 El sistema está alojado en Hostinger. El proceso lo gestiona Passenger, que lo levanta bajo demanda y lo reinicia automáticamente ante cualquier caída; el despliegue lo reinicia tocando `tmp/restart.txt`.
 
 **URL de acceso:** https://dashboard.neurofic.com
 
-### 15.2 Variables de entorno en producción
+### 16.2 Variables de entorno en producción
 
 | Variable | Descripción |
 |---|---|
@@ -691,7 +775,7 @@ El sistema está alojado en Hostinger. El proceso lo gestiona Passenger, que lo 
 
 Ninguna variable de entorno está en el código fuente ni en el repositorio de git.
 
-### 15.3 Registro de auditoría técnica
+### 16.3 Registro de auditoría técnica
 
 El sistema registra automáticamente toda acción significativa con: ID único, usuario, tipo de acción (más de 20 tipos catalogados), entidad afectada, detalle JSON del evento, dirección IP y marca de tiempo. El registro usa un patrón "disparo y olvido": si falla por error técnico, la operación principal del usuario no se interrumpe.
 

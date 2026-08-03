@@ -39,6 +39,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Security
 - **Admisiones podía saltarse el candado de período.** `enforceAdmisionesPeriod` solo reescribía `mes_idx`/`anio`, pero `buildDateWhere` prefiere `start_date`/`end_date` y descarta el mes cuando ambas fechas vienen: bastaba `?start_date=2020-01-01&end_date=2030-12-31` para obtener el histórico completo. Ahora el guardia anula también el rango, en los seis endpoints afectados. En `/detalle-atenciones` esto habría expuesto nombres y documentos de paciente de todos los tiempos.
 
+### Deployment
+- El despliegue automático por GitHub Actions queda **desactivado**: el servidor se actualiza por la integración con Git de Hostinger, y el flujo solo fallaba en el paso de SSH generando una notificación de error por commit. Se conserva como ejecución manual (`workflow_dispatch`) con instrucciones para reactivarlo.
+- Nuevo flujo `version.yml` que asume lo que sí hacía falta del anterior y no necesita secretos: sube la versión de parche y valida que ambos proyectos compilen. Además **verifica que `backend/dist` corresponda al código fuente** — está versionado porque Hostinger no compila, y olvidar regenerarlo deja al servidor ejecutando la versión anterior sin ningún síntoma visible.
+
 ### Migrations
 - `m16`: concede el módulo `pacientes` a los usuarios que ya tenían `reportes`. Sin esto, `hasModuleAccess` falla cerrado y todo usuario con lista de módulos explícita perdería la página nueva hasta que un administrador se la marcara una por una. La condición `NOT LIKE '%"pacientes"%'` es obligatoria: el runner reejecuta la lista completa en cada arranque y sin ella cada reinicio añadiría otra copia hasta desbordar la columna.
 
