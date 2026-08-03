@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.6] - 2026-08-03
+
+### Added
+- **Centro de ayuda contextual dentro de la aplicación.** Botón **?** en el encabezado de Dashboard, Reportes, Pacientes, Honorarios, Capacidad, Auditoría y Configuración: abre un panel lateral con la ayuda de esa pantalla. En Configuración el artículo se elige según la pestaña activa.
+  - **Buscador global** dentro del panel: abre en el artículo de la pantalla, pero busca en todos. Ignora las tildes, porque «liquidacion» y «facturacion» se teclean sin ellas a diario.
+  - **Filtrado por módulo**: quien no tiene el módulo `honorarios` no ve ese artículo, ni en la lista ni en los resultados. El recorte se aplica antes de construir el índice.
+  - 15 artículos cortos que fusionan los dos manuales anteriores. El detalle a fondo va en bloques desplegables, cerrados por defecto.
+  - Todo en diferido: el panel, el contenido y `marked` van en chunks aparte. El paquete principal crece 1,7 kB pese a tener el botón en ocho páginas.
+
+### Changed
+- **Los artículos de ayuda son ahora la única fuente de la documentación de usuario.** Los manuales en PDF se generan a partir de ellos (`scripts/md-a-pdf.py --manual breve|completo`), así que por construcción no pueden contradecir a la aplicación. Los mismos bloques desplegables producen los dos niveles: el manual breve los omite y el completo los expande.
+- `docs/MANUAL_USUARIO.md` y `docs/Manual_Neurofic_Dashboard_v2_2.md` dejan de editarse a mano y quedan como punteros a `frontend/src/help/content/`. Mantener el mismo texto en dos sitios era la causa de que el manual declarara «Versión 1.6 · Mayo 2026» tres versiones más tarde.
+- La regla de acceso por módulos estaba implementada dos veces con formas distintas (`App.tsx` y `Sidebar.tsx`); se unifica en `lib/permisos.ts`, que ahora comparten esos dos y la ayuda.
+
+### Fixed
+- **`.modal-close` no existía en el CSS** pese a usarse en todos los modales: el botón de cerrar se pintaba con el estilo por defecto del navegador, como un recuadro con borde. Afectaba al diálogo de exportación, al de cambio de contraseña y a los de Honorarios.
+
+---
+
 ## [1.8.0] - 2026-08-02
 
 ### Added

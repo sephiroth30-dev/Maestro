@@ -15,6 +15,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth.js';
+import { tieneAcceso } from '../../lib/permisos.js';
 import type { Rol } from '../../types/index.js';
 import { ROL_LABELS } from '../../types/index.js';
 import ChangePasswordModal from '../ChangePasswordModal.js';
@@ -126,12 +127,7 @@ export default function Sidebar(): React.ReactElement {
 
   const hasAccess = (item: NavItem): boolean => {
     if (item.disabled) return true; // disabled items always shown (greyed out)
-    const mods = user.modulos;
-    if (mods && mods.length > 0 && item.modulo) {
-      return mods.includes(item.modulo) || mods.includes('configuracion');
-    }
-    if (!item.roles || item.roles.length === 0) return true;
-    return item.roles.includes(userRol);
+    return tieneAcceso(user, item.modulo, item.roles);
   };
 
   const isActive = (to: string): boolean => location.pathname === to;

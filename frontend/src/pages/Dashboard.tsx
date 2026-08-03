@@ -10,6 +10,7 @@ import ChartTendencia from '../components/widgets/ChartTendencia.js';
 import ChartCumplimientoMensual from '../components/widgets/ChartCumplimientoMensual.js';
 import TopEntidades from '../components/widgets/TopEntidades.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildDashboardDoc } from '../export/docs/dashboardDoc.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -229,6 +230,7 @@ export default function Dashboard(): React.ReactElement {
         </div>
         {canViewReportes && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <HelpButton articulo="dashboard" />
             <ExportButton buildDoc={buildExportDoc} disabled={kpisQ.isLoading} />
             <Link to="/reportes" className="db-reportes-link">
               Reportes completos <ArrowRight size={14} />

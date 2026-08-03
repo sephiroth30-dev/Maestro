@@ -21,6 +21,7 @@ import type { HonorariosCeldas, HonorariosProfesionalRow } from '../api/honorari
 import { useContribucion } from '../api/honorarios.js';
 import type { ContribucionRow } from '../api/honorarios.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildHonorariosDoc } from '../export/docs/honorariosDoc.js';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -957,6 +958,7 @@ export default function Honorarios(): React.ReactElement {
             <Calendar size={13} /> {modoRango ? 'Usar mes completo' : 'Período parcial'}
           </button>
 
+          <HelpButton articulo="honorarios" />
           <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
         </div>
       </div>

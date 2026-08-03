@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { ClipboardList, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useAuditoria, useAuditoriaAcciones, fetchAuditoriaAll, AUDITORIA_EXPORT_MAX } from '../api/auditoria.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildAuditoriaDoc } from '../export/docs/auditoriaDoc.js';
 import type { AuditLog } from '../types/index.js';
 
@@ -190,6 +191,7 @@ export default function Auditoria(): ReactElement {
               {data.total.toLocaleString('es-MX')} registros
             </span>
           )}
+          <HelpButton articulo="auditoria" />
           <ExportButton
             buildDoc={buildExportDoc}
             resolveDoc={resolveExportDoc}

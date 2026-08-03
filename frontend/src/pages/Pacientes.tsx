@@ -19,6 +19,7 @@ import { usePacientes } from '../api/pacientes.js';
 import type { DimensionRow } from '../api/pacientes.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildPacientesDoc } from '../export/docs/pacientesDoc.js';
 
 const MESES = [
@@ -150,6 +151,7 @@ export default function Pacientes(): React.ReactElement {
               </select>
             </>
           )}
+          <HelpButton articulo="pacientes" />
           <ExportButton buildDoc={buildExportDoc} />
         </div>
       </div>

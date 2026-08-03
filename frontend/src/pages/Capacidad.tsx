@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart2, Loader2, AlertCircle } from 'lucide-react';
 import { useUtilizacion } from '../api/capacidad.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildCapacidadDoc } from '../export/docs/capacidadDoc.js';
 import type { UtilizacionGrupo } from '../types/index.js';
 
@@ -231,6 +232,7 @@ export default function Capacidad(): React.ReactElement {
               ))}
             </select>
           </div>
+          <HelpButton articulo="capacidad" />
           <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
         </div>
       </div>

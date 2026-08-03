@@ -8,10 +8,15 @@ el [CHANGELOG](../CHANGELOG.md).**
 
 ## Para usar el sistema
 
+**La documentación de usuario vive dentro de la aplicación**, en
+`frontend/src/help/content/*.md`. Los usuarios la leen con el botón **?** del encabezado
+de cada pantalla; los PDF se generan a partir de esos mismos artículos.
+
 | Documento | Contenido |
 |---|---|
-| [MANUAL_USUARIO.md](MANUAL_USUARIO.md) | Manual breve, por secciones. Punto de partida para un usuario nuevo. |
-| [Manual_Neurofic_Dashboard_v2_2.md](Manual_Neurofic_Dashboard_v2_2.md) | Manual extenso: cada módulo en detalle, permisos por rol, preguntas frecuentes. |
+| `frontend/src/help/content/*.md` | **La fuente.** Un artículo por tema. Editar aquí. |
+| [MANUAL_USUARIO.md](MANUAL_USUARIO.md) | Puntero: explica dónde se movió el contenido. |
+| [Manual_Neurofic_Dashboard_v2_2.md](Manual_Neurofic_Dashboard_v2_2.md) | Puntero. |
 
 ## Para desarrollar
 
@@ -24,6 +29,7 @@ el [CHANGELOG](../CHANGELOG.md).**
 | [API-REPORTES.md](API-REPORTES.md) | Contratos de los endpoints de reportes. |
 | [CONNECTORS.md](CONNECTORS.md) | Capa de conectores e importación desde hojas de cálculo. |
 | [EXPORTACION.md](EXPORTACION.md) | Sistema de exportación a PDF, Excel y CSV, y cómo añadirlo a una página. |
+| [AYUDA-EN-APP.md](AYUDA-EN-APP.md) | Centro de ayuda contextual: cómo escribir un artículo y cómo funciona el buscador. |
 
 ## Para operar
 
@@ -45,14 +51,19 @@ el [CHANGELOG](../CHANGELOG.md).**
 ## Generar los manuales en PDF
 
 ```bash
-pip install markdown                       # una sola vez
-python3 scripts/md-a-pdf.py docs/MANUAL_USUARIO.md docs/Manual_Neurofic_Dashboard_v2_2.md
-python3 scripts/md-a-pdf.py --todos        # todos los documentos de docs/
+pip install markdown                            # una sola vez
+python3 scripts/md-a-pdf.py --manual breve      # manual de usuario
+python3 scripts/md-a-pdf.py --manual completo   # con el detalle ampliado
+python3 scripts/md-a-pdf.py --todos             # la documentación técnica
 ```
 
-Salen en `docs/pdf/` con portada, índice navegable, numeración de páginas y la
-identidad de Neurofic. La carpeta está en `.gitignore`: **los PDF se regeneran**, no se
-versionan, para que nadie se lleve uno desactualizado del repositorio.
+Los manuales se **componen a partir de los artículos de ayuda**, así que no pueden
+contradecir a la aplicación. Los dos niveles salen del mismo texto: los bloques
+`<details>` son el detalle a fondo, que el breve omite y el completo expande.
+
+Salen en `docs/pdf/` con portada, índice navegable y numeración de páginas. La carpeta
+está en `.gitignore`: **se regeneran**, no se versionan, para que nadie se lleve uno
+desactualizado del repositorio.
 
 Requiere las dependencias de `frontend/` instaladas (el renderizado usa el Chromium de
 Playwright).
@@ -82,7 +93,8 @@ documento, ambos opcionales. Antes de prometer un reporte que los use, leer
 |---|---|
 | Un endpoint | `API-REFERENCE.md` y, si es de reportes, `API-REPORTES.md` |
 | Una tabla o columna | `MODELO-DATOS.md` |
-| Una pantalla | `MANUAL_USUARIO.md` y `Manual_Neurofic_Dashboard_v2_2.md` |
-| La exportación | `EXPORTACION.md` |
+| Una pantalla | El artículo correspondiente en `frontend/src/help/content/` |
+| La exportación | `EXPORTACION.md` y el artículo `90-exportacion.md` |
+| La ayuda en sí | `AYUDA-EN-APP.md` |
 | El despliegue o el entorno | `DEPLOY.md`, `ENV.md` |
 | Cualquier cosa | `CHANGELOG.md` |

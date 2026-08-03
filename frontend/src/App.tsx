@@ -18,6 +18,8 @@ import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
 import Capacidad from './pages/Capacidad.js';
 import Sidebar from './components/layout/Sidebar.js';
+import { tieneAcceso } from './lib/permisos.js';
+import { HelpProvider } from './help/HelpProvider.js';
 
 // ─── React Query client ───────────────────────────────────────────────────────
 
@@ -49,13 +51,7 @@ function ProtectedRoute({
 
 // ─── Module-aware route guard helper ─────────────────────────────────────────
 
-function hasModuleAccess(user: { rol: string; modulos?: string[] } | null, modulo: string, fallbackRoles: readonly string[]): boolean {
-  if (!user) return false;
-  if (user.modulos && user.modulos.length > 0) {
-    return user.modulos.includes(modulo) || user.modulos.includes('configuracion');
-  }
-  return fallbackRoles.includes(user.rol);
-}
+const hasModuleAccess = tieneAcceso;
 
 // ─── Admin Route (ADMIN role only) ───────────────────────────────────────────
 
@@ -222,13 +218,17 @@ function InactivityWarningModal({
 function AppLayout({ children }: { children: ReactElement }): ReactElement {
   const { showWarning, secondsLeft, resetTimer } = useInactivityLogout();
   return (
-    <div className="app-layout">
-      <Sidebar />
-      <div className="app-content">{children}</div>
-      {showWarning && (
-        <InactivityWarningModal secondsLeft={secondsLeft} onContinue={resetTimer} />
-      )}
-    </div>
+    // HelpProvider envuelve el layout para que el panel sea una sola instancia
+    // compartida: los botones "?" de cada página solo piden abrirlo.
+    <HelpProvider>
+      <div className="app-layout">
+        <Sidebar />
+        <div className="app-content">{children}</div>
+        {showWarning && (
+          <InactivityWarningModal secondsLeft={secondsLeft} onContinue={resetTimer} />
+        )}
+      </div>
+    </HelpProvider>
   );
 }
 

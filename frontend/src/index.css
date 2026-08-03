@@ -5538,3 +5538,236 @@ body,
   width: auto;
   min-width: 120px;
 }
+
+/* ─── Ayuda contextual ─────────────────────────────────────────────────────── */
+
+/* .modal-close se usaba en todos los modales pero nunca se definió: el botón de
+   cerrar se pintaba con el estilo por defecto del navegador. */
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.modal-close:hover { background: #f1f5f9; color: #334155; }
+.modal-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.help-btn:hover { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.help-btn--con-texto { padding: 6px 10px; font-size: 0.8rem; font-weight: 600; }
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 9998;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.help-panel {
+  width: min(460px, 100%);
+  height: 100%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 28px rgba(15, 23, 42, 0.16);
+  animation: help-entrar 0.18s ease-out;
+}
+@keyframes help-entrar { from { transform: translateX(24px); opacity: 0.6; } }
+
+.help-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.help-panel__titulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 0;
+}
+.help-panel__titulo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.help-volver {
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 5px;
+}
+.help-volver:hover { background: #f1f5f9; color: #1e40af; }
+
+.help-buscador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 8px 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.help-buscador:focus-within { border-color: #93c5fd; background: #fff; }
+.help-buscador input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 0.88rem;
+  color: #0f172a;
+  min-width: 0;
+}
+
+.help-panel__cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 28px;
+}
+
+.help-intro { font-size: 0.82rem; color: #64748b; margin: 0 0 12px; }
+.help-vacio { font-size: 0.85rem; color: #64748b; padding: 20px 2px; line-height: 1.6; }
+
+.help-temas, .help-resultados { list-style: none; margin: 0; padding: 0; }
+.help-temas button, .help-resultados button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.help-temas button { padding: 10px 12px; font-size: 0.88rem; font-weight: 600; color: #334155; }
+.help-temas button:hover, .help-resultados button:hover { background: #eff6ff; border-color: #bfdbfe; }
+
+.help-resultados button { padding: 9px 12px; }
+.help-resultado__titulo {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 2px;
+}
+.help-resultado__seccion { font-weight: 400; color: #64748b; }
+.help-resultado__extracto {
+  display: block;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+/* ── El artículo renderizado ── */
+.help-articulo { font-size: 0.88rem; line-height: 1.62; color: #334155; }
+.help-articulo h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 20px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.help-articulo h2:first-child { margin-top: 4px; }
+.help-articulo h3 { font-size: 0.9rem; font-weight: 700; color: #334155; margin: 16px 0 6px; }
+.help-articulo p { margin: 0 0 10px; }
+.help-articulo ul, .help-articulo ol { margin: 0 0 10px; padding-left: 20px; }
+.help-articulo li { margin: 3px 0; }
+.help-articulo strong { color: #0f172a; font-weight: 600; }
+.help-articulo code {
+  font-size: 0.8rem;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #0f172a;
+}
+.help-articulo a { color: #1e40af; }
+
+.help-articulo blockquote {
+  margin: 12px 0;
+  padding: 9px 12px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  border-radius: 0 6px 6px 0;
+  color: #78350f;
+  font-size: 0.84rem;
+}
+.help-articulo blockquote p:last-child { margin: 0; }
+
+.help-articulo table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 14px;
+  font-size: 0.79rem;
+  display: block;
+  overflow-x: auto;
+}
+.help-articulo th {
+  background: #f1f5f9;
+  color: #475569;
+  text-align: left;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.help-articulo td { padding: 6px 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+
+/* Los desplegables llevan el detalle profundo; en el panel arrancan cerrados. */
+.help-articulo details {
+  margin: 10px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+.help-articulo summary {
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #1e40af;
+  user-select: none;
+  list-style: none;
+}
+.help-articulo summary::-webkit-details-marker { display: none; }
+.help-articulo summary::before { content: '▸ '; color: #94a3b8; }
+.help-articulo details[open] summary::before { content: '▾ '; }
+.help-articulo summary:hover { background: #eff6ff; }
+.help-articulo details > *:not(summary) { padding: 0 12px; }
+.help-articulo details > *:not(summary):last-child { padding-bottom: 10px; }
+
+@media (max-width: 640px) {
+  .help-panel { width: 100%; }
+}

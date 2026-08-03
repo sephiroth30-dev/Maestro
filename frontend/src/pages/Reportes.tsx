@@ -13,6 +13,7 @@ import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import TablaEntidades from '../components/widgets/TablaEntidades.js';
 import TablaServicios from '../components/widgets/TablaServicios.js';
 import { ExportButton } from '../export/index.js';
+import { HelpButton } from '../help/HelpButton.js';
 import { buildReportesDoc } from '../export/docs/reportesDoc.js';
 import { buildDetalleDoc } from '../export/docs/pacientesDoc.js';
 import { fetchDetalleAtenciones } from '../api/pacientes.js';
@@ -725,6 +726,7 @@ export default function Reportes(): React.ReactElement {
             </>
           )}
 
+          <HelpButton articulo="reportes" />
           <ExportButton buildDoc={buildExportDoc} disabled={isLoading} />
 
           <ExportButton

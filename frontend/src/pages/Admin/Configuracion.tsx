@@ -11,6 +11,7 @@ import Conectores from './Conectores.js';
 import Usuarios from './Usuarios.js';
 import CapacidadConfig from './CapacidadConfig.js';
 import ReglaHonorarios from './ReglaHonorarios.js';
+import { HelpButton } from '../../help/HelpButton.js';
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,20 @@ type ConfigTab =
   | 'diagnostico' | 'sin-entidad'
   | 'usuarios' | 'honorarios'
   | 'capacidad' | 'fuentes';
+
+/** Qué artículo de ayuda corresponde a cada pestaña. */
+const AYUDA_POR_TAB: Record<string, string> = {
+  entidades: 'config-catalogos',
+  profesionales: 'config-catalogos',
+  servicios: 'config-catalogos',
+  presupuestos: 'config-catalogos',
+  diagnostico: 'config-catalogos',
+  'sin-entidad': 'config-catalogos',
+  usuarios: 'config-usuarios',
+  honorarios: 'config-reglas',
+  capacidad: 'capacidad',
+  fuentes: 'config-fuentes',
+};
 
 // ─── Presupuestos helpers ─────────────────────────────────────────────────────
 
@@ -233,6 +248,10 @@ interface NavSection {
 export default function Configuracion(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<ConfigTab>('entidades');
 
+  // La ayuda de esta pantalla depende de la pestaña: no es lo mismo estar en
+  // Usuarios que en Fuentes de datos.
+  const articuloAyuda = AYUDA_POR_TAB[activeTab] ?? 'config-catalogos';
+
   const now = new Date();
   const { data: sinEntidadData } = useSinEntidadDiagnostico(now.getMonth() + 1, now.getFullYear());
   const hasSinEntidad = (sinEntidadData?.length ?? 0) > 0;
@@ -287,6 +306,7 @@ export default function Configuracion(): React.ReactElement {
           </h1>
           <p className="page-subtitle">Parámetros del sistema · Datos · Usuarios · Fuentes</p>
         </div>
+        <HelpButton articulo={articuloAyuda} />
       </div>
 
       <div className="config-layout">

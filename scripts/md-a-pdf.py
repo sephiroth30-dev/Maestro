@@ -7,8 +7,14 @@ Se eligió Chromium porque ya está en el entorno para las pruebas y produce
 texto seleccionable, tabla de contenidos navegable y numeración de páginas,
 sin arrastrar una instalación de LaTeX.
 
-    python3 scripts/md-a-pdf.py docs/MANUAL_USUARIO.md [...]
-    python3 scripts/md-a-pdf.py --todos
+    python3 scripts/md-a-pdf.py --manual breve      # manual de usuario
+    python3 scripts/md-a-pdf.py --manual completo   # manual extenso
+    python3 scripts/md-a-pdf.py docs/DEPLOY.md      # cualquier .md suelto
+    python3 scripts/md-a-pdf.py --todos             # todos los de docs/
+
+Los manuales NO se editan como documento: se arman a partir de los artículos de
+ayuda de `frontend/src/help/content/`, que son la única fuente. Así la app y el
+PDF no pueden contradecirse.
 
 Los PDF se dejan en docs/pdf/ (ignorada por git: se regeneran cuando hagan falta).
 
@@ -33,6 +39,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 DOCS = RAIZ / 'docs'
 SALIDA = DOCS / 'pdf'
 LOGO = RAIZ / 'frontend' / 'src' / 'assets' / 'neurofic-logo.svg'
+AYUDA = RAIZ / 'frontend' / 'src' / 'help' / 'content'
 
 # Mismos colores que brand.ts y el comprobante de honorarios del backend.
 AZUL = '#1e40af'
@@ -148,6 +155,70 @@ blockquote {{
 blockquote p {{ margin: 0 0 5px; }}
 blockquote p:last-child {{ margin: 0; }}
 """
+
+
+MANUALES = {
+    'breve': ('Manual de Usuario', 'MANUAL_USUARIO'),
+    'completo': ('Manual Completo', 'Manual_Neurofic_Dashboard'),
+}
+
+FRONTMATTER = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.S)
+DETALLE = re.compile(r'<details>\s*\n<summary>(.*?)</summary>(.*?)</details>', re.S)
+
+
+def leer_articulos() -> list[dict]:
+    """Lee los artículos de ayuda con sus metadatos, ordenados."""
+    arts = []
+    for ruta in sorted(AYUDA.glob('*.md')):
+        crudo = ruta.read_text(encoding='utf-8')
+        m = FRONTMATTER.match(crudo)
+        if not m:
+            print(f'  aviso: {ruta.name} sin metadatos, se omite')
+            continue
+        meta = {}
+        for linea in m.group(1).split('\n'):
+            if ':' in linea:
+                k, v = linea.split(':', 1)
+                meta[k.strip()] = v.strip()
+        arts.append({
+            'titulo': meta.get('titulo', ruta.stem),
+            'orden': int(meta.get('orden', 999)),
+            'cuerpo': crudo[m.end():].strip(),
+        })
+    return sorted(arts, key=lambda a: a['orden'])
+
+
+def resolver_detalles(md: str, expandir: bool) -> str:
+    """Los bloques <details> son el nivel "a fondo": el manual breve los quita y
+    el completo los despliega como una subsección normal."""
+    def sustituir(m: re.Match) -> str:
+        if not expandir:
+            return ''
+        titulo = m.group(1).strip()
+        return f'\n\n### {titulo}\n{m.group(2).strip()}\n'
+    return DETALLE.sub(sustituir, md)
+
+
+def degradar_encabezados(md: str) -> str:
+    """El título del artículo pasa a ser ##, así que sus ## internos bajan a ###."""
+    return re.sub(r'^(#{2,4})(\s)', lambda m: '#' + m.group(1) + m.group(2), md, flags=re.M)
+
+
+def componer_manual(modo: str) -> tuple[str, str]:
+    """Devuelve (markdown, nombre de archivo) del manual pedido."""
+    titulo, base = MANUALES[modo]
+    arts = leer_articulos()
+
+    partes = [f'# {titulo} — Neurofic Admin Dashboard', '']
+    if modo == 'breve':
+        partes += ['> Versión resumida. El manual completo incluye además el detalle',
+                   '> ampliado de cada sección.', '']
+    for a in arts:
+        cuerpo = degradar_encabezados(resolver_detalles(a['cuerpo'], modo == 'completo'))
+        partes += ['---', '', f"## {a['titulo']}", '', cuerpo, '']
+
+    print(f'  {len(arts)} artículos compuestos')
+    return '\n'.join(partes), base
 
 
 def logo_data_uri() -> str:
@@ -298,6 +369,22 @@ def main() -> int:
     if not args:
         print(__doc__)
         return 1
+
+    if args[0] == '--manual':
+        modo = args[1] if len(args) > 1 else 'breve'
+        if modo not in MANUALES:
+            print(f'Modo desconocido: {modo}. Usa "breve" o "completo".')
+            return 1
+        md, base = componer_manual(modo)
+        SALIDA.mkdir(parents=True, exist_ok=True)
+        # Se deja también el .md compuesto: útil para revisar el resultado y
+        # para quien prefiera el texto plano.
+        tmp_md = SALIDA / f'{base}.md'
+        tmp_md.write_text(md, encoding='utf-8')
+        print(f'Generando manual «{modo}» (versión {version}):')
+        render([(tmp_md, str(SALIDA / f'{base}.pdf'))], version)
+        print(f'\nEn {SALIDA.relative_to(RAIZ)}/')
+        return 0
 
     if args == ['--todos']:
         objetivos = sorted(f for f in DOCS.glob('*.md') if f.name != 'README.md')
