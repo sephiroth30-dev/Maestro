@@ -23,6 +23,7 @@ import {
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
+import { flushReportesCache } from '../config/redis.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -318,6 +319,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const result = await repo.reclasificarServicios();
+      flushReportesCache();
       return reply.send(result);
     }
   );
@@ -381,6 +383,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const result = await repo.reclasificarProfesionales();
+      flushReportesCache();
       return reply.send(result);
     }
   );
@@ -396,6 +399,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       if ('especialidad' in body) {
         const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
         if (!allowed.includes(body.especialidad ?? null)) {
+          flushReportesCache();
           return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
         }
         fields.especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
@@ -438,6 +442,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     async (request: FastifyRequest, reply: FastifyReply) => {
       const parsed = crearEntidadFromRawBodySchema.safeParse(request.body);
       if (!parsed.success) {
+        flushReportesCache();
         return reply.status(400).send({
           error: 'Bad Request',
           message: parsed.error.issues.map((i) => i.message).join(', '),
@@ -468,6 +473,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const { id } = request.params as { id: string };
       const parsed = patchEntidadBodySchema.safeParse(request.body);
       if (!parsed.success) {
+        flushReportesCache();
         return reply.status(400).send({
           error: 'Bad Request',
           message: parsed.error.issues.map((i) => i.message).join(', '),
@@ -490,6 +496,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const result = await repo.reclasificarEntidades();
+      flushReportesCache();
       return reply.send(result);
     }
   );
@@ -533,6 +540,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         fields.nombre_display = (typeof nd === 'string' && nd.trim() !== '') ? nd.trim() : null;
       }
       await repo.patchServicio(id, fields);
+      flushReportesCache();
       return reply.status(200).send({ ok: true });
     }
   );
@@ -554,6 +562,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const result = await repo.listPresupuestos();
+      flushReportesCache();
       return reply.send(result);
     }
   );

@@ -272,7 +272,7 @@ export async function buildPdf(doc: ExportDoc): Promise<PdfBuildResult> {
     pdf.setFontSize(7);
     pdf.setTextColor(...RGB.gris);
     pdf.text(toPdfSafe(pie), X, pageH - PAGE.marginBottom + 4);
-    pdf.text(`Pagina ${i} de ${total}`, X + W, pageH - PAGE.marginBottom + 4, { align: 'right' });
+    pdf.text(`Página ${i} de ${total}`, X + W, pageH - PAGE.marginBottom + 4, { align: 'right' });
   }
 
   return { blob: pdf.output('blob'), warnings };

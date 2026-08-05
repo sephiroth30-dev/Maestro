@@ -90,6 +90,20 @@ async function cacheGet<T>(key: string): Promise<T | null> {
   }
 }
 
+/**
+ * Vigencia de los reportes cacheados.
+ *
+ * Estaba en 30 minutos. Es demasiado para un tablero que se mira justo después
+ * de sincronizar: los datos ya estaban en la base y las tarjetas seguían en
+ * cero. Y como la caché es en memoria del proceso, con varios trabajadores de
+ * Passenger el vaciado de uno no alcanza a los demás — bajar la vigencia acota
+ * ese desfase a un minuto en el peor caso.
+ *
+ * Son agregados sobre columnas indexadas; un minuto basta para absorber ráfagas
+ * sin volverse la fuente de una cifra equivocada.
+ */
+const TTL_REPORTES = 60;
+
 async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
   try {
     const redis = getRedisClient();
@@ -329,7 +343,7 @@ class ReportesService {
       semanas_total: semanas.length,
     };
 
-    await cacheSet(cacheKey, result, 30 * 60);
+    await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
   }
 
@@ -364,7 +378,7 @@ class ReportesService {
     }));
 
     const result = { rows, total: totalGeneral };
-    await cacheSet(cacheKey, result, 30 * 60);
+    await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
   }
 
@@ -431,7 +445,7 @@ class ReportesService {
     });
 
     const result = { semanas: rows };
-    await cacheSet(cacheKey, result, 30 * 60);
+    await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
   }
 
@@ -459,7 +473,7 @@ class ReportesService {
       atenciones: Number(r.atenciones),
     }));
 
-    await cacheSet(cacheKey, rows, 60 * 60);
+    await cacheSet(cacheKey, rows, TTL_REPORTES);
     return rows;
   }
 
@@ -494,7 +508,7 @@ class ReportesService {
       })
     );
 
-    await cacheSet(cacheKey, rows, 60 * 60);
+    await cacheSet(cacheKey, rows, TTL_REPORTES);
     return rows;
   }
 
@@ -557,7 +571,7 @@ class ReportesService {
       neuro_count: neuroCount,
     };
 
-    if (!entidadId && diaSemana === undefined) await cacheSet(cacheKey, result, 30 * 60);
+    if (!entidadId && diaSemana === undefined) await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
   }
 }

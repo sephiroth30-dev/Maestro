@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.capacidadRoutes = capacidadRoutes;
 const zod_1 = require("zod");
 const capacidad_repo_js_1 = require("../repositories/capacidad.repo.js");
+const capacidad_grupos_js_1 = require("../config/capacidad-grupos.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
@@ -16,6 +17,8 @@ const upsertSchema = zod_1.z.object({
     mesIdx: zod_1.z.number().int().min(1).max(12),
     capacidad: zod_1.z.number().int().min(0).max(32767),
     recursos: zod_1.z.string().max(5000).nullable().optional(),
+    // NULL / ausente = usar la base por omisión del catálogo de grupos.
+    baseConteo: zod_1.z.enum(['pacientes', 'estudios']).nullable().optional(),
 });
 const bulkSchema = zod_1.z.object({
     rows: zod_1.z.array(upsertSchema).min(1).max(200),
@@ -32,6 +35,14 @@ async function capacidadRoutes(fastify) {
         const rows = await capacidad_repo_js_1.capacidadRepo.findByAnio(anio);
         return reply.send(rows);
     });
+    // GET /api/capacidad/grupos — catálogo de grupos y su base por omisión.
+    //
+    // Existe para que la pantalla de configuración no lleve su propia copia de la
+    // lista: los nombres ya estaban duplicados entre el backend y el frontend, y
+    // añadir la base habría creado una tercera versión que divergiría igual.
+    fastify.get('/capacidad/grupos', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...READ_ROLES)] }, async (_request, reply) => {
+        return reply.send(capacidad_grupos_js_1.GRUPOS_CAPACIDAD.map((g) => ({ grupo: g.grupo, nombre: g.nombre, base: g.base })));
+    });
     // GET /api/capacidad/utilizacion?anio=2026&mes_idx=1
     fastify.get('/capacidad/utilizacion', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...READ_ROLES)] }, async (request, reply) => {
         const query = request.query;
@@ -41,6 +52,50 @@ async function capacidadRoutes(fastify) {
             return reply.status(400).send({ error: 'Bad Request', message: 'Se requieren los parámetros anio y mes_idx (1-12)', statusCode: 400 });
         }
         const rows = await capacidad_repo_js_1.capacidadRepo.getUtilizacion(anio, mesIdx);
+        return reply.send(rows);
+    });
+    // GET /api/capacidad/utilizacion/rango?desde_anio&desde_mes&hasta_anio&hasta_mes
+    //
+    // Devuelve una fila por grupo Y por mes, para poder ver y exportar el
+    // histórico en vez de un mes a la vez.
+    fastify.get('/capacidad/utilizacion/rango', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...READ_ROLES)] }, async (request, reply) => {
+        const q = request.query;
+        const nums = {
+            desdeAnio: parseInt(q.desde_anio ?? '', 10),
+            desdeMes: parseInt(q.desde_mes ?? '', 10),
+            hastaAnio: parseInt(q.hasta_anio ?? '', 10),
+            hastaMes: parseInt(q.hasta_mes ?? '', 10),
+        };
+        const mesValido = (m) => Number.isInteger(m) && m >= 1 && m <= 12;
+        const anioValido = (a) => Number.isInteger(a) && a >= 2020 && a <= 2100;
+        if (!anioValido(nums.desdeAnio) || !mesValido(nums.desdeMes) ||
+            !anioValido(nums.hastaAnio) || !mesValido(nums.hastaMes)) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'Se requieren desde_anio, desde_mes, hasta_anio y hasta_mes válidos',
+                statusCode: 400,
+            });
+        }
+        const desde = nums.desdeAnio * 12 + nums.desdeMes;
+        const hasta = nums.hastaAnio * 12 + nums.hastaMes;
+        if (desde > hasta) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'El mes inicial no puede ser posterior al final',
+                statusCode: 400,
+            });
+        }
+        // Tope de 36 meses: cada mes son 12 grupos, y el conteo de sesiones
+        // deduplica por paciente y fecha. Sin tope, un rango abierto podría barrer
+        // todo el histórico en una sola petición.
+        if (hasta - desde > 35) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: 'El rango no puede superar 36 meses',
+                statusCode: 400,
+            });
+        }
+        const rows = await capacidad_repo_js_1.capacidadRepo.getUtilizacionRango(nums.desdeAnio, nums.desdeMes, nums.hastaAnio, nums.hastaMes);
         return reply.send(rows);
     });
     // POST /api/capacidad — upsert single row
@@ -60,7 +115,10 @@ async function capacidadRoutes(fastify) {
             entidadTipo: 'capacidad_instalada',
             entidadId: row.id,
             ip: request.ip,
-            detalle: { grupo: parsed.data.grupo, anio: parsed.data.anio, mesIdx: parsed.data.mesIdx, capacidad: parsed.data.capacidad },
+            detalle: {
+                grupo: parsed.data.grupo, anio: parsed.data.anio, mesIdx: parsed.data.mesIdx,
+                capacidad: parsed.data.capacidad, baseConteo: parsed.data.baseConteo ?? null,
+            },
         }).catch(() => { });
         return reply.status(201).send(row);
     });

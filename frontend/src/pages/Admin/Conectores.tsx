@@ -40,6 +40,7 @@ import {
   type CreateConnectorInput,
   type UpdateConnectorInput,
 } from '../../api/connectors.js';
+import { invalidarReportes } from '../../api/reportes.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -181,8 +182,16 @@ function ConnectorCard({
     const latest = polledHistory[0];
     if (latest?.estado !== 'EN_PROCESO') {
       setSyncPolling(false);
+      // Al terminar la sincronización cambiaron las atenciones, así que todos
+      // los reportes quedaron obsoletos.
+      //
+      // Sin esto, cada panel se refrescaba cuando le tocaba su propio
+      // temporizador de 10 minutos: unas tarjetas mostraban los datos nuevos y
+      // otras seguían en cero, dando la impresión de que la sincronización
+      // había fallado a medias.
+      if (latest?.estado === 'COMPLETADA') invalidarReportes(qc);
     }
-  }, [polledHistory, syncPolling]);
+  }, [polledHistory, syncPolling, qc]);
 
   const handleTest = async (): Promise<void> => {
     setTestResult(null);

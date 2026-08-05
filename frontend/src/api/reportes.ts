@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type UseMutationResult, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -347,4 +347,27 @@ export function useUpsertPresupuesto() {
       void qc.invalidateQueries({ queryKey: ['tendencia'] });
     },
   });
+}
+
+// ─── Invalidación ─────────────────────────────────────────────────────────────
+
+/**
+ * Claves de todas las consultas que dependen de la tabla de atenciones.
+ *
+ * Existe porque los paneles se refrescaban de forma dispar: cada consulta tiene
+ * su propio temporizador de 10 minutos, así que tras una sincronización unas
+ * tarjetas se actualizaban y otras no. Refrescarlas por separado, una a una,
+ * garantizaba que alguna se quedara atrás.
+ */
+export const CLAVES_REPORTES = [
+  'kpis', 'entidades', 'cumplimiento-semanal', 'dias-semana', 'tendencia',
+  'servicios', 'pacientes', 'utilizacion', 'liquidaciones', 'honorarios',
+  'contribucion', 'diagnostico',
+] as const;
+
+/** Marca como obsoleto todo lo que dependa de las atenciones. */
+export function invalidarReportes(qc: QueryClient): void {
+  for (const clave of CLAVES_REPORTES) {
+    void qc.invalidateQueries({ queryKey: [clave] });
+  }
 }

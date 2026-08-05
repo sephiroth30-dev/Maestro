@@ -100,6 +100,16 @@ export interface AuditoriaResponse {
 
 // ─── Capacidad Instalada ──────────────────────────────────────────────────────
 
+/**
+ * Contra qué se compara la capacidad de un grupo.
+ *
+ * - `pacientes` — visitas únicas (paciente + día). EMG y VCN en la misma cita
+ *   ocupan un solo hueco de agenda.
+ * - `estudios` — registros facturados. En Potenciales Evocados una visita cubre
+ *   varias modalidades y cada una consume equipo y lectura por separado.
+ */
+export type BaseConteo = 'pacientes' | 'estudios';
+
 export interface CapacidadConfig {
   id: string;
   grupo: string;
@@ -108,12 +118,23 @@ export interface CapacidadConfig {
   mesIdx: number;
   capacidad: number;
   recursos: string | null;
+  /** `null` = usar la base por omisión del grupo. */
+  baseConteo: BaseConteo | null;
 }
 
 export interface UtilizacionGrupo {
   grupo: string;
   nombre: string;
   capacidad: number | null;
+  /** Cuál de las dos cifras gobierna la ocupación de este grupo. */
+  base: BaseConteo;
+  /** Visitas únicas: paciente + día. */
+  pacientes: number;
+  /** Registros facturados. */
+  estudios: number;
+  /** Registros sin identificación de paciente, imposibles de deduplicar. */
+  sinPaciente: number;
+  /** La cifra de `base`: es la que se compara contra la capacidad. */
   sesiones: number;
   pctOcupacion: number | null;
   disponible: number | null;

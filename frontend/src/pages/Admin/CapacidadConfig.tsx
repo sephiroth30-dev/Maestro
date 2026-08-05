@@ -4,33 +4,18 @@ import {
   useCapacidadConfig,
   useUpsertCapacidadBulk,
   useDeleteCapacidad,
+  useGruposCapacidad,
 } from '../../api/capacidad.js';
-import type { CapacidadConfig } from '../../types/index.js';
-
-// ─── Fixed group list ─────────────────────────────────────────────────────────
-
-interface GrupoMeta {
-  grupo: string;
-  nombre: string;
-}
-
-const GRUPOS: GrupoMeta[] = [
-  { grupo: 'emg_vcn',                       nombre: 'EMG / VCN' },
-  { grupo: 'eeg',                            nombre: 'Electroencefalograma' },
-  { grupo: 'tlm',                            nombre: 'Videotelemetría (TLM)' },
-  { grupo: 'psg_lms',                        nombre: 'Polisomnografía / LMS' },
-  { grupo: 'pe',                             nombre: 'Potenciales Evocados' },
-  { grupo: 'consulta_fisiatria',             nombre: 'Consulta Medicina Física' },
-  { grupo: 'consulta_neurologia',            nombre: 'Consulta Neurología' },
-  { grupo: 'consulta_neurologia_pediatrica', nombre: 'Consulta Neurología Pediátrica' },
-  { grupo: 'infiltracion',                   nombre: 'Infiltración / Toxina' },
-  { grupo: 'junta',                          nombre: 'Junta de Profesionales' },
-  { grupo: 'terapia_choque',                 nombre: 'Terapia Ondas de Choque' },
-  { grupo: 'ecografia',                      nombre: 'Ecografía como Guía' },
-];
+import type { BaseConteo, CapacidadConfig } from '../../types/index.js';
 
 const ANIOS = Array.from({ length: 7 }, (_, i) => 2023 + i);
 const MESES_IDX = Array.from({ length: 12 }, (_, i) => i + 1);
+
+/** Rótulo de cada base, igual que en la pantalla de utilización. */
+const SUSTANTIVO: Record<BaseConteo, string> = {
+  pacientes: 'Visitas (paciente + fecha)',
+  estudios: 'Estudios facturados',
+};
 
 // ─── Row state for the form ───────────────────────────────────────────────────
 
@@ -39,6 +24,10 @@ interface RowState {
   nombre: string;
   capacidad: string; // string for input
   recursos: string;
+  /** '' = heredar la base por omisión del grupo. */
+  baseConteo: BaseConteo | '';
+  /** Base por omisión del catálogo, para rotular la opción "por omisión". */
+  baseDefecto: BaseConteo;
   editing: boolean;
   saved: CapacidadConfig | null; // existing DB record for this year (any month)
 }
@@ -50,6 +39,7 @@ export default function CapacidadConfig(): React.ReactElement {
   const [anio, setAnio] = useState(now.getFullYear());
 
   const { data: configs = [], isLoading, isError } = useCapacidadConfig(anio);
+  const { data: grupos = [], isLoading: cargandoGrupos } = useGruposCapacidad();
   const bulkUpsert = useUpsertCapacidadBulk();
   const deleteOne = useDeleteCapacidad();
 
@@ -69,22 +59,24 @@ export default function CapacidadConfig(): React.ReactElement {
     return map;
   }, [configs]);
 
-  // Re-init rows when configs or anio changes
+  // Re-init rows when configs, grupos or anio changes
   useEffect(() => {
     setRows(
-      GRUPOS.map((g) => {
+      grupos.map((g) => {
         const saved = savedByGrupo.get(g.grupo) ?? null;
         return {
           grupo: g.grupo,
           nombre: g.nombre,
           capacidad: saved ? String(saved.capacidad) : '',
           recursos: saved?.recursos ?? '',
+          baseConteo: saved?.baseConteo ?? '',
+          baseDefecto: g.base,
           editing: false,
           saved,
         };
       })
     );
-  }, [savedByGrupo]);
+  }, [savedByGrupo, grupos]);
 
   const setRow = (grupo: string, patch: Partial<RowState>) => {
     setRows((prev) => prev.map((r) => (r.grupo === grupo ? { ...r, ...patch } : r)));
@@ -104,6 +96,7 @@ export default function CapacidadConfig(): React.ReactElement {
         mesIdx,
         capacidad: Number(r.capacidad),
         recursos: r.recursos.trim() || null,
+        baseConteo: r.baseConteo || null,
       }))
     );
 
@@ -120,6 +113,7 @@ export default function CapacidadConfig(): React.ReactElement {
       mesIdx,
       capacidad: Number(r.capacidad),
       recursos: r.recursos.trim() || null,
+      baseConteo: r.baseConteo || null,
     }));
 
     bulkUpsert.mutate(
@@ -134,7 +128,7 @@ export default function CapacidadConfig(): React.ReactElement {
     MESES_IDX.forEach((mesIdx) => {
       deleteOne.mutate({ grupo: r.grupo, anio, mesIdx });
     });
-    setRow(r.grupo, { capacidad: '', recursos: '', editing: false, saved: null });
+    setRow(r.grupo, { capacidad: '', recursos: '', baseConteo: '', editing: false, saved: null });
   };
 
   return (
@@ -146,8 +140,8 @@ export default function CapacidadConfig(): React.ReactElement {
           Configuración de Capacidad
         </h1>
         <p className="page-subtitle">
-          Define la capacidad mensual (sesiones) por grupo de servicio para el año seleccionado.
-          El valor aplica a todos los meses del año.
+          Define la capacidad mensual por grupo de servicio y contra qué cifra se compara.
+          El valor aplica a todos los meses del año seleccionado.
         </p>
       </div>
 
@@ -169,7 +163,7 @@ export default function CapacidadConfig(): React.ReactElement {
       </div>
 
       {/* ── States ──────────────────────────────────────────────────────────── */}
-      {isLoading && (
+      {(isLoading || cargandoGrupos) && (
         <div className="page-loading">
           <Loader2 size={22} className="spin" style={{ color: '#3b82f6' }} />
           <p style={{ color: '#64748b', marginTop: '8px' }}>Cargando configuración…</p>
@@ -183,7 +177,7 @@ export default function CapacidadConfig(): React.ReactElement {
       )}
 
       {/* ── Table ───────────────────────────────────────────────────────────── */}
-      {!isLoading && !isError && (
+      {!isLoading && !cargandoGrupos && !isError && (
         <>
           <div className="data-table-wrap" style={{ overflowX: 'auto' }}>
             <table className="data-table" style={{ width: '100%' }}>
@@ -191,6 +185,7 @@ export default function CapacidadConfig(): React.ReactElement {
                 <tr>
                   <th className="data-table-th" style={{ minWidth: '200px' }}>Servicio</th>
                   <th className="data-table-th" style={{ width: '140px' }}>Capacidad mensual</th>
+                  <th className="data-table-th" style={{ width: '200px' }}>Se compara contra</th>
                   <th className="data-table-th">Descripción / Recursos</th>
                   <th className="data-table-th" style={{ width: '160px' }}>Acciones</th>
                 </tr>
@@ -227,6 +222,33 @@ export default function CapacidadConfig(): React.ReactElement {
                           }}
                         >
                           {r.saved ? r.capacidad : '—'}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Base de conteo */}
+                    <td className="data-table-td">
+                      {r.editing ? (
+                        <select
+                          className="form-input"
+                          value={r.baseConteo}
+                          onChange={(e) =>
+                            setRow(r.grupo, { baseConteo: e.target.value as BaseConteo | '' })
+                          }
+                          style={{ width: '100%', minWidth: '170px', fontSize: '12px' }}
+                        >
+                          <option value="">
+                            Por omisión ({SUSTANTIVO[r.baseDefecto].toLowerCase()})
+                          </option>
+                          <option value="pacientes">{SUSTANTIVO.pacientes}</option>
+                          <option value="estudios">{SUSTANTIVO.estudios}</option>
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: r.baseConteo ? '#1e293b' : '#64748b' }}>
+                          {SUSTANTIVO[r.baseConteo || r.baseDefecto]}
+                          {!r.baseConteo && (
+                            <span style={{ color: '#94a3b8' }}> (por omisión)</span>
+                          )}
                         </span>
                       )}
                     </td>
@@ -281,6 +303,7 @@ export default function CapacidadConfig(): React.ReactElement {
                                   editing: false,
                                   capacidad: r.saved ? String(r.saved.capacidad) : '',
                                   recursos: r.saved?.recursos ?? '',
+                                  baseConteo: r.saved?.baseConteo ?? '',
                                 })
                               }
                             >
@@ -390,10 +413,28 @@ export default function CapacidadConfig(): React.ReactElement {
         </>
       )}
 
-      <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '20px' }}>
-        Los valores se aplican a todos los meses del año seleccionado. Para valores mensuales
-        diferentes, edita cada mes individualmente desde la vista de utilización.
-      </p>
+      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '20px', maxWidth: '80ch', lineHeight: 1.6 }}>
+        <p style={{ margin: '0 0 8px' }}>
+          Los valores se aplican a todos los meses del año seleccionado. Para valores mensuales
+          diferentes, edita cada mes individualmente desde la vista de utilización.
+        </p>
+        <p style={{ margin: 0 }}>
+          <strong>Se compara contra</strong> determina la cifra de demanda que genera el porcentaje
+          de ocupación, y tiene que coincidir con lo que mide la capacidad que escribes al lado:
+        </p>
+        <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
+          <li>
+            <strong>Visitas</strong> — agrupa las atenciones del mismo paciente en la misma fecha.
+            Es lo correcto cuando el límite es el hueco de agenda: «3 salas × 3 pacientes/hora»
+            son pacientes, y un EMG + VCN en una sola cita ocupa un hueco, no dos.
+          </li>
+          <li>
+            <strong>Estudios facturados</strong> — cuenta cada registro. Es lo correcto cuando el
+            límite es el estudio: en Potenciales Evocados una visita cubre varias modalidades y
+            cada una consume equipo y lectura por separado.
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }

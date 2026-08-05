@@ -14,68 +14,7 @@
 import { pool } from '../config/prisma.js';
 import type { RowDataPacket } from 'mysql2';
 import { buildDateWhere } from './reportes.repo.js';
-import { logger } from '../config/logger.js';
-
-/**
- * Llave canónica de paciente.
- *
- * Prefiere el documento (estable) y cae al nombre. Normaliza para absorber las
- * variantes reales de digitación: '1.234.567' vs '1234567', '  MARIA  PEREZ '
- * vs 'Maria Perez'.
- *
- * Deliberadamente NO usa el patrón `COALESCE(documento, nombre, a.id)` de
- * honorarios.repo: ese tercer respaldo es correcto para contar SESIONES (cada
- * fila anónima es una sesión propia) pero infla el conteo de PACIENTES en uno
- * por cada registro sin identificar.
- */
-const KEY_REGEX = `NULLIF(COALESCE(
-  NULLIF(REGEXP_REPLACE(UPPER(TRIM(a.paciente_documento)), '[^0-9A-Z]', ''), ''),
-  NULLIF(REGEXP_REPLACE(UPPER(TRIM(a.paciente_nombre)), '[[:space:]]+', ' '), '')
-), '')`;
-
-/** Variante sin REGEXP_REPLACE, para motores que no lo soportan. */
-const KEY_PLAIN = `NULLIF(COALESCE(
-  NULLIF(UPPER(TRIM(a.paciente_documento)), ''),
-  NULLIF(UPPER(TRIM(a.paciente_nombre)), '')
-), '')`;
-
-/** Errores que sí significan "el motor no soporta REGEXP_REPLACE". */
-const ERRORES_SIN_SOPORTE = new Set([
-  'ER_SP_DOES_NOT_EXIST', 'ER_PARSE_ERROR', 'ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT',
-]);
-
-/** Se cachea la PROMESA, no el valor: las ocho consultas en paralelo comparten
- *  una sola sonda en vez de lanzar ocho idénticas. */
-let sonda: Promise<string> | null = null;
-
-/**
- * Resuelve qué expresión de llave soporta el motor.
- *
- * REGEXP_REPLACE existe en MySQL 8 y MariaDB 10.0.5+, pero el plan de Hostinger
- * no está garantizado. Solo se degrada ante un error que de verdad indique
- * ausencia de la función: un `catch` genérico dejaría que una desconexión
- * pasajera fijara KEY_PLAIN para toda la vida del proceso, y como esa variante
- * no normaliza la puntuación, '1.234.567' y '1234567' pasarían a ser dos
- * pacientes distintos, inflando únicos y nuevos sin ninguna señal.
- */
-async function getKeyExpr(): Promise<string> {
-  if (sonda) return sonda;
-  sonda = (async () => {
-    try {
-      await pool.query(`SELECT REGEXP_REPLACE('a-1', '[^0-9A-Z]', '') AS t`);
-      return KEY_REGEX;
-    } catch (err) {
-      const code = (err as { code?: string }).code ?? '';
-      if (!ERRORES_SIN_SOPORTE.has(code)) {
-        sonda = null; // fallo transitorio: se reintenta en la próxima petición
-        throw err;
-      }
-      logger.warn('REGEXP_REPLACE no disponible: la llave de paciente no normalizará la puntuación', { code });
-      return KEY_PLAIN;
-    }
-  })();
-  return sonda;
-}
+import { getKeyExpr } from './paciente-key.js';
 
 export interface PacientesParams {
   mesIdx?: number;

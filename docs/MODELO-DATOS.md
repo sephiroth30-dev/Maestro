@@ -18,7 +18,7 @@ antes de escribir una consulta o prometer un reporte.
 | `liquidacion_ajustes` | Ajustes manuales sobre una liquidación. |
 | `reglas_honorarios` | Matriz de tarifas: profesional × categoría. |
 | `reglas_especiales_honorarios` | Excepciones a la matriz. |
-| `capacidad_instalada` | Capacidad mensual por grupo de servicio. |
+| `capacidad_instalada` | Capacidad mensual por grupo de servicio, y contra qué cifra se compara (`base_conteo`). |
 | `usuarios`, `refresh_tokens` | Cuentas y sesiones. |
 | `conectores`, `sincronizaciones` | Orígenes de datos y su historial. |
 | `audit_log` | Registro de acciones. |
@@ -84,10 +84,27 @@ todo, con `id` nuevos. Consecuencias:
 - **Atención** — una fila. Un EMG y un VCN el mismo día son dos.
 - **Visita** — un paciente en una fecha. Ese mismo caso es una.
 - **Sesión** — para servicios marcados `tipo_conteo = 'sesion'`, las atenciones del mismo
-  paciente en la misma fecha cuentan como una. Es lo que usa Capacidad.
+  paciente en la misma fecha cuentan como una. Lo usa **Mix por Servicio**.
 
 Confundirlos es la forma más fácil de dar una cifra equivocada. Los reportes dicen
 explícitamente cuál están contando.
+
+**Capacidad tiene su propio eje**, independiente de `tipo_conteo`: cada grupo declara una
+*base de conteo* en `config/capacidad-grupos.ts`, sobreescribible por grupo y mes en
+`capacidad_instalada.base_conteo`.
+
+| Base | Qué cuenta | Cuándo aplica |
+|---|---|---|
+| `pacientes` | Visitas: paciente + fecha | El límite es el hueco de agenda. «3 salas × 3 pacientes/hora» son pacientes |
+| `estudios` | Filas de `atenciones` | El límite es el estudio. En Potenciales Evocados una visita cubre varias modalidades, cada una con su equipo y su lectura |
+
+No se reutilizó `tipo_conteo` porque es un concepto de facturación compartido con
+honorarios y con Mix por Servicio: forzar EMG / VCN a la base de Potenciales Evocados —o al
+revés— habría cambiado cifras de liquidación para arreglar una pantalla.
+
+La API devuelve **las dos cifras** (`pacientes` y `estudios`) más `base` y `sesiones`, que
+repite la de la base. Devolver una sola sin decir cuál era es lo que hacía imposible
+conciliar Capacidad con Mix por Servicio.
 
 ### 3. La llave de paciente es una expresión, no una columna
 
@@ -121,6 +138,16 @@ que el mapeador reconozca. Por eso la analítica de pacientes calcula y muestra 
 **cobertura** antes que cualquier cifra, y toda consulta excluye las filas sin llave en
 lugar de tratarlas como un paciente anónimo.
 
+En Capacidad no se pueden excluir —una atención ocurrió, con o sin nombre—, así que la
+llave de *visita* cae a `CONCAT('#', a.id)` y cada fila anónima cuenta como su propia
+visita. La alternativa era peor: la expresión anterior,
+`CONCAT(fecha, '|', COALESCE(nombre,''), '|', COALESCE(documento,''))`, se reducía a
+`'2026-06-03||'` para **todas** las filas sin identificar de un día, así que con una fuente
+sin columna de paciente la jornada entera colapsaba en una sola visita y la ocupación
+quedaba reducida al número de días distintos del mes, sin ninguna señal. El campo
+`sinPaciente` de la respuesta reporta cuántas filas están en esa situación para que la
+interfaz lo advierta.
+
 ### 5. Los conteos por dimensión no son aditivos
 
 Un paciente atendido por dos pagadores cuenta en ambos tramos. `SUM()` sobre esa columna
@@ -143,6 +170,12 @@ adelante. Se ejecutan en cada inicio y son las que realmente están en producci�
 > migración de datos sin condición que la desactive volvería a aplicarse indefinidamente
 > — por eso `m16` lleva `AND modulos NOT LIKE '%"pacientes"%'`: sin eso, cada reinicio
 > añadiría otra copia hasta desbordar la columna.
+>
+> `ADD COLUMN IF NOT EXISTS` y `CREATE INDEX IF NOT EXISTS` son **sintaxis de MariaDB**:
+> MySQL 8 las rechaza con error de parseo y el runner lo registra como aviso no fatal, así
+> que la columna nunca se crea y nada falla de forma visible. Para migraciones nuevas hay
+> que declarar `columna: { tabla, columna }` o `index: { tabla, columna }`, y el runner
+> consulta `information_schema` y emite la sentencia desnuda, que ambos motores aceptan.
 
 **Los índices necesitan guardia por columna.** `CREATE INDEX IF NOT EXISTS` es sintaxis de
 MariaDB y MySQL 8 la rechaza como error de sintaxis, así que esas migraciones fallaban en

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from './client.js';
-import type { CapacidadConfig, UtilizacionGrupo } from '../types/index.js';
+import type { BaseConteo, CapacidadConfig, UtilizacionGrupo } from '../types/index.js';
 
 // ─── Query hooks ──────────────────────────────────────────────────────────────
 
@@ -13,6 +13,26 @@ export function useCapacidadConfig(anio: number) {
         .then((r) => r.data),
     enabled: anio >= 2020,
     staleTime: 60_000,
+  });
+}
+
+/** Catálogo de grupos con su base por omisión, servido por el backend. */
+export interface GrupoCatalogo {
+  grupo: string;
+  nombre: string;
+  base: BaseConteo;
+}
+
+/**
+ * El catálogo lo define el backend en `config/capacidad-grupos.ts`. Se pide en
+ * vez de repetirlo aquí: la lista de nombres ya vivía duplicada y las reglas de
+ * conteo habrían acabado divergiendo igual.
+ */
+export function useGruposCapacidad() {
+  return useQuery<GrupoCatalogo[]>({
+    queryKey: ['capacidad-grupos'],
+    queryFn: () => api.get<GrupoCatalogo[]>('/capacidad/grupos').then((r) => r.data),
+    staleTime: 60 * 60 * 1000, // sólo cambia con un despliegue
   });
 }
 
@@ -39,6 +59,8 @@ export interface UpsertCapacidadInput {
   mesIdx: number;
   capacidad: number;
   recursos?: string | null;
+  /** `null` deja que el grupo use su base por omisión. */
+  baseConteo?: BaseConteo | null;
 }
 
 export function useUpsertCapacidad() {
@@ -89,5 +111,42 @@ export function useDeleteCapacidad() {
       void qc.invalidateQueries({ queryKey: ['capacidad-config', variables.anio] });
       void qc.invalidateQueries({ queryKey: ['capacidad-utilizacion', variables.anio] });
     },
+  });
+}
+
+// ─── Utilización por rango de meses ───────────────────────────────────────────
+
+export interface UtilizacionMes extends UtilizacionGrupo {
+  anio: number;
+  mesIdx: number;
+}
+
+/**
+ * Utilización mes a mes, para ver y exportar el histórico.
+ *
+ * Devuelve una fila por grupo y por mes; solo aparecen los meses con actividad
+ * o con capacidad configurada.
+ */
+export function useUtilizacionRango(
+  desdeAnio: number,
+  desdeMes: number,
+  hastaAnio: number,
+  hastaMes: number,
+  enabled = true,
+) {
+  return useQuery<UtilizacionMes[]>({
+    queryKey: ['utilizacion-rango', desdeAnio, desdeMes, hastaAnio, hastaMes],
+    queryFn: async () => {
+      const p = new URLSearchParams({
+        desde_anio: String(desdeAnio),
+        desde_mes: String(desdeMes),
+        hasta_anio: String(hastaAnio),
+        hasta_mes: String(hastaMes),
+      });
+      const r = await api.get<UtilizacionMes[]>(`/capacidad/utilizacion/rango?${p}`);
+      return r.data;
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
   });
 }

@@ -95,7 +95,26 @@ const MIGRATIONS = [
           SET modulos = REPLACE(modulos, '"reportes"', '"reportes","pacientes"')
           WHERE modulos LIKE '%"reportes"%' AND modulos NOT LIKE '%"pacientes"%'`,
     },
+    // Base de conteo por grupo de capacidad. NULL = usar el valor por omisión del
+    // catálogo en `config/capacidad-grupos.ts`.
+    //
+    // Existe porque un mismo mes admite dos cifras de demanda legítimas: visitas
+    // únicas y estudios facturados. Potenciales Evocados se mide en estudios (una
+    // visita cubre varias modalidades, cada una consume equipo y lectura), mientras
+    // EMG / VCN se mide en visitas (EMG+VCN en la misma cita = un hueco de agenda).
+    // Antes la elección estaba cableada en el SQL y era la misma para los doce grupos.
+    {
+        id: 'm17_capacidad_base_conteo',
+        sql: "ALTER TABLE capacidad_instalada ADD COLUMN base_conteo ENUM('pacientes','estudios') NULL",
+        columna: { tabla: 'capacidad_instalada', columna: 'base_conteo' },
+    },
 ];
+async function columnaExiste(tabla, columna) {
+    const [rows] = await prisma_js_1.pool.query(`SELECT 1 FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+     LIMIT 1`, [tabla, columna]);
+    return rows.length > 0;
+}
 async function indiceExiste(tabla, columna) {
     const [rows] = await prisma_js_1.pool.query(`SELECT 1 FROM information_schema.STATISTICS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
@@ -107,6 +126,8 @@ async function runSchemaMigrations() {
     for (const m of MIGRATIONS) {
         try {
             if (m.index && (await indiceExiste(m.index.tabla, m.index.columna)))
+                continue;
+            if (m.columna && (await columnaExiste(m.columna.tabla, m.columna.columna)))
                 continue;
             await prisma_js_1.pool.execute(m.sql);
         }

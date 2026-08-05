@@ -197,7 +197,9 @@ Estados: `PENDIENTE` → `AUTORIZADO` | `RECHAZADO`. Solo los autorizados suman.
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
 | GET | `/api/capacidad?anio` | CAPACIDAD_LECTURA | Capacidad configurada por grupo. |
-| GET | `/api/capacidad/utilizacion?anio&mesIdx` | CAPACIDAD_LECTURA | Sesiones frente a capacidad, con % de ocupación. |
+| GET | `/api/capacidad/grupos` | CAPACIDAD_LECTURA | Catálogo de los 12 grupos y su base de conteo por omisión. |
+| GET | `/api/capacidad/utilizacion?anio&mes_idx` | CAPACIDAD_LECTURA | Demanda frente a capacidad, con % de ocupación. Devuelve `pacientes`, `estudios`, `base`, `sesiones` y `sinPaciente`. |
+| GET | `/api/capacidad/utilizacion/rango?desde_anio&desde_mes&hasta_anio&hasta_mes` | CAPACIDAD_LECTURA | Lo mismo, una fila por grupo **y mes**. Máximo 36 meses. |
 | POST | `/api/capacidad` | ADMIN | Define la capacidad de un grupo y mes. |
 | POST | `/api/capacidad/bulk` | ADMIN | Carga masiva. |
 | DELETE | `/api/capacidad/:grupo/:anio/:mesIdx` | ADMIN | Borra la configuración. |

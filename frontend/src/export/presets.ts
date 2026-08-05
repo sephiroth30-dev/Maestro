@@ -13,7 +13,7 @@ export interface ExportPreset {
 }
 
 export const PRESETS: ExportPreset[] = [
-  { id: 'todo', label: 'Todo', hint: 'Incluye todas las secciónes y columnas' },
+  { id: 'todo', label: 'Todo', hint: 'Incluye todas las secciones y columnas' },
   {
     id: 'sin-valores',
     label: 'Vista médicos (sin valores)',

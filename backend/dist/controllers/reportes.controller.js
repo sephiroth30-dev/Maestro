@@ -44,6 +44,7 @@ const liquidaciones_service_js_1 = require("../services/liquidaciones.service.js
 const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
+const redis_js_1 = require("../config/redis.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
 const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
 // ADMISIONES can only see current month — override any period params.
@@ -265,6 +266,7 @@ async function registerReportesController(fastify) {
     // POST /api/admin/reclasificar-servicios (ADMIN — re-run service classification on all atenciones)
     fastify.post('/api/admin/reclasificar-servicios', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const result = await repo.reclasificarServicios();
+        (0, redis_js_1.flushReportesCache)();
         return reply.send(result);
     });
     // GET /api/profesionales (ADMIN — list all with specialty)
@@ -299,6 +301,7 @@ async function registerReportesController(fastify) {
     // POST /api/admin/reclasificar-profesionales (ADMIN — reassign profesional_id from nombres_raw)
     fastify.post('/api/admin/reclasificar-profesionales', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const result = await repo.reclasificarProfesionales();
+        (0, redis_js_1.flushReportesCache)();
         return reply.send(result);
     });
     // PATCH /api/profesionales/:id (ADMIN — set especialidad and/or nombre_completo)
@@ -309,6 +312,7 @@ async function registerReportesController(fastify) {
         if ('especialidad' in body) {
             const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
             if (!allowed.includes(body.especialidad ?? null)) {
+                (0, redis_js_1.flushReportesCache)();
                 return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
             }
             fields.especialidad = (body.especialidad ?? null);
@@ -341,6 +345,7 @@ async function registerReportesController(fastify) {
     fastify.post('/api/diagnostico/sin-entidad/crear-entidad', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
         const parsed = crearEntidadFromRawBodySchema.safeParse(request.body);
         if (!parsed.success) {
+            (0, redis_js_1.flushReportesCache)();
             return reply.status(400).send({
                 error: 'Bad Request',
                 message: parsed.error.issues.map((i) => i.message).join(', '),
@@ -361,6 +366,7 @@ async function registerReportesController(fastify) {
         const { id } = request.params;
         const parsed = patchEntidadBodySchema.safeParse(request.body);
         if (!parsed.success) {
+            (0, redis_js_1.flushReportesCache)();
             return reply.status(400).send({
                 error: 'Bad Request',
                 message: parsed.error.issues.map((i) => i.message).join(', '),
@@ -378,6 +384,7 @@ async function registerReportesController(fastify) {
     // POST /api/entidades/reclasificar (re-match all atenciones against current nombres_raw — ADMIN only)
     fastify.post('/api/entidades/reclasificar', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (_request, reply) => {
         const result = await repo.reclasificarEntidades();
+        (0, redis_js_1.flushReportesCache)();
         return reply.send(result);
     });
     // DELETE /api/entidades/:id (ADMIN only — nullifies atenciones so they can be reclassified)
@@ -407,6 +414,7 @@ async function registerReportesController(fastify) {
             fields.nombre_display = (typeof nd === 'string' && nd.trim() !== '') ? nd.trim() : null;
         }
         await repo.patchServicio(id, fields);
+        (0, redis_js_1.flushReportesCache)();
         return reply.status(200).send({ ok: true });
     });
     // GET /api/diagnostico/servicio-agrupaciones (ADMIN — actual raw descriptions per service)
@@ -417,6 +425,7 @@ async function registerReportesController(fastify) {
     // GET /api/reportes/presupuestos
     fastify.get('/api/reportes/presupuestos', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (_request, reply) => {
         const result = await repo.listPresupuestos();
+        (0, redis_js_1.flushReportesCache)();
         return reply.send(result);
     });
     // POST /api/reportes/presupuestos (ADMIN only)

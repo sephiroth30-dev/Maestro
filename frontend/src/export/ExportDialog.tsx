@@ -36,15 +36,15 @@ export function ExportDialog({
   const presets = PRESETS.filter((p) => p.id !== 'sin-valores' || (hayValores && permitirValores));
 
   const resumen = React.useMemo(() => {
-    let secciónes = 0;
+    let secciones = 0;
     let filas = 0;
     for (const s of doc.sections) {
       if (selection.sections[s.id] === false) continue;
-      secciónes += 1;
+      secciones += 1;
       if (s.kind === 'table') filas += s.rows.length;
       else if (s.kind === 'chart' && s.fallbackTable) filas += s.fallbackTable.rows.length;
     }
-    return { secciónes, filas };
+    return { secciones, filas };
   }, [doc, selection]);
 
   return (
@@ -208,7 +208,7 @@ export function ExportDialog({
 
         <div className="modal-footer" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-            {resumen.secciónes} {resumen.secciónes === 1 ? 'sección' : 'secciónes'} · {resumen.filas.toLocaleString('es-CO')} filas
+            {resumen.secciones} {resumen.secciones === 1 ? 'sección' : 'secciones'} · {resumen.filas.toLocaleString('es-CO')} filas
           </span>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="button" className="btn btn--secondary" onClick={onClose} disabled={generating}>
@@ -217,7 +217,7 @@ export function ExportDialog({
             <button
               type="button"
               className="btn btn--primary"
-              disabled={generating || resumen.secciónes === 0}
+              disabled={generating || resumen.secciones === 0}
               onClick={() => onGenerate(selection.format, selection.orientation, selection)}
             >
               {generating ? (<><Loader2 size={14} className="spin" /> Generando…</>) : 'Generar'}

@@ -154,6 +154,11 @@ const PDF_REPLACEMENTS: Array<[RegExp, string]> = [
   [/[•●]/g, '-'],
   [/[“”]/g, '"'],
   [/[‘’]/g, "'"],
+  // Las rayas y la elipsis quedan fuera de Latin-1, así que sin estas reglas el
+  // filtro final las borraba sin dejar rastro: la etiqueta de un rango salía
+  // como "Enero 2026 Agosto 2026", dos fechas pegadas sin separador.
+  [/[—–―]/g, '-'],
+  [/…/g, '...'],
   [/ /g, ' '],
 ];
 

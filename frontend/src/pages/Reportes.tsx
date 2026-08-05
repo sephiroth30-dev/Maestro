@@ -5,7 +5,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendencia, useServicios } from '../api/reportes.js';
+import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendencia, useServicios, invalidarReportes } from '../api/reportes.js';
+import { useQueryClient } from '@tanstack/react-query';
 import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
@@ -410,6 +411,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
 
 export default function Reportes(): React.ReactElement {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isAdmisiones = user?.rol === 'ADMISIONES';
 
   const meses = getLast6Months();
@@ -559,10 +561,10 @@ export default function Reportes(): React.ReactElement {
   }
 
   function handleRefresh(): void {
-    void kpisQ.refetch();
-    void entidadesQ.refetch();
-    if (!isCompactMode) void cumplimientoQ.refetch();
-    void diasQ.refetch();
+    // Se invalida TODO el grupo en vez de refrescar consulta por consulta:
+    // dejaba fuera Mix por Servicio y la tendencia, que se quedaban con datos
+    // viejos mientras el resto se actualizaba.
+    invalidarReportes(queryClient);
   }
 
   function handleModeSwitch(mode: FilterMode): void {

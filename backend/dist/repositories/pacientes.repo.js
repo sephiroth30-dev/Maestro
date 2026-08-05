@@ -23,65 +23,7 @@ exports.getRetencion = getRetencion;
 exports.getDetalleAtenciones = getDetalleAtenciones;
 const prisma_js_1 = require("../config/prisma.js");
 const reportes_repo_js_1 = require("./reportes.repo.js");
-const logger_js_1 = require("../config/logger.js");
-/**
- * Llave canónica de paciente.
- *
- * Prefiere el documento (estable) y cae al nombre. Normaliza para absorber las
- * variantes reales de digitación: '1.234.567' vs '1234567', '  MARIA  PEREZ '
- * vs 'Maria Perez'.
- *
- * Deliberadamente NO usa el patrón `COALESCE(documento, nombre, a.id)` de
- * honorarios.repo: ese tercer respaldo es correcto para contar SESIONES (cada
- * fila anónima es una sesión propia) pero infla el conteo de PACIENTES en uno
- * por cada registro sin identificar.
- */
-const KEY_REGEX = `NULLIF(COALESCE(
-  NULLIF(REGEXP_REPLACE(UPPER(TRIM(a.paciente_documento)), '[^0-9A-Z]', ''), ''),
-  NULLIF(REGEXP_REPLACE(UPPER(TRIM(a.paciente_nombre)), '[[:space:]]+', ' '), '')
-), '')`;
-/** Variante sin REGEXP_REPLACE, para motores que no lo soportan. */
-const KEY_PLAIN = `NULLIF(COALESCE(
-  NULLIF(UPPER(TRIM(a.paciente_documento)), ''),
-  NULLIF(UPPER(TRIM(a.paciente_nombre)), '')
-), '')`;
-/** Errores que sí significan "el motor no soporta REGEXP_REPLACE". */
-const ERRORES_SIN_SOPORTE = new Set([
-    'ER_SP_DOES_NOT_EXIST', 'ER_PARSE_ERROR', 'ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT',
-]);
-/** Se cachea la PROMESA, no el valor: las ocho consultas en paralelo comparten
- *  una sola sonda en vez de lanzar ocho idénticas. */
-let sonda = null;
-/**
- * Resuelve qué expresión de llave soporta el motor.
- *
- * REGEXP_REPLACE existe en MySQL 8 y MariaDB 10.0.5+, pero el plan de Hostinger
- * no está garantizado. Solo se degrada ante un error que de verdad indique
- * ausencia de la función: un `catch` genérico dejaría que una desconexión
- * pasajera fijara KEY_PLAIN para toda la vida del proceso, y como esa variante
- * no normaliza la puntuación, '1.234.567' y '1234567' pasarían a ser dos
- * pacientes distintos, inflando únicos y nuevos sin ninguna señal.
- */
-async function getKeyExpr() {
-    if (sonda)
-        return sonda;
-    sonda = (async () => {
-        try {
-            await prisma_js_1.pool.query(`SELECT REGEXP_REPLACE('a-1', '[^0-9A-Z]', '') AS t`);
-            return KEY_REGEX;
-        }
-        catch (err) {
-            const code = err.code ?? '';
-            if (!ERRORES_SIN_SOPORTE.has(code)) {
-                sonda = null; // fallo transitorio: se reintenta en la próxima petición
-                throw err;
-            }
-            logger_js_1.logger.warn('REGEXP_REPLACE no disponible: la llave de paciente no normalizará la puntuación', { code });
-            return KEY_PLAIN;
-        }
-    })();
-    return sonda;
-}
+const paciente_key_js_1 = require("./paciente-key.js");
 function where(p) {
     const [clause, params] = (0, reportes_repo_js_1.buildDateWhere)(p.mesIdx, p.anio, p.startDate, p.endDate, p.diaSemana);
     const out = [...params];
@@ -93,7 +35,7 @@ function where(p) {
     return [c, out];
 }
 async function getCobertura(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        COUNT(*)                                                        AS filas,
@@ -132,7 +74,7 @@ async function getCobertura(p) {
     };
 }
 async function getResumen(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        COUNT(DISTINCT ${K}) AS pacientes_unicos,
@@ -158,7 +100,7 @@ async function getResumen(p) {
  * reinician y no sirven como línea de tiempo.
  */
 async function getNuevosRecurrentes(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        SUM(CASE WHEN periodo.primera = historico.primera THEN 1 ELSE 0 END) AS nuevos,
@@ -187,7 +129,7 @@ async function getNuevosRecurrentes(p) {
 /** Los tramos cuentan VISITAS (fechas distintas), no filas: un EMG y un VCN el
  *  mismo día son dos atenciones pero una sola visita. */
 async function getFrecuencia(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        SUM(CASE WHEN v.visitas = 1             THEN 1 ELSE 0 END) AS b1,
@@ -214,7 +156,7 @@ async function getFrecuencia(p) {
  * dibuja como barras y nunca como una torta.
  */
 async function getPorPagador(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        COALESCE(e.tipo, 'SIN_ENTIDAD') AS tipo,
@@ -236,7 +178,7 @@ async function getPorPagador(p) {
 }
 /** Pacientes que aparecen en más de un tipo de pagador dentro del período. */
 async function getMultiPagador(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT COUNT(*) AS n FROM (
        SELECT ${K} AS k
@@ -249,7 +191,7 @@ async function getMultiPagador(p) {
     return Number(rows[0]?.n ?? 0);
 }
 async function getPorServicio(p) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
     const [rows] = await prisma_js_1.pool.query(`SELECT
        a.servicio_id,
@@ -278,7 +220,7 @@ async function getPorServicio(p) {
  * en vez de un artefacto de la consulta.
  */
 async function getRetencion(p, desde, hasta) {
-    const K = await getKeyExpr();
+    const K = await (0, paciente_key_js_1.getKeyExpr)();
     // Fin del mes siguiente, no "el mismo día del mes siguiente": setMonth(+1)
     // sobre un 28 o un 30 recorta los últimos días del mes destino y subestima la
     // retención del último mes cerrado.

@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.9] - 2026-08-05
+
+### Fixed
+- **Las tarjetas de Reportes no se actualizaban tras sincronizar** aunque los valores ya estuvieran en la base. Tres causas se sumaban: `useTriggerSync` no invalidaba ninguna consulta de reportes; con `refetchOnWindowFocus: false` y un temporizador de 10 minutos independiente por consulta, los paneles se refrescaban de forma dispar; y el botón ↺ solo refrescaba 4 de las 6 consultas de la página, omitiendo «Mix por Servicio» y la tendencia. Ahora existe `invalidarReportes()` con la lista completa de claves, y la sincronización la llama al completarse.
+- **El caché de reportes en el servidor no se vaciaba nunca.** `reportes.controller.ts` no tenía una sola llamada a `flushReportesCache()` y el TTL era de 30 a 60 minutos, así que un cambio de presupuesto o de clasificación podía tardar media hora en verse. TTL reducido a 60 s y vaciado explícito en los 8 puntos que modifican datos.
+- **Capacidad y «Mix por Servicio» daban cifras distintas del mismo servicio sin explicar por qué.** En Potenciales Evocados, junio: la pantalla mostraba 56 y el área reportaba 151 — visitas contra estudios, unas 2,7 modalidades por cita. Ninguna de las dos era un error, pero Capacidad mostraba una sola cifra rotulada «sesiones» sin decir cuál. Ahora cada grupo declara su **base de conteo**, la tarjeta rotula el sustantivo («151 estudios») y muestra la otra cifra debajo.
+- **Un registro sin identificación de paciente colapsaba el día entero en una visita.** La llave de sesión era `CONCAT(fecha,'|',COALESCE(nombre,''),'|',COALESCE(documento,''))`, que para todas las filas anónimas de un día se reducía a `'2026-06-03||'`. Con una fuente sin columna de paciente —hay una con 0 % de cobertura— la ocupación de sus grupos quedaba reducida al número de días distintos del mes, en silencio. Sin identificación ya no se deduplica, y `sinPaciente` reporta cuántas filas están así.
+- El grupo «Ecografía como Guía» no podía recibir nada: el catálogo de servicios tiene una entrada llamada `ECOGRAFIA` a secas, que no encajaba en `ECOGRAFIA%GUIA%` ni en `ECOGRAFIA%PROCEDIMIENTO%`.
+- **Las rayas y las elipsis desaparecían de todos los PDF.** `toPdfSafe` borra lo que queda fuera de Latin-1 y no tenía regla para `—`, `–` ni `…`, así que la etiqueta de un rango salía como «Enero 2026 Agosto 2026», dos fechas pegadas sin separador. El pie decía «Pagina» sin tilde.
+- El diálogo de exportación decía «secciónes»; el plural de «sección» no lleva tilde.
+
+### Added
+- **Filtro por rango de meses en Capacidad**, con la tabla «Utilización mes a mes» en pantalla y en el archivo exportado. Resuelto en una sola consulta agrupando por (año, mes, grupo) en vez de repetir la consulta mensual N veces; tope de 36 meses.
+- **Base de conteo configurable por grupo** en Configuración → Cap. Instalada, columna «Se compara contra». Por omisión Potenciales Evocados se mide en estudios y el resto en visitas.
+- `GET /api/capacidad/grupos` — catálogo de grupos y su base por omisión, para que la pantalla de configuración deje de llevar su propia copia de la lista.
+- `GET /api/capacidad/utilizacion/rango` — una fila por grupo y mes.
+- Las respuestas de utilización devuelven ahora `pacientes`, `estudios`, `base` y `sinPaciente` además de `sesiones`.
+
+### Changed
+- Las reglas de capacidad —los doce grupos, los patrones que clasifican cada servicio y la base de cada grupo— viven en `backend/src/config/capacidad-grupos.ts`. Estaban duplicadas como SQL crudo en las dos consultas del repositorio y una tercera vez, sin las bases, en la pantalla de configuración.
+- La llave canónica de paciente se movió a `repositories/paciente-key.ts` y la comparten Pacientes y Capacidad. Si las dos pantallas discrepan sobre qué cuenta como una persona, sus cifras no se pueden conciliar.
+- El exportable de Capacidad pasó a orientación horizontal: son nueve columnas.
+- El runner de migraciones acepta `columna: { tabla, columna }` y consulta `information_schema` en vez de confiar en `ADD COLUMN IF NOT EXISTS`, que es sintaxis de MariaDB y MySQL 8 rechaza en silencio.
+
+---
+
 ## [1.8.7] - 2026-08-03
 
 ### Fixed
