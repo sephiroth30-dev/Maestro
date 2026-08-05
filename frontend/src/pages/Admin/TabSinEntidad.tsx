@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { AlertCircle, Loader2, Plus, X } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, X, Link2 } from 'lucide-react';
 import { useSinEntidadDiagnostico, useCrearEntidadFromRaw } from '../../api/reportes.js';
 import type { SinEntidadRow, CrearEntidadFromRawInput } from '../../api/reportes.js';
 import { SortableHeader, useSortState } from '../../components/SortableHeader.js';
+import { useEntidadesCatalog, useUpdateEntidadNombresRaw } from '../../api/entidades.js';
 
 const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
@@ -110,6 +111,108 @@ function CreateModal({ nombreRaw, onClose, onSuccess }: CreateModalProps): React
   );
 }
 
+// ─── Vincular Modal ───────────────────────────────────────────────────────────
+
+interface VincularModalProps {
+  nombreRaw: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function VincularModal({ nombreRaw, onClose, onSuccess }: VincularModalProps): React.ReactElement {
+  const { data: catalog } = useEntidadesCatalog();
+  const updateNombres = useUpdateEntidadNombresRaw();
+  const [selectedId, setSelectedId] = useState('');
+
+  async function handleConfirm(): Promise<void> {
+    if (!selectedId || !catalog) return;
+    const entidad = catalog.find((e) => e.id === selectedId);
+    if (!entidad) return;
+    const normalized = nombreRaw.trim().toUpperCase();
+    const alreadyHas = entidad.nombres_raw.some((a) => a.toUpperCase() === normalized);
+    const next = alreadyHas ? entidad.nombres_raw : [...entidad.nombres_raw, normalized];
+    await updateNombres.mutateAsync({ id: selectedId, nombres_raw: next });
+    onSuccess();
+    onClose();
+  }
+
+  const sortedCatalog = useMemo(
+    () => [...(catalog ?? [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [catalog],
+  );
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+      <div className="modal modal--sm" role="dialog" aria-modal="true" aria-label="Vincular a entidad">
+        <div className="modal-header">
+          <h2 className="modal-title">Vincular a entidad existente</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Cerrar">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.25rem' }}>
+          <div>
+            <label className="form-label" style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 4, display: 'block' }}>
+              NOMBRE EN EL SHEET
+            </label>
+            <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '0.85rem', color: '#475569', wordBreak: 'break-word' }}>
+              {nombreRaw}
+            </div>
+          </div>
+
+          <div>
+            <label className="form-label" style={{ fontSize: '0.78rem', color: '#374151', marginBottom: 4, display: 'block' }}>
+              ENTIDAD DEL CATÁLOGO <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <select
+              className="form-select"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              style={{ width: '100%' }}
+              autoFocus
+            >
+              <option value="">Seleccionar entidad…</option>
+              {sortedCatalog.map((e) => (
+                <option key={e.id} value={e.id}>{e.nombre} ({e.tipo})</option>
+              ))}
+            </select>
+          </div>
+
+          <p style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
+            El nombre del sheet quedará guardado como alias de la entidad seleccionada.
+            Las atenciones ya importadas se reclasificarán en la <strong>próxima sincronización</strong>.
+          </p>
+
+          {updateNombres.isError && (
+            <p style={{ color: '#ef4444', fontSize: '0.82rem' }}>
+              Error al vincular. Intenta de nuevo.
+            </p>
+          )}
+        </div>
+
+        <div className="modal-footer" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button type="button" className="btn btn--secondary" onClick={onClose} disabled={updateNombres.isPending}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void handleConfirm()}
+            disabled={!selectedId || updateNombres.isPending}
+          >
+            {updateNombres.isPending ? (
+              <><Loader2 size={14} className="spin" /> Vinculando…</>
+            ) : (
+              'Vincular alias'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main tab ─────────────────────────────────────────────────────────────────
 
 export default function TabSinEntidad(): React.ReactElement {
@@ -119,6 +222,7 @@ export default function TabSinEntidad(): React.ReactElement {
 
   const { data, isLoading, isError, refetch } = useSinEntidadDiagnostico(mesIdx, anio);
   const [activeRaw, setActiveRaw] = useState<string | null>(null);
+  const [vincularRaw, setVincularRaw] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const { sortField, sortDir, onSort } = useSortState<'nombre' | 'atenciones' | 'valor'>('valor', 'desc');
   const sortedData = useMemo(() => {
@@ -137,6 +241,11 @@ export default function TabSinEntidad(): React.ReactElement {
 
   function handleSuccess(reassigned: number): void {
     setSuccessMsg(`Entidad creada y ${reassigned.toLocaleString('es-CO')} atencion${reassigned !== 1 ? 'es' : ''} reasignada${reassigned !== 1 ? 's' : ''}.`);
+    setTimeout(() => setSuccessMsg(null), 5000);
+  }
+
+  function handleVincularSuccess(): void {
+    setSuccessMsg('Alias vinculado. Aplica en la próxima sincronización.');
     setTimeout(() => setSuccessMsg(null), 5000);
   }
 
@@ -226,14 +335,26 @@ export default function TabSinEntidad(): React.ReactElement {
                     </td>
                     <td className="tabla-entidades-td" style={{ textAlign: 'center' }}>
                       {row.nombre_raw && row.nombre_raw !== '(vacío)' ? (
-                        <button
-                          type="button"
-                          className="btn btn--secondary btn--sm"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem' }}
-                          onClick={() => setActiveRaw(row.nombre_raw)}
-                        >
-                          <Plus size={12} /> Crear entidad
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem' }}
+                            onClick={() => setVincularRaw(row.nombre_raw)}
+                            title="Agregar como alias de una entidad existente"
+                          >
+                            <Link2 size={12} /> Vincular
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.75rem' }}
+                            onClick={() => setActiveRaw(row.nombre_raw)}
+                            title="Crear una nueva entidad en el catálogo"
+                          >
+                            <Plus size={12} /> Crear
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>—</span>
                       )}
@@ -256,8 +377,8 @@ export default function TabSinEntidad(): React.ReactElement {
           </div>
 
           <p style={{ color: '#64748b', fontSize: '0.82rem', marginTop: '1rem', lineHeight: 1.5 }}>
-            Usa el botón <strong>Crear entidad</strong> para agregar una nueva entidad al catálogo y
-            reasignar automáticamente las atenciones con ese nombre.
+            <strong>Vincular</strong> agrega el nombre del sheet como alias de una entidad ya existente.{' '}
+            <strong>Crear</strong> añade una entidad nueva al catálogo y reasigna las atenciones de inmediato.
           </p>
         </>
       )}
@@ -268,6 +389,15 @@ export default function TabSinEntidad(): React.ReactElement {
           nombreRaw={activeRaw}
           onClose={() => setActiveRaw(null)}
           onSuccess={handleSuccess}
+        />
+      )}
+
+      {/* Vincular modal */}
+      {vincularRaw !== null && (
+        <VincularModal
+          nombreRaw={vincularRaw}
+          onClose={() => setVincularRaw(null)}
+          onSuccess={handleVincularSuccess}
         />
       )}
     </div>
