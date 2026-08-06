@@ -490,7 +490,7 @@ export interface ProfesionalRow {
   nombre_completo: string | null;
   nombres_raw: string[];
   es_nomina: boolean;
-  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
   total_atenciones: number;
 }
 
@@ -512,7 +512,7 @@ export async function listProfesionales(): Promise<ProfesionalRow[]> {
       ? JSON.parse(r['nombres_raw'])
       : r['nombres_raw']) as string[],
     es_nomina: Boolean(r['es_nomina']),
-    especialidad: (r['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null) ?? null,
+    especialidad: (r['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null) ?? null,
     total_atenciones: Number(r['total_atenciones']),
   }));
 }
@@ -520,7 +520,7 @@ export async function listProfesionales(): Promise<ProfesionalRow[]> {
 export async function createProfesional(
   nombre: string,
   nombreCompleto: string | null,
-  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null,
+  especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null,
   nombresRaw: string[],
 ): Promise<{ id: string }> {
   const id = randomUUID();
@@ -533,7 +533,7 @@ export async function createProfesional(
 
 export async function patchProfesional(
   id: string,
-  fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null; nombre_completo?: string | null; es_nomina?: boolean }
+  fields: { especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null; nombre_completo?: string | null; es_nomina?: boolean }
 ): Promise<void> {
   const parts: string[] = [];
   const vals: unknown[] = [];
@@ -962,27 +962,28 @@ export async function reclasificarServicios(): Promise<{ total: number; updated:
     ),
   }));
 
-  // Build specialty upgrade map: generic service id → { NEUROLOGIA: id, FISIATRIA: id }
-  const upgradeMap = new Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null }>();
-  const UPGRADES: Array<[string, string, string]> = [
-    ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
-    ['CONSULTA DE CONTROL',  'CONSULTA DE CONTROL NEUROLOGIA',  'CONSULTA DE CONTROL FISIATRIA'],
+  // Build specialty upgrade map: generic service id → { NEUROLOGIA: id, FISIATRIA: id, PEDIATRIA: id }
+  const upgradeMap = new Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null; PEDIATRIA: string | null }>();
+  const UPGRADES: Array<[string, string, string, string]> = [
+    ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA', 'CONSULTA PRIMERA VEZ NEUROLOGIA PEDIATRICA'],
+    ['CONSULTA DE CONTROL',  'CONSULTA DE CONTROL NEUROLOGIA',  'CONSULTA DE CONTROL FISIATRIA',  'CONSULTA DE CONTROL NEUROLOGIA PEDIATRICA'],
   ];
-  for (const [generic, neuro, fisio] of UPGRADES) {
-    const genericId = catalog.find((s) => s.nombre === generic)?.id ?? null;
-    const neuroId   = catalog.find((s) => s.nombre === neuro)?.id   ?? null;
-    const fisioId   = catalog.find((s) => s.nombre === fisio)?.id   ?? null;
-    if (genericId) upgradeMap.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
+  for (const [generic, neuro, fisio, pediatria] of UPGRADES) {
+    const genericId   = catalog.find((s) => s.nombre === generic)?.id   ?? null;
+    const neuroId      = catalog.find((s) => s.nombre === neuro)?.id     ?? null;
+    const fisioId      = catalog.find((s) => s.nombre === fisio)?.id     ?? null;
+    const pediatriaId  = catalog.find((s) => s.nombre === pediatria)?.id ?? null;
+    if (genericId) upgradeMap.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId, PEDIATRIA: pediatriaId });
   }
 
   // Load profesionales specialty
   const [profRows] = await pool.query<RowDataPacket[]>(
     'SELECT id, especialidad FROM profesionales WHERE activo = 1'
   );
-  const profEspecialidad = new Map<string, 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO'>();
+  const profEspecialidad = new Map<string, 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO'>();
   for (const p of profRows) {
     if (p['especialidad']) {
-      profEspecialidad.set(p['id'] as string, p['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO');
+      profEspecialidad.set(p['id'] as string, p['especialidad'] as 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO');
     }
   }
 
@@ -1012,7 +1013,7 @@ export async function reclasificarServicios(): Promise<{ total: number; updated:
       if (matched && upgradeMap.has(matched)) {
         const profId = row['profesional_id'] as string | null;
         const esp = profId ? (profEspecialidad.get(profId) ?? null) : null;
-        if (esp === 'NEUROLOGIA' || esp === 'FISIATRIA') {
+        if (esp === 'NEUROLOGIA' || esp === 'FISIATRIA' || esp === 'PEDIATRIA') {
           matched = upgradeMap.get(matched)![esp] ?? matched;
         }
       }

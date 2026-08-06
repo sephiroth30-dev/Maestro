@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
-export type Especialidad = 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+export type Especialidad = 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
 
 export interface ProfesionalRow {
   id: string;

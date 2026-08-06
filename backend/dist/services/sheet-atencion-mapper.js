@@ -187,15 +187,16 @@ async function buildCache() {
     // Build specialty upgrade map
     const specialtyUpgrade = new Map();
     const UPGRADES = [
-        ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
-        ['CONSULTA DE CONTROL', 'CONSULTA DE CONTROL NEUROLOGIA', 'CONSULTA DE CONTROL FISIATRIA'],
+        ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA', 'CONSULTA PRIMERA VEZ NEUROLOGIA PEDIATRICA'],
+        ['CONSULTA DE CONTROL', 'CONSULTA DE CONTROL NEUROLOGIA', 'CONSULTA DE CONTROL FISIATRIA', 'CONSULTA DE CONTROL NEUROLOGIA PEDIATRICA'],
     ];
-    for (const [generic, neuro, fisio] of UPGRADES) {
+    for (const [generic, neuro, fisio, pediatria] of UPGRADES) {
         const genericId = servicios.find((s) => s.nombre === generic)?.id ?? null;
         const neuroId = servicios.find((s) => s.nombre === neuro)?.id ?? null;
         const fisioId = servicios.find((s) => s.nombre === fisio)?.id ?? null;
+        const pediatriaId = servicios.find((s) => s.nombre === pediatria)?.id ?? null;
         if (genericId)
-            specialtyUpgrade.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
+            specialtyUpgrade.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId, PEDIATRIA: pediatriaId });
     }
     return {
         entidades: entidadRows.map((row) => ({
@@ -222,7 +223,8 @@ function resolveServicioId(descripcionNorm, catalog, profesionalEspecialidad, sp
             if (upper.includes(kw)) {
                 let id = servicio.id;
                 // Upgrade generic consultations to specialty-specific when profesional is tagged
-                if (specialtyUpgrade.has(id) && (profesionalEspecialidad === 'NEUROLOGIA' || profesionalEspecialidad === 'FISIATRIA')) {
+                if (specialtyUpgrade.has(id) &&
+                    (profesionalEspecialidad === 'NEUROLOGIA' || profesionalEspecialidad === 'FISIATRIA' || profesionalEspecialidad === 'PEDIATRIA')) {
                     id = specialtyUpgrade.get(id)[profesionalEspecialidad] ?? id;
                 }
                 return id;

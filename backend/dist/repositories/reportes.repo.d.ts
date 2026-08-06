@@ -119,15 +119,15 @@ export interface ProfesionalRow {
     nombre_completo: string | null;
     nombres_raw: string[];
     es_nomina: boolean;
-    especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+    especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
     total_atenciones: number;
 }
 export declare function listProfesionales(): Promise<ProfesionalRow[]>;
-export declare function createProfesional(nombre: string, nombreCompleto: string | null, especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null, nombresRaw: string[]): Promise<{
+export declare function createProfesional(nombre: string, nombreCompleto: string | null, especialidad: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null, nombresRaw: string[]): Promise<{
     id: string;
 }>;
 export declare function patchProfesional(id: string, fields: {
-    especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+    especialidad?: 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
     nombre_completo?: string | null;
     es_nomina?: boolean;
 }): Promise<void>;

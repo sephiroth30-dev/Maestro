@@ -3,7 +3,7 @@ id: config-catalogos
 titulo: Catálogos y calidad de datos
 modulo: configuracion
 orden: 110
-claves: entidades, servicios, profesionales, sin entidad, sin clasificar, alias, reclasificar, presupuesto
+claves: entidades, servicios, profesionales, sin entidad, sin clasificar, alias, reclasificar, presupuesto, especialidad, pediatria, neurologia pediatrica
 ---
 
 ## Para qué sirven
@@ -24,6 +24,23 @@ de ahí.
 
 **Configuración → Profesionales.** Mismo principio: nombre oficial, alias del origen,
 especialidad y si es de **nómina** (sueldo fijo, liquidación simulada).
+
+<details>
+<summary>Para qué sirve la especialidad</summary>
+
+Muchas facturas dicen solo «CONSULTA PRIMERA VEZ» o «CONSULTA DE CONTROL», sin nombrar la
+especialidad. La especialidad del profesional resuelve esa ambigüedad: si a quien la hizo se
+le asignó **Neurología**, **Fisiatría** o **Neurología Pediátrica**, esa consulta genérica se
+sube sola al servicio específico — sin la especialidad, se queda en el genérico y no aparece
+en ningún reporte que desglose por tipo de consulta.
+
+Por eso a un neurólogo pediatra hay que marcarlo **Neurología Pediátrica** y no solo
+**Neurología**: sus consultas de control y primera vez, si no dicen «pediátrica» en el texto,
+solo se reclasifican correctamente con esa especialidad puesta. Después de asignarla, pulsa
+**Reclasificar** para que el histórico ya cargado se actualice de inmediato — si no, el cambio
+solo se ve en atenciones nuevas.
+
+</details>
 
 ## Servicios
 

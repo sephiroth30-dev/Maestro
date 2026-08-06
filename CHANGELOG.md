@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.13] - 2026-08-06
+
+### Fixed
+- **Ninguna atención podía etiquetarse como "pediatría", en ningún reporte.** El grupo de capacidad "Consulta Neurología Pediátrica" existía en pantalla pero era inalcanzable: comparaba `servicios.nombre LIKE '%PEDIATRI%'`, y el catálogo de servicios no tenía ninguna entrada con ese nombre — solo `CONSULTA PRIMERA VEZ NEUROLOGIA` y `CONSULTA DE CONTROL NEUROLOGIA`, genéricas. Detectado al revisar por qué las consultas del Dr. Santiago Cruz (neurólogo pediatra) no aparecían bajo ningún filtro de pediatría.
+- La especialidad de un profesional (`profesionales.especialidad`) solo admitía `NEUROLOGIA`, `FISIATRIA` u `OTRO` — no había forma de marcar a alguien como pediatra, así que sus consultas genéricas (`CONSULTA PRIMERA VEZ` / `CONSULTA DE CONTROL`, sin la especialidad en el texto) nunca se podían "subir" al servicio correcto, aunque el mecanismo para Neurología/Fisiatría ya existía.
+
+### Added
+- **Neurología Pediátrica** como especialidad asignable en Configuración → Profesionales, y dos servicios nuevos en el catálogo (`CONSULTA PRIMERA VEZ NEUROLOGIA PEDIATRICA`, `CONSULTA DE CONTROL NEUROLOGIA PEDIATRICA`). Con la especialidad asignada, las consultas genéricas de ese profesional se reclasifican solas — en la próxima sincronización, o de inmediato con el botón **Reclasificar**.
+
+### Fixed (hallado durante la prueba, no corregido — fuera de alcance de este cambio)
+- **`CONSULTA DE CONTROL NEUROLOGIA` se clasifica hoy como `CONSULTA PRIMERA VEZ NEUROLOGIA`** (y lo mismo para Fisiatría): el catch-all `NEUROLOG` de la entrada "primera vez" se revisa antes que "control neurología" en el orden del catálogo, así que cualquier texto con "neurolog" cae ahí primero. Es un defecto preexistente, independiente de este cambio — los dos servicios pediátricos nuevos se ordenaron a propósito para no repetirlo. No se corrigió el adulto porque cambiaría la clasificación de atenciones ya existentes en producción.
+
+---
+
 ## [1.8.9] - 2026-08-05
 
 ### Fixed

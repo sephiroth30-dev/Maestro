@@ -12,11 +12,13 @@ const fmtNum = (n: number) => new Intl.NumberFormat('es-CO').format(n);
 const ESP_LABELS: Record<string, string> = {
   NEUROLOGIA: 'Neurología',
   FISIATRIA:  'Fisiatría',
+  PEDIATRIA:  'Neurología Pediátrica',
   OTRO:       'Otra',
 };
 const ESP_COLORS: Record<string, string> = {
   NEUROLOGIA: '#3b82f6',
   FISIATRIA:  '#8b5cf6',
+  PEDIATRIA:  '#f59e0b',
   OTRO:       '#64748b',
 };
 
@@ -97,6 +99,7 @@ function ProfRow({ p }: { p: ProfesionalRow }): React.ReactElement {
           <option value="">— sin asignar —</option>
           <option value="NEUROLOGIA">Neurología</option>
           <option value="FISIATRIA">Fisiatría</option>
+          <option value="PEDIATRIA">Neurología Pediátrica</option>
           <option value="OTRO">Otra especialidad</option>
         </select>
       </td>
@@ -315,6 +318,7 @@ function NuevoProfesionalModal({ onClose }: { onClose: () => void }): React.Reac
                 <option value="">— sin asignar —</option>
                 <option value="NEUROLOGIA">Neurología</option>
                 <option value="FISIATRIA">Fisiatría</option>
+                <option value="PEDIATRIA">Neurología Pediátrica</option>
                 <option value="OTRO">Otra especialidad</option>
               </select>
             </div>

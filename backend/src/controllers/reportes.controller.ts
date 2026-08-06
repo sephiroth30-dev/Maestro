@@ -353,11 +353,11 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         return reply.status(400).send({ error: 'Bad Request', message: 'Se requiere al menos un nombre en el sheet', statusCode: 400 });
       }
 
-      const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null, undefined];
+      const allowed = ['NEUROLOGIA', 'FISIATRIA', 'PEDIATRIA', 'OTRO', null, undefined];
       if (!allowed.includes(body.especialidad ?? null)) {
         return reply.status(400).send({ error: 'Bad Request', message: 'especialidad inválida', statusCode: 400 });
       }
-      const especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+      const especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
 
       const nc = body.nombre_completo;
       const nombreCompleto = (typeof nc === 'string' && nc.trim() !== '') ? nc.trim() : null;
@@ -397,12 +397,12 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
       const body = request.body as { especialidad?: string | null; nombre_completo?: string | null; es_nomina?: boolean };
       const fields: Parameters<typeof repo.patchProfesional>[1] = {};
       if ('especialidad' in body) {
-        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
+        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'PEDIATRIA', 'OTRO', null];
         if (!allowed.includes(body.especialidad ?? null)) {
           flushReportesCache();
-          return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+          return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, PEDIATRIA, OTRO or null', statusCode: 400 });
         }
-        fields.especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'OTRO' | null;
+        fields.especialidad = (body.especialidad ?? null) as 'NEUROLOGIA' | 'FISIATRIA' | 'PEDIATRIA' | 'OTRO' | null;
       }
       if ('nombre_completo' in body) {
         const nc = body.nombre_completo;

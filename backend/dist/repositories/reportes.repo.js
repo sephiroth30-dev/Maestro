@@ -626,18 +626,19 @@ async function reclasificarServicios() {
             ? JSON.parse(r['palabras_clave'])
             : r['palabras_clave']).map((kw) => kw.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')),
     }));
-    // Build specialty upgrade map: generic service id → { NEUROLOGIA: id, FISIATRIA: id }
+    // Build specialty upgrade map: generic service id → { NEUROLOGIA: id, FISIATRIA: id, PEDIATRIA: id }
     const upgradeMap = new Map();
     const UPGRADES = [
-        ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA'],
-        ['CONSULTA DE CONTROL', 'CONSULTA DE CONTROL NEUROLOGIA', 'CONSULTA DE CONTROL FISIATRIA'],
+        ['CONSULTA PRIMERA VEZ', 'CONSULTA PRIMERA VEZ NEUROLOGIA', 'CONSULTA PRIMERA VEZ FISIATRA', 'CONSULTA PRIMERA VEZ NEUROLOGIA PEDIATRICA'],
+        ['CONSULTA DE CONTROL', 'CONSULTA DE CONTROL NEUROLOGIA', 'CONSULTA DE CONTROL FISIATRIA', 'CONSULTA DE CONTROL NEUROLOGIA PEDIATRICA'],
     ];
-    for (const [generic, neuro, fisio] of UPGRADES) {
+    for (const [generic, neuro, fisio, pediatria] of UPGRADES) {
         const genericId = catalog.find((s) => s.nombre === generic)?.id ?? null;
         const neuroId = catalog.find((s) => s.nombre === neuro)?.id ?? null;
         const fisioId = catalog.find((s) => s.nombre === fisio)?.id ?? null;
+        const pediatriaId = catalog.find((s) => s.nombre === pediatria)?.id ?? null;
         if (genericId)
-            upgradeMap.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId });
+            upgradeMap.set(genericId, { NEUROLOGIA: neuroId, FISIATRIA: fisioId, PEDIATRIA: pediatriaId });
     }
     // Load profesionales specialty
     const [profRows] = await prisma_js_1.pool.query('SELECT id, especialidad FROM profesionales WHERE activo = 1');
@@ -667,7 +668,7 @@ async function reclasificarServicios() {
             if (matched && upgradeMap.has(matched)) {
                 const profId = row['profesional_id'];
                 const esp = profId ? (profEspecialidad.get(profId) ?? null) : null;
-                if (esp === 'NEUROLOGIA' || esp === 'FISIATRIA') {
+                if (esp === 'NEUROLOGIA' || esp === 'FISIATRIA' || esp === 'PEDIATRIA') {
                     matched = upgradeMap.get(matched)[esp] ?? matched;
                 }
             }

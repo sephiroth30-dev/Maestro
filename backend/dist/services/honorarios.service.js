@@ -15,7 +15,9 @@ const reglas_honorarios_repo_js_1 = require("../repositories/reglas-honorarios.r
 const SERVICIO_CAT = {
     'CONSULTA PRIMERA VEZ FISIATRA': 'consulta',
     'CONSULTA PRIMERA VEZ NEUROLOGIA': 'consulta',
+    'CONSULTA PRIMERA VEZ NEUROLOGIA PEDIATRICA': 'consulta',
     'CONSULTA DE CONTROL NEUROLOGIA': 'consulta',
+    'CONSULTA DE CONTROL NEUROLOGIA PEDIATRICA': 'consulta',
     'CONSULTA DE CONTROL FISIATRIA': 'consulta',
     'CONSULTA DE CONTROL': 'consulta',
     'CONSULTA PRIMERA VEZ': 'consulta',

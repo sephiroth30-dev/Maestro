@@ -283,7 +283,7 @@ async function registerReportesController(fastify) {
         if (nombresRaw.length === 0) {
             return reply.status(400).send({ error: 'Bad Request', message: 'Se requiere al menos un nombre en el sheet', statusCode: 400 });
         }
-        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null, undefined];
+        const allowed = ['NEUROLOGIA', 'FISIATRIA', 'PEDIATRIA', 'OTRO', null, undefined];
         if (!allowed.includes(body.especialidad ?? null)) {
             return reply.status(400).send({ error: 'Bad Request', message: 'especialidad inválida', statusCode: 400 });
         }
@@ -310,10 +310,10 @@ async function registerReportesController(fastify) {
         const body = request.body;
         const fields = {};
         if ('especialidad' in body) {
-            const allowed = ['NEUROLOGIA', 'FISIATRIA', 'OTRO', null];
+            const allowed = ['NEUROLOGIA', 'FISIATRIA', 'PEDIATRIA', 'OTRO', null];
             if (!allowed.includes(body.especialidad ?? null)) {
                 (0, redis_js_1.flushReportesCache)();
-                return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, OTRO or null', statusCode: 400 });
+                return reply.status(400).send({ error: 'Bad Request', message: 'especialidad must be NEUROLOGIA, FISIATRIA, PEDIATRIA, OTRO or null', statusCode: 400 });
             }
             fields.especialidad = (body.especialidad ?? null);
         }
