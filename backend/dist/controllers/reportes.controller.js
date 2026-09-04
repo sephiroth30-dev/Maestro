@@ -329,7 +329,7 @@ async function registerReportesController(fastify) {
     });
     // GET /api/diagnostico/sin-entidad (ADMIN — unmatched entity names breakdown)
     fastify.get('/api/diagnostico/sin-entidad', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)('ADMIN')] }, async (request, reply) => {
-        const parsed = mesAnioSchema.safeParse(request.query);
+        const parsed = mesAnioDateSchema.safeParse(request.query);
         if (!parsed.success) {
             return reply.status(400).send({
                 error: 'Bad Request',
@@ -337,8 +337,8 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const { mes_idx, anio } = parsed.data;
-        const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio);
+        const { mes_idx, anio, start_date, end_date } = parsed.data;
+        const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio, start_date ? new Date(start_date) : undefined, end_date ? new Date(end_date) : undefined);
         return reply.send(rows);
     });
     // POST /api/diagnostico/sin-entidad/crear-entidad (ADMIN — create entity from unmatched raw name)

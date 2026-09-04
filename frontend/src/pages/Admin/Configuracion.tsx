@@ -253,7 +253,16 @@ export default function Configuracion(): React.ReactElement {
   const articuloAyuda = AYUDA_POR_TAB[activeTab] ?? 'config-catalogos';
 
   const now = new Date();
-  const { data: sinEntidadData } = useSinEntidadDiagnostico(now.getMonth() + 1, now.getFullYear());
+  // Ventana de 2 meses (actual + anterior), no solo hoy: un cargue mal clasificado del mes
+  // pasado tiene que encender este aviso apenas ocurra, sin depender de que alguien recuerde
+  // revisar el mes exacto en la pestaña Sin Entidad después de cada sincronización.
+  const inicioVentana = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const finVentana = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  const fmtFecha = (d: Date): string => d.toISOString().slice(0, 10);
+  const { data: sinEntidadData } = useSinEntidadDiagnostico(
+    now.getMonth() + 1, now.getFullYear(),
+    fmtFecha(inicioVentana), fmtFecha(finVentana),
+  );
   const hasSinEntidad = (sinEntidadData?.length ?? 0) > 0;
 
   const NAV_SECTIONS: NavSection[] = [

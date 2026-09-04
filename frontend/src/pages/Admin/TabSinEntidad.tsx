@@ -10,6 +10,13 @@ const COP = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP',
 const TIPOS = ['EPS', 'ARL', 'CONVENIO', 'PARTICULAR', 'OTRO'] as const;
 type Tipo = typeof TIPOS[number];
 
+// Mismo catálogo que Capacidad.tsx / CapacidadConfig.tsx — no reinventarlo.
+const MESES = [
+  '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+const ANIOS = Array.from({ length: 7 }, (_, i) => 2023 + i);
+
 // ─── Create Entity Modal ──────────────────────────────────────────────────────
 
 interface CreateModalProps {
@@ -217,8 +224,11 @@ function VincularModal({ nombreRaw, onClose, onSuccess }: VincularModalProps): R
 
 export default function TabSinEntidad(): React.ReactElement {
   const now = new Date();
-  const mesIdx = now.getMonth() + 1;
-  const anio = now.getFullYear();
+  // Estado, no una constante derivada de `now`: sin esto, la pantalla solo puede mirar
+  // el mes calendario de hoy y un cargue de un mes anterior sin clasificar queda invisible
+  // — que fue exactamente el caso que llevó a este selector.
+  const [mesIdx, setMesIdx] = useState(now.getMonth() + 1);
+  const [anio, setAnio] = useState(now.getFullYear());
 
   const { data, isLoading, isError, refetch } = useSinEntidadDiagnostico(mesIdx, anio);
   const [activeRaw, setActiveRaw] = useState<string | null>(null);
@@ -272,6 +282,31 @@ export default function TabSinEntidad(): React.ReactElement {
 
   return (
     <div>
+      {/* Selector de período — por defecto el mes actual, pero el problema típico es de un
+          cargue anterior que nadie revisó con el mes correcto seleccionado. */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <select
+          className="form-select"
+          value={mesIdx}
+          onChange={(e) => setMesIdx(Number(e.target.value))}
+          style={{ minWidth: '130px' }}
+          aria-label="Mes"
+        >
+          {MESES.slice(1).map((nombre, i) => (
+            <option key={i + 1} value={i + 1}>{nombre}</option>
+          ))}
+        </select>
+        <select
+          className="form-select"
+          value={anio}
+          onChange={(e) => setAnio(Number(e.target.value))}
+          style={{ minWidth: '90px' }}
+          aria-label="Año"
+        >
+          {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+
       {/* Success message */}
       {successMsg && (
         <div className="entidades-config-banner" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534', marginBottom: '0.75rem' }}>
@@ -294,14 +329,14 @@ export default function TabSinEntidad(): React.ReactElement {
         <div className="entidades-config-banner" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}>
           <AlertCircle size={14} />
           <span>
-            No hay registros sin entidad para el mes actual. ¡Todo está bien clasificado!
+            No hay registros sin entidad para {MESES[mesIdx]} {anio}. ¡Todo está bien clasificado!
           </span>
         </div>
       )}
 
       {data.length === 0 ? (
         <p style={{ color: '#94a3b8', textAlign: 'center', padding: '2rem' }}>
-          No hay atenciones sin entidad este mes.
+          No hay atenciones sin entidad en {MESES[mesIdx]} {anio}.
         </p>
       ) : (
         <>

@@ -257,13 +257,22 @@ export interface SinEntidadRow {
   total: number;
 }
 
-export function useSinEntidadDiagnostico(mesIdx: number, anio: number) {
+/**
+ * `startDate`/`endDate` (YYYY-MM-DD) cubren un rango en vez de un solo mes — los usa el
+ * aviso del menú lateral para revisar una ventana de varios meses de una vez, en lugar de
+ * solo el mes calendario de hoy. Con ambos presentes, el backend los prefiere sobre
+ * `mesIdx`/`anio` (mismo comportamiento que el resto de endpoints de reportes).
+ */
+export function useSinEntidadDiagnostico(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
   return useQuery<SinEntidadRow[]>({
-    queryKey: ['sin-entidad-diagnostico', mesIdx, anio],
+    queryKey: ['sin-entidad-diagnostico', mesIdx, anio, startDate, endDate],
     queryFn: async () => {
-      const res = await apiClient.get<SinEntidadRow[]>('/diagnostico/sin-entidad', {
-        params: { mes_idx: mesIdx, anio },
-      });
+      const params: Record<string, string | number> = { mes_idx: mesIdx, anio };
+      if (startDate && endDate) {
+        params.start_date = startDate;
+        params.end_date = endDate;
+      }
+      const res = await apiClient.get<SinEntidadRow[]>('/diagnostico/sin-entidad', { params });
       return res.data;
     },
     staleTime: 5 * 60_000,

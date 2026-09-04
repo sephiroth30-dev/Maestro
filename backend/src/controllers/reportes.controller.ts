@@ -421,7 +421,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     '/api/diagnostico/sin-entidad',
     { preHandler: [requireAuth, requireRole('ADMIN')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = mesAnioSchema.safeParse(request.query);
+      const parsed = mesAnioDateSchema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({
           error: 'Bad Request',
@@ -429,8 +429,12 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
           statusCode: 400,
         });
       }
-      const { mes_idx, anio } = parsed.data;
-      const rows = await repo.getSinEntidadDiagnostico(mes_idx, anio);
+      const { mes_idx, anio, start_date, end_date } = parsed.data;
+      const rows = await repo.getSinEntidadDiagnostico(
+        mes_idx, anio,
+        start_date ? new Date(start_date) : undefined,
+        end_date ? new Date(end_date) : undefined,
+      );
       return reply.send(rows);
     }
   );

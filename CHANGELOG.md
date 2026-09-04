@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.14] - 2026-09-04
+
+### Fixed
+- **"Sin Entidad" preguntaba siempre por el mes calendario de hoy, sin selector.** Al validar el cargue de agosto en septiembre, la pantalla decía "Todo está bien clasificado" — un falso negativo, porque en realidad estaba consultando septiembre, no agosto. Una entidad real sin reconocer (**CENTRO DE DIAGNOSTICO Y TRATAMIENTO CENDIATRA SOCIEDAD POR ACCIONES SIMPLIFICADA**) quedaba invisible: no había forma de verla, crearla ni vincularla, y el total de agosto no cuadraba sin ninguna señal de por qué.
+- El aviso del ítem "Sin Entidad" en el menú lateral tenía el mismo problema: solo miraba el mes de hoy, así que un cargue mal clasificado del mes anterior no encendía ninguna alerta.
+
+### Added
+- Selector de mes/año en Configuración → Sin Entidad (mismo componente que ya usan Capacidad y Cap. Instalada), para poder revisar cualquier período, no solo el actual.
+- El endpoint `GET /api/diagnostico/sin-entidad` ahora acepta `start_date`/`end_date` opcionales — mismo patrón que el resto de endpoints de reportes — y el aviso del menú lateral los usa para vigilar una ventana de 2 meses (actual + anterior) en vez de solo hoy.
+
+---
+
 ## [1.8.13] - 2026-08-06
 
 ### Fixed
