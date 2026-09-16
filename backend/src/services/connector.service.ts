@@ -3,8 +3,44 @@ import type { Conector, TipoConector } from '@prisma/client';
 import { conectoresRepo } from '../repositories/conectores.repo.js';
 import { BaseConnector, type ConnectionTestResult } from '../connectors/base.connector.js';
 import { SheetsConnector } from '../connectors/sheets.connector.js';
-import { RestConnector } from '../connectors/rest.connector.js';
+import { RestConnector, RestConfigSchema, type TokenSessionStore } from '../connectors/rest.connector.js';
 import { logger } from '../config/logger.js';
+
+// ─── Tokens de sesión de los conectores con login ─────────────────────────────
+
+/**
+ * Token vigente por conector, en memoria del proceso.
+ *
+ * No vive en la instancia del conector porque `instantiate()` crea una nueva en
+ * cada sincronización: sería un login por corrida. No se persiste en la base
+ * porque la API no dice cuánto dura el token — si el proceso se reinicia, el
+ * siguiente uso simplemente vuelve a autenticarse, que es el comportamiento
+ * seguro.
+ */
+const tokenCache = new Map<string, string>();
+
+function makeSessionStore(conectorId: string): TokenSessionStore {
+  return {
+    getToken: () => tokenCache.get(conectorId),
+    setToken: (t) => tokenCache.set(conectorId, t),
+    clearToken: () => tokenCache.delete(conectorId),
+  };
+}
+
+/**
+ * Almacén de un solo uso para "Probar conexión" con una configuración que aún
+ * no se ha guardado. No toca el caché compartido: si lo hiciera, dos pruebas
+ * seguidas con credenciales distintas reutilizarían el token de la primera y la
+ * segunda daría verde sin haberse autenticado nunca.
+ */
+function makeStoreEfimero(): TokenSessionStore {
+  let token: string | undefined;
+  return {
+    getToken: () => token,
+    setToken: (t) => { token = t; },
+    clearToken: () => { token = undefined; },
+  };
+}
 
 // ─── Zod Config Schemas ───────────────────────────────────────────────────────
 
@@ -33,24 +69,11 @@ export const SheetsConfigSchema = z
     message: 'Se requiere spreadsheetId (hoja individual) o folderId (carpeta de Drive)',
   });
 
-export const RestConfigSchema = z.object({
-  baseUrl: z.string().url('baseUrl debe ser una URL válida'),
-  /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
-  endpoint: z.string().optional(),
-  params: z.record(z.string()).optional(),
-  headers: z.record(z.string()).optional(),
-  authType: z.enum(['none', 'bearer', 'basic', 'apiKeyHeader']).optional(),
-  authValue: z.string().optional(),
-  authHeaderName: z.string().optional(),
-  /** Campo canónico -> campo tal como llega del origen. */
-  fieldMap: z.record(z.string()).optional(),
-  dataPath: z.string().optional(),
-  timeoutSec: z.number().int().min(1).max(300).optional(),
-})
-  .refine((d) => d.authType !== 'apiKeyHeader' || Boolean(d.authHeaderName), {
-    message: 'Con autenticación por cabecera hay que indicar el nombre de la cabecera',
-    path: ['authHeaderName'],
-  });
+// `RestConfigSchema` vive junto al conector (`connectors/rest.connector.ts`) y
+// se reexporta aquí por compatibilidad: tenerlo definido en dos sitios fue
+// justamente la causa de que `instantiate()` dejara de pasar la mitad de los
+// campos al conector.
+export { RestConfigSchema };
 
 export const FrecuenciaSyncSchema = z.enum([
   '30min',
@@ -219,6 +242,10 @@ export class ConnectorService {
       );
       this.validateConfig(conector.tipo, config);
       data = { ...data, config };
+
+      // La configuración cambió: el token cacheado pudo haberse obtenido con
+      // credenciales que ya no son las vigentes.
+      tokenCache.delete(id);
     }
 
     if (data.frecuenciaSync) {
@@ -244,7 +271,7 @@ export class ConnectorService {
 
   // ─── Instantiate connector ────────────────────────────────────────────────
 
-  instantiate(conector: Conector): BaseConnector {
+  instantiate(conector: Conector, opciones?: { efimero?: boolean }): BaseConnector {
     const config = conector.config as Record<string, unknown>;
 
     if (conector.tipo === 'GOOGLE_SHEETS') {
@@ -258,13 +285,16 @@ export class ConnectorService {
     }
 
     if (conector.tipo === 'REST_API') {
-      return new RestConnector({
-        baseUrl: config['baseUrl'] as string,
-        headers: config['headers'] as Record<string, string> | undefined,
-        authType: config['authType'] as 'none' | 'bearer' | 'basic' | undefined,
-        authValue: config['authValue'] as string | undefined,
-        name: conector.nombre,
-      });
+      // Se reparsea el schema completo en vez de enumerar campos a mano: la
+      // versión anterior pasaba solo 5 de 11, así que `endpoint`, `dataPath`,
+      // `fieldMap`, `params`, `authHeaderName` y `timeoutSec` se guardaban en la
+      // base pero nunca llegaban a la sincronización — se configuraban y no
+      // hacían nada, sin ningún error.
+      const parsed = RestConfigSchema.parse(config);
+      return new RestConnector(
+        { ...parsed, name: conector.nombre },
+        opciones?.efimero ? makeStoreEfimero() : makeSessionStore(conector.id),
+      );
     }
 
     throw new Error(`Tipo de conector no soportado: ${conector.tipo}`);
@@ -297,7 +327,7 @@ export class ConnectorService {
         updatedAt: new Date(),
       } as unknown as Conector;
 
-      instance = this.instantiate(ephemeral);
+      instance = this.instantiate(ephemeral, { efimero: true });
     }
 
     return instance.test();

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { logger } from '../config/logger.js';
 import {
   BaseConnector,
@@ -9,38 +10,110 @@ import {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-export interface RestConnectorConfig {
-  baseUrl: string;
-  /** Ruta que se cuelga de baseUrl, p. ej. 'facturacion/atenciones'. */
-  endpoint?: string;
-  /** Parámetros fijos de consulta, p. ej. { desde: '2026-01-01' }. */
-  params?: Record<string, string>;
-  headers?: Record<string, string>;
-  /**
-   * `apiKeyHeader` cubre las APIs que autentican con una cabecera propia en vez
-   * de `Authorization` — como Medifolios, que usa `X-Auth-Token`.
-   */
-  authType?: 'none' | 'bearer' | 'basic' | 'apiKeyHeader';
-  authValue?: string;
-  /** Nombre de la cabecera cuando authType es apiKeyHeader. */
-  authHeaderName?: string;
-  /**
-   * Traduce los nombres de campo del origen a los que el mapeador reconoce.
-   * Clave = campo canónico, valor = campo tal como viene en la respuesta.
-   *
-   * Hace falta porque el mapeador detecta columnas con expresiones regulares
-   * pensadas para hojas en español, y fallan con nombres tipo `valor_total`
-   * (`\b` no coincide antes de `_`) o `montoFacturado`.
-   */
-  fieldMap?: Record<string, string>;
-  /** Segundos. Por defecto 10; el histórico completo suele necesitar más. */
-  timeoutSec?: number;
-  /** Ruta dentro del JSON donde vive el arreglo, p. ej. 'resultado.items'. */
-  dataPath?: string;
-  name?: string;
+/**
+ * Esquema y tipo viven juntos a propósito.
+ *
+ * Antes el tipo estaba aquí y el esquema de validación en `connector.service.ts`:
+ * dos definiciones de la misma forma, que divergieron sin que nadie lo notara.
+ * El resultado fue que `instantiate()` dejó de pasar la mitad de los campos al
+ * conector — se guardaban en la base y no llegaban nunca a la sincronización.
+ * Derivando el tipo del esquema con `z.infer`, un campo nuevo no puede quedarse
+ * fuera de uno de los dos.
+ */
+export const RestConfigSchema = z
+  .object({
+    baseUrl: z.string().url('baseUrl debe ser una URL válida'),
+    /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
+    endpoint: z.string().optional(),
+    params: z.record(z.string()).optional(),
+    headers: z.record(z.string()).optional(),
+    /**
+     * - `apiKeyHeader`: cabecera propia con un valor fijo.
+     * - `login`: la API no acepta un token fijo, hay que pedirlo con usuario y
+     *   contraseña y reenviarlo después. Es el caso de Medifolios.
+     */
+    authType: z.enum(['none', 'bearer', 'basic', 'apiKeyHeader', 'login']).optional(),
+    authValue: z.string().optional(),
+    /** Nombre de la cabecera cuando authType es apiKeyHeader. */
+    authHeaderName: z.string().optional(),
+
+    // ── Autenticación por login ──
+    /** Base del login si difiere de baseUrl. Por omisión, la misma. */
+    loginBaseUrl: z.string().url().optional(),
+    /** Ruta del login relativa a su base, p. ej. 'auth'. */
+    loginEndpoint: z.string().optional(),
+    /** Medifolios exige form-urlencoded; otras APIs usan JSON. */
+    loginBodyFormat: z.enum(['form', 'json']).optional(),
+    loginUsuario: z.string().optional(),
+    /**
+     * Se llama `password` a propósito: esa clave exacta ya está en la lista de
+     * secretos que `connector.service.ts` enmascara al leer y repone al guardar.
+     */
+    password: z.string().optional(),
+    /** Campos fijos extra del cuerpo del login, p. ej. { token_authenticator: '' }. */
+    loginBodyExtra: z.record(z.string()).optional(),
+    /** Ruta del token dentro de la respuesta del login, p. ej. 'data.token'. */
+    loginTokenPath: z.string().optional(),
+    /** Dónde viaja el token en las llamadas siguientes. */
+    tokenPlacement: z.enum(['header', 'queryParam']).optional(),
+    /** Nombre de la cabecera o del parámetro, según tokenPlacement. */
+    tokenParamName: z.string().optional(),
+    /**
+     * Códigos que se interpretan como "el token ya no sirve" y disparan un
+     * relogin. Configurable porque no todas las APIs devuelven 401: las que
+     * corren sobre CodeIgniter responden a veces 200 con el error en el cuerpo.
+     */
+    loginRetryStatuses: z.array(z.number().int()).optional(),
+
+    /**
+     * Traduce los nombres de campo del origen a los que el mapeador reconoce.
+     * Clave = campo canónico, valor = campo tal como viene en la respuesta.
+     *
+     * Hace falta porque el mapeador detecta columnas con expresiones regulares
+     * pensadas para hojas en español, y fallan con nombres tipo `valor_total`
+     * (`\b` no coincide antes de `_`) o `montoFacturado`.
+     */
+    fieldMap: z.record(z.string()).optional(),
+    dataPath: z.string().optional(),
+    /** Segundos. Por defecto 10; el histórico completo suele necesitar más. */
+    timeoutSec: z.number().int().min(1).max(300).optional(),
+  })
+  .refine((d) => d.authType !== 'apiKeyHeader' || Boolean(d.authHeaderName), {
+    message: 'Con autenticación por cabecera hay que indicar el nombre de la cabecera',
+    path: ['authHeaderName'],
+  })
+  .refine(
+    (d) =>
+      d.authType !== 'login' ||
+      Boolean(
+        d.loginEndpoint && d.loginUsuario && d.password &&
+        d.loginBodyFormat && d.loginTokenPath && d.tokenPlacement,
+      ),
+    {
+      message:
+        'Con autenticación por login hacen falta: ruta del login, usuario, contraseña, '
+        + 'formato del cuerpo, ruta del token en la respuesta y dónde enviarlo',
+      path: ['loginEndpoint'],
+    },
+  );
+
+export type RestConnectorConfig = z.infer<typeof RestConfigSchema> & { name?: string };
+
+/**
+ * Guarda el token de sesión fuera del conector.
+ *
+ * La instancia del conector se reconstruye en cada sincronización, así que un
+ * campo de instancia obligaría a un login por corrida. El almacén lo provee
+ * `connector.service.ts`, con una entrada por conector.
+ */
+export interface TokenSessionStore {
+  getToken(): string | undefined;
+  setToken(token: string): void;
+  clearToken(): void;
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_RETRY_STATUSES = [401, 403];
 
 /**
  * Campos que el mapeador de atenciones sabe reconocer. `fieldMap` traduce a
@@ -58,12 +131,28 @@ export const CAMPOS_CANONICOS = [
   'documento',
 ] as const;
 
+/** Navega un JSON por una ruta con puntos ('data.token'). */
+function navegarPorPuntos(json: unknown, ruta: string): unknown {
+  let nodo: unknown = json;
+  for (const parte of ruta.split('.')) {
+    if (nodo === null || typeof nodo !== 'object') return undefined;
+    nodo = (nodo as Record<string, unknown>)[parte];
+  }
+  return nodo;
+}
+
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 export class RestConnector extends BaseConnector {
   readonly tipo = 'REST_API' as const;
 
-  constructor(private readonly config: RestConnectorConfig) {
+  /** Token de la sesión en curso. Se siembra del almacén compartido. */
+  private cachedToken?: string;
+
+  constructor(
+    private readonly config: RestConnectorConfig,
+    private readonly session?: TokenSessionStore,
+  ) {
     super();
   }
 
@@ -71,6 +160,10 @@ export class RestConnector extends BaseConnector {
     const s = this.config.timeoutSec;
     // Tope de 5 minutos: por encima el cron se solaparía con la corrida siguiente.
     return s && s > 0 ? Math.min(s, 300) * 1000 : DEFAULT_TIMEOUT_MS;
+  }
+
+  private usaLogin(): boolean {
+    return this.config.authType === 'login';
   }
 
   // ─── Build headers ────────────────────────────────────────────────────────
@@ -88,6 +181,8 @@ export class RestConnector extends BaseConnector {
       headers['Authorization'] = `Basic ${this.config.authValue}`;
     } else if (this.config.authType === 'apiKeyHeader' && this.config.authValue) {
       headers[this.config.authHeaderName || 'X-Auth-Token'] = this.config.authValue;
+    } else if (this.usaLogin() && this.config.tokenPlacement === 'header' && this.cachedToken) {
+      headers[this.config.tokenParamName || 'X-Auth-Token'] = this.cachedToken;
     }
 
     return headers;
@@ -97,27 +192,115 @@ export class RestConnector extends BaseConnector {
 
   private async fetchWithTimeout(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    headers?: Record<string, string>,
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs());
 
     try {
-      const response = await fetch(url, {
+      return await fetch(url, {
         ...options,
         signal: controller.signal,
-        headers: this.buildHeaders(),
+        headers: headers ?? this.buildHeaders(),
       });
-      return response;
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  // ─── Login ────────────────────────────────────────────────────────────────
+
+  /**
+   * Pide un token con usuario y contraseña.
+   *
+   * No reutiliza `buildHeaders()` porque el cuerpo del login puede ser
+   * form-urlencoded, y porque mandar el token viejo en el propio login no tiene
+   * sentido.
+   */
+  private async login(): Promise<string> {
+    const base = (this.config.loginBaseUrl ?? this.config.baseUrl).replace(/\/$/, '');
+    const ruta = (this.config.loginEndpoint ?? '').replace(/^\//, '');
+    const url = `${base}/${ruta}`;
+
+    const campos: Record<string, string> = {
+      usuario: this.config.loginUsuario ?? '',
+      password: this.config.password ?? '',
+      ...(this.config.loginBodyExtra ?? {}),
+    };
+
+    const esForm = this.config.loginBodyFormat === 'form';
+    const body = esForm
+      ? new URLSearchParams(campos).toString()
+      : JSON.stringify(campos);
+
+    const response = await this.fetchWithTimeout(
+      url,
+      { method: 'POST', body },
+      {
+        'Content-Type': esForm
+          ? 'application/x-www-form-urlencoded'
+          : 'application/json',
+        Accept: 'application/json',
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Login falló: HTTP ${response.status} ${response.statusText}`);
+    }
+
+    const json = (await response.json()) as unknown;
+    const token = navegarPorPuntos(json, this.config.loginTokenPath ?? '');
+
+    if (typeof token !== 'string' || token.length === 0) {
+      // Las claves de primer nivel ayudan a corregir `loginTokenPath` sin
+      // exponer el contenido de la respuesta en el log.
+      const claves =
+        json !== null && typeof json === 'object' ? Object.keys(json).join(', ') : typeof json;
+      throw new Error(
+        `El login respondió correctamente pero no se encontró un token en `
+        + `"${this.config.loginTokenPath}". Claves recibidas: ${claves}`,
+      );
+    }
+
+    logger.info('RestConnector: login correcto', { url, source: this.config.name });
+    return token;
+  }
+
+  /** Garantiza que haya un token disponible. Con `forzar`, pide uno nuevo. */
+  private async ensureToken(forzar: boolean): Promise<void> {
+    if (!this.usaLogin()) return;
+
+    if (!forzar) {
+      const guardado = this.session?.getToken();
+      if (guardado) {
+        this.cachedToken = guardado;
+        return;
+      }
+      if (this.cachedToken) return;
+    }
+
+    this.cachedToken = await this.login();
+    this.session?.setToken(this.cachedToken);
   }
 
   // ─── test() ───────────────────────────────────────────────────────────────
 
   async test(): Promise<ConnectionTestResult> {
     const start = Date.now();
+
+    try {
+      // Con login, la prueba empieza por autenticarse: es el punto que más
+      // falla, y hay que distinguirlo de un endpoint inexistente.
+      await this.ensureToken(false);
+    } catch (err) {
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : 'Error de autenticación',
+        latencyMs: Date.now() - start,
+      };
+    }
+
     // Se prueba la ruta REAL que usará la sincronización: comprobar solo la URL
     // base daría verde aunque el endpoint no exista o no autorice.
     const url = this.buildUrl({});
@@ -139,28 +322,20 @@ export class RestConnector extends BaseConnector {
         success: true,
         message: `Conectado (HTTP ${response.status})`,
         latencyMs,
-        details: { status: response.status, url },
+        details: { status: response.status, url: this.urlSinToken(url) },
       };
     } catch (err) {
       const latencyMs = Date.now() - start;
-      const isTimeout =
-        err instanceof Error && err.name === 'AbortError';
+      const isTimeout = err instanceof Error && err.name === 'AbortError';
       const message = isTimeout
         ? `Timeout después de ${this.timeoutMs() / 1000} segundos`
         : err instanceof Error
         ? err.message
         : 'Error de conexión';
 
-      logger.warn('RestConnector test failed', {
-        url,
-        error: message,
-      });
+      logger.warn('RestConnector test failed', { url: this.urlSinToken(url), error: message });
 
-      return {
-        success: false,
-        message,
-        latencyMs,
-      };
+      return { success: false, message, latencyMs };
     }
   }
 
@@ -180,8 +355,20 @@ export class RestConnector extends BaseConnector {
     if (query.limit) searchParams.set('limit', String(query.limit));
     if (query.offset) searchParams.set('offset', String(query.offset));
 
+    // Medifolios espera el token aquí, no en una cabecera.
+    if (this.usaLogin() && this.config.tokenPlacement === 'queryParam' && this.cachedToken) {
+      searchParams.set(this.config.tokenParamName || 'token', this.cachedToken);
+    }
+
     const qs = searchParams.toString();
     return qs ? `${base}${endpoint}?${qs}` : `${base}${endpoint}`;
+  }
+
+  /** Oculta el token cuando la URL va a un log o a la interfaz. */
+  private urlSinToken(url: string): string {
+    if (!this.usaLogin() || this.config.tokenPlacement !== 'queryParam') return url;
+    const nombre = this.config.tokenParamName || 'token';
+    return url.replace(new RegExp(`([?&]${nombre}=)[^&]*`), '$1[REDACTED]');
   }
 
   /**
@@ -194,11 +381,7 @@ export class RestConnector extends BaseConnector {
    */
   private extraerArreglo(json: unknown): unknown[] {
     if (this.config.dataPath) {
-      let nodo: unknown = json;
-      for (const parte of this.config.dataPath.split('.')) {
-        if (nodo === null || typeof nodo !== 'object') break;
-        nodo = (nodo as Record<string, unknown>)[parte];
-      }
+      const nodo = navegarPorPuntos(json, this.config.dataPath);
       if (Array.isArray(nodo)) return nodo;
       logger.warn('RestConnector: dataPath no apunta a un arreglo', {
         dataPath: this.config.dataPath,
@@ -235,9 +418,30 @@ export class RestConnector extends BaseConnector {
   }
 
   async fetch(query: ConnectorQuery): Promise<DataSet> {
-    const url = this.buildUrl(query);
+    await this.ensureToken(false);
+    return this.fetchConReintento(query, 0);
+  }
 
+  /**
+   * Un solo reintento: si el token caducó, se pide otro y se repite. No hay
+   * forma de saber de antemano cuánto dura —la API no lo expone—, así que
+   * reaccionar al rechazo es la única estrategia posible.
+   */
+  private async fetchConReintento(query: ConnectorQuery, intento: number): Promise<DataSet> {
+    const url = this.buildUrl(query);
     const response = await this.fetchWithTimeout(url);
+
+    const statusReintentables = this.config.loginRetryStatuses ?? DEFAULT_RETRY_STATUSES;
+    if (this.usaLogin() && intento === 0 && statusReintentables.includes(response.status)) {
+      logger.info('RestConnector: token rechazado, reintentando con login nuevo', {
+        status: response.status,
+        source: this.config.name,
+      });
+      this.session?.clearToken();
+      this.cachedToken = undefined;
+      await this.ensureToken(true);
+      return this.fetchConReintento(query, intento + 1);
+    }
 
     if (!response.ok) {
       throw new Error(

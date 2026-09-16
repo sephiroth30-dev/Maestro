@@ -5,7 +5,40 @@ const zod_1 = require("zod");
 const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
 const sheets_connector_js_1 = require("../connectors/sheets.connector.js");
 const rest_connector_js_1 = require("../connectors/rest.connector.js");
+Object.defineProperty(exports, "RestConfigSchema", { enumerable: true, get: function () { return rest_connector_js_1.RestConfigSchema; } });
 const logger_js_1 = require("../config/logger.js");
+// ─── Tokens de sesión de los conectores con login ─────────────────────────────
+/**
+ * Token vigente por conector, en memoria del proceso.
+ *
+ * No vive en la instancia del conector porque `instantiate()` crea una nueva en
+ * cada sincronización: sería un login por corrida. No se persiste en la base
+ * porque la API no dice cuánto dura el token — si el proceso se reinicia, el
+ * siguiente uso simplemente vuelve a autenticarse, que es el comportamiento
+ * seguro.
+ */
+const tokenCache = new Map();
+function makeSessionStore(conectorId) {
+    return {
+        getToken: () => tokenCache.get(conectorId),
+        setToken: (t) => tokenCache.set(conectorId, t),
+        clearToken: () => tokenCache.delete(conectorId),
+    };
+}
+/**
+ * Almacén de un solo uso para "Probar conexión" con una configuración que aún
+ * no se ha guardado. No toca el caché compartido: si lo hiciera, dos pruebas
+ * seguidas con credenciales distintas reutilizarían el token de la primera y la
+ * segunda daría verde sin haberse autenticado nunca.
+ */
+function makeStoreEfimero() {
+    let token;
+    return {
+        getToken: () => token,
+        setToken: (t) => { token = t; },
+        clearToken: () => { token = undefined; },
+    };
+}
 // ─── Zod Config Schemas ───────────────────────────────────────────────────────
 const GoogleServiceAccountSchema = zod_1.z.object({
     type: zod_1.z.string().optional(),
@@ -30,24 +63,6 @@ exports.SheetsConfigSchema = zod_1.z
     .refine((d) => d.spreadsheetId ?? d.folderId, {
     message: 'Se requiere spreadsheetId (hoja individual) o folderId (carpeta de Drive)',
 });
-exports.RestConfigSchema = zod_1.z.object({
-    baseUrl: zod_1.z.string().url('baseUrl debe ser una URL válida'),
-    /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
-    endpoint: zod_1.z.string().optional(),
-    params: zod_1.z.record(zod_1.z.string()).optional(),
-    headers: zod_1.z.record(zod_1.z.string()).optional(),
-    authType: zod_1.z.enum(['none', 'bearer', 'basic', 'apiKeyHeader']).optional(),
-    authValue: zod_1.z.string().optional(),
-    authHeaderName: zod_1.z.string().optional(),
-    /** Campo canónico -> campo tal como llega del origen. */
-    fieldMap: zod_1.z.record(zod_1.z.string()).optional(),
-    dataPath: zod_1.z.string().optional(),
-    timeoutSec: zod_1.z.number().int().min(1).max(300).optional(),
-})
-    .refine((d) => d.authType !== 'apiKeyHeader' || Boolean(d.authHeaderName), {
-    message: 'Con autenticación por cabecera hay que indicar el nombre de la cabecera',
-    path: ['authHeaderName'],
-});
 exports.FrecuenciaSyncSchema = zod_1.z.enum([
     '30min',
     '1h',
@@ -66,7 +81,7 @@ class ConnectorService {
             }
         }
         else if (tipo === 'REST_API') {
-            const result = exports.RestConfigSchema.safeParse(config);
+            const result = rest_connector_js_1.RestConfigSchema.safeParse(config);
             if (!result.success) {
                 throw new Error(`Configuración inválida para REST API: ${result.error.issues[0]?.message}`);
             }
@@ -162,6 +177,9 @@ class ConnectorService {
             const config = this.preservarSecretos(data.config, (conector.config ?? {}));
             this.validateConfig(conector.tipo, config);
             data = { ...data, config };
+            // La configuración cambió: el token cacheado pudo haberse obtenido con
+            // credenciales que ya no son las vigentes.
+            tokenCache.delete(id);
         }
         if (data.frecuenciaSync) {
             const result = exports.FrecuenciaSyncSchema.safeParse(data.frecuenciaSync);
@@ -181,7 +199,7 @@ class ConnectorService {
         await conectores_repo_js_1.conectoresRepo.softDelete(id);
     }
     // ─── Instantiate connector ────────────────────────────────────────────────
-    instantiate(conector) {
+    instantiate(conector, opciones) {
         const config = conector.config;
         if (conector.tipo === 'GOOGLE_SHEETS') {
             return new sheets_connector_js_1.SheetsConnector({
@@ -193,13 +211,13 @@ class ConnectorService {
             });
         }
         if (conector.tipo === 'REST_API') {
-            return new rest_connector_js_1.RestConnector({
-                baseUrl: config['baseUrl'],
-                headers: config['headers'],
-                authType: config['authType'],
-                authValue: config['authValue'],
-                name: conector.nombre,
-            });
+            // Se reparsea el schema completo en vez de enumerar campos a mano: la
+            // versión anterior pasaba solo 5 de 11, así que `endpoint`, `dataPath`,
+            // `fieldMap`, `params`, `authHeaderName` y `timeoutSec` se guardaban en la
+            // base pero nunca llegaban a la sincronización — se configuraban y no
+            // hacían nada, sin ningún error.
+            const parsed = rest_connector_js_1.RestConfigSchema.parse(config);
+            return new rest_connector_js_1.RestConnector({ ...parsed, name: conector.nombre }, opciones?.efimero ? makeStoreEfimero() : makeSessionStore(conector.id));
         }
         throw new Error(`Tipo de conector no soportado: ${conector.tipo}`);
     }
@@ -225,7 +243,7 @@ class ConnectorService {
                 createdAt: new Date(),
                 updatedAt: new Date(),
             };
-            instance = this.instantiate(ephemeral);
+            instance = this.instantiate(ephemeral, { efimero: true });
         }
         return instance.test();
     }

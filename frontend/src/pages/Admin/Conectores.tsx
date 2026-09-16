@@ -629,9 +629,19 @@ interface ConnectorFormState {
   // REST fields
   baseUrl: string;
   endpoint: string;
-  authType: 'none' | 'bearer' | 'basic' | 'apiKeyHeader';
+  authType: 'none' | 'bearer' | 'basic' | 'apiKeyHeader' | 'login';
   authValue: string;
   authHeaderName: string;
+  // Autenticación por login (usuario y contraseña que devuelven un token)
+  loginEndpoint: string;
+  loginBodyFormat: 'form' | 'json';
+  loginUsuario: string;
+  loginPassword: string;
+  loginTokenPath: string;
+  tokenPlacement: 'header' | 'queryParam';
+  tokenParamName: string;
+  /** Campos fijos extra del cuerpo del login, p. ej. token_authenticator vacío. */
+  loginBodyExtra: Array<{ key: string; value: string }>;
   headers: Array<{ key: string; value: string }>;
   /** Ruta al arreglo dentro del JSON, p. ej. 'data.items'. */
   dataPath: string;
@@ -673,6 +683,14 @@ const DEFAULT_FORM: ConnectorFormState = {
   authType: 'none',
   authValue: '',
   authHeaderName: '',
+  loginEndpoint: '',
+  loginBodyFormat: 'form',
+  loginUsuario: '',
+  loginPassword: '',
+  loginTokenPath: '',
+  tokenPlacement: 'header',
+  tokenParamName: '',
+  loginBodyExtra: [],
   headers: [],
   dataPath: '',
   timeoutSec: '',
@@ -715,6 +733,14 @@ function ConnectorModal({
       authType: 'none',
       authValue: '',
       authHeaderName: '',
+      loginEndpoint: '',
+      loginBodyFormat: 'form',
+      loginUsuario: '',
+      loginPassword: '',
+      loginTokenPath: '',
+      tokenPlacement: 'header',
+      tokenParamName: '',
+      loginBodyExtra: [],
       headers: [],
       dataPath: '',
       timeoutSec: '',
@@ -734,11 +760,22 @@ function ConnectorModal({
       base.baseUrl = (cfg['baseUrl'] as string) ?? '';
       base.endpoint = (cfg['endpoint'] as string) ?? '';
       base.authType = (cfg[
-        'authType'] as 'none' | 'bearer' | 'basic' | 'apiKeyHeader') ?? 'none';
+        'authType'] as 'none' | 'bearer' | 'basic' | 'apiKeyHeader' | 'login') ?? 'none';
       // El backend devuelve las credenciales enmascaradas; si no se tocan, se
       // reenvían tal cual y el servidor repone el valor real.
       base.authValue = (cfg['authValue'] as string) ?? '';
       base.authHeaderName = (cfg['authHeaderName'] as string) ?? '';
+      base.loginEndpoint = (cfg['loginEndpoint'] as string) ?? '';
+      base.loginBodyFormat = (cfg['loginBodyFormat'] as 'form' | 'json') ?? 'form';
+      base.loginUsuario = (cfg['loginUsuario'] as string) ?? '';
+      base.loginPassword = (cfg['password'] as string) ?? '';
+      base.loginTokenPath = (cfg['loginTokenPath'] as string) ?? '';
+      base.tokenPlacement = (cfg['tokenPlacement'] as 'header' | 'queryParam') ?? 'header';
+      base.tokenParamName = (cfg['tokenParamName'] as string) ?? '';
+      const extra = cfg['loginBodyExtra'] as Record<string, string> | undefined;
+      if (extra) {
+        base.loginBodyExtra = Object.entries(extra).map(([key, value]) => ({ key, value }));
+      }
       base.dataPath = (cfg['dataPath'] as string) ?? '';
       base.timeoutSec = cfg['timeoutSec'] ? String(cfg['timeoutSec']) : '';
       base.fieldMap = (cfg['fieldMap'] as Record<string, string>) ?? {};
@@ -794,6 +831,13 @@ function ConnectorModal({
       for (const [k, v] of Object.entries(form.fieldMap)) {
         if (v.trim()) fieldMap[k] = v.trim();
       }
+      const loginExtra: Record<string, string> = {};
+      for (const c of form.loginBodyExtra) {
+        // Se conserva el valor vacío a propósito: Medifolios exige que
+        // `token_authenticator` viaje aunque no lleve contenido.
+        if (c.key.trim()) loginExtra[c.key.trim()] = c.value;
+      }
+      const esLogin = form.authType === 'login';
       return {
         baseUrl: form.baseUrl.trim(),
         ...(form.endpoint.trim() && { endpoint: form.endpoint.trim() }),
@@ -801,6 +845,16 @@ function ConnectorModal({
         authType: form.authType,
         ...(form.authValue && { authValue: form.authValue }),
         ...(form.authType === 'apiKeyHeader' && { authHeaderName: form.authHeaderName.trim() }),
+        ...(esLogin && {
+          loginEndpoint: form.loginEndpoint.trim(),
+          loginBodyFormat: form.loginBodyFormat,
+          loginUsuario: form.loginUsuario.trim(),
+          password: form.loginPassword,
+          loginTokenPath: form.loginTokenPath.trim(),
+          tokenPlacement: form.tokenPlacement,
+          ...(form.tokenParamName.trim() && { tokenParamName: form.tokenParamName.trim() }),
+          ...(Object.keys(loginExtra).length > 0 && { loginBodyExtra: loginExtra }),
+        }),
         ...(form.dataPath.trim() && { dataPath: form.dataPath.trim() }),
         ...(form.timeoutSec.trim() && { timeoutSec: Number(form.timeoutSec) }),
         ...(Object.keys(fieldMap).length > 0 && { fieldMap }),
@@ -823,6 +877,14 @@ function ConnectorModal({
     if (form.tipo === 'REST_API') {
       if (form.authType === 'apiKeyHeader' && !form.authHeaderName.trim()) {
         errs['authHeaderName'] = 'Indica el nombre de la cabecera (p. ej. X-Auth-Token)';
+      }
+      if (form.authType === 'login') {
+        if (!form.loginEndpoint.trim()) errs['loginEndpoint'] = 'Indica la ruta del login (p. ej. auth)';
+        if (!form.loginUsuario.trim()) errs['loginUsuario'] = 'El usuario es requerido';
+        if (!form.loginPassword) errs['loginPassword'] = 'La contraseña es requerida';
+        if (!form.loginTokenPath.trim()) {
+          errs['loginTokenPath'] = 'Indica dónde viene el token en la respuesta (p. ej. data.token)';
+        }
       }
       if (!form.baseUrl.trim()) errs['baseUrl'] = 'La URL base es requerida';
       try {
@@ -1191,7 +1253,7 @@ function ConnectorModal({
                       onChange={(e) =>
                         setField(
                           'authType',
-                          e.target.value as 'none' | 'bearer' | 'basic' | 'apiKeyHeader',
+                          e.target.value as 'none' | 'bearer' | 'basic' | 'apiKeyHeader' | 'login',
                         )
                       }
                     >
@@ -1199,7 +1261,15 @@ function ConnectorModal({
                       <option value="bearer">Bearer token</option>
                       <option value="basic">Basic auth</option>
                       <option value="apiKeyHeader">Token en cabecera propia</option>
+                      <option value="login">Login con usuario y contraseña</option>
                     </select>
+                    {form.authType === 'login' && (
+                      <span className="form-hint">
+                        Para APIs que no aceptan un token fijo: el sistema se autentica,
+                        guarda el token que le devuelvan y lo renueva solo cuando caduca.
+                        Es el caso de Medifolios.
+                      </span>
+                    )}
                     {form.authType === 'basic' && (
                       <span className="form-hint">
                         Basic auth es usuario y contraseña en base64. Si tu API pide un
@@ -1227,7 +1297,204 @@ function ConnectorModal({
                     </div>
                   )}
 
-                  {form.authType !== 'none' && (
+                  {form.authType === 'login' && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-login-endpoint">
+                          Ruta del login
+                        </label>
+                        <input
+                          id="conn-login-endpoint"
+                          type="text"
+                          className={`form-input ${errors['loginEndpoint'] ? 'form-input--error' : ''}`}
+                          value={form.loginEndpoint}
+                          onChange={(e) => setField('loginEndpoint', e.target.value)}
+                          placeholder="auth"
+                        />
+                        <span className="form-hint">
+                          Relativa a la URL base. Para Medifolios: <code>auth</code>
+                        </span>
+                        {errors['loginEndpoint'] && (
+                          <span className="form-error">{errors['loginEndpoint']}</span>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-login-usuario">
+                          Usuario
+                        </label>
+                        <input
+                          id="conn-login-usuario"
+                          type="text"
+                          className={`form-input ${errors['loginUsuario'] ? 'form-input--error' : ''}`}
+                          value={form.loginUsuario}
+                          onChange={(e) => setField('loginUsuario', e.target.value)}
+                          autoComplete="off"
+                        />
+                        {errors['loginUsuario'] && (
+                          <span className="form-error">{errors['loginUsuario']}</span>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-login-password">
+                          Contraseña
+                        </label>
+                        <input
+                          id="conn-login-password"
+                          type="password"
+                          className={`form-input ${errors['loginPassword'] ? 'form-input--error' : ''}`}
+                          value={form.loginPassword}
+                          onChange={(e) => setField('loginPassword', e.target.value)}
+                          autoComplete="new-password"
+                        />
+                        <span className="form-hint">
+                          Se guarda cifrada en el servidor y nunca vuelve al navegador:
+                          al editar verás <code>[REDACTED]</code>. Si no la tocas, se conserva.
+                        </span>
+                        {errors['loginPassword'] && (
+                          <span className="form-error">{errors['loginPassword']}</span>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-login-format">
+                          Formato del cuerpo del login
+                        </label>
+                        <select
+                          id="conn-login-format"
+                          className="form-input form-select"
+                          value={form.loginBodyFormat}
+                          onChange={(e) =>
+                            setField('loginBodyFormat', e.target.value as 'form' | 'json')
+                          }
+                        >
+                          <option value="form">Formulario (x-www-form-urlencoded)</option>
+                          <option value="json">JSON</option>
+                        </select>
+                        <span className="form-hint">Medifolios usa formulario.</span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-login-token-path">
+                          Dónde viene el token en la respuesta
+                        </label>
+                        <input
+                          id="conn-login-token-path"
+                          type="text"
+                          className={`form-input ${errors['loginTokenPath'] ? 'form-input--error' : ''}`}
+                          value={form.loginTokenPath}
+                          onChange={(e) => setField('loginTokenPath', e.target.value)}
+                          placeholder="data.token"
+                        />
+                        <span className="form-hint">
+                          Ruta separada por puntos. Para Medifolios: <code>data.token</code>
+                        </span>
+                        {errors['loginTokenPath'] && (
+                          <span className="form-error">{errors['loginTokenPath']}</span>
+                        )}
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-token-placement">
+                          Cómo se envía el token después
+                        </label>
+                        <select
+                          id="conn-token-placement"
+                          className="form-input form-select"
+                          value={form.tokenPlacement}
+                          onChange={(e) =>
+                            setField('tokenPlacement', e.target.value as 'header' | 'queryParam')
+                          }
+                        >
+                          <option value="header">En una cabecera</option>
+                          <option value="queryParam">Como parámetro en la URL</option>
+                        </select>
+                        <span className="form-hint">
+                          Ojo: en Medifolios depende del endpoint. <code>/facturacion/buscar</code>
+                          {' '}lo espera como <strong>parámetro en la URL</strong>, no como cabecera.
+                        </span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-token-param">
+                          {form.tokenPlacement === 'header'
+                            ? 'Nombre de la cabecera'
+                            : 'Nombre del parámetro'}
+                        </label>
+                        <input
+                          id="conn-token-param"
+                          type="text"
+                          className="form-input"
+                          value={form.tokenParamName}
+                          onChange={(e) => setField('tokenParamName', e.target.value)}
+                          placeholder={form.tokenPlacement === 'header' ? 'X-Auth-Token' : 'token'}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <div className="form-label-row">
+                          <label className="form-label">Campos extra del login</label>
+                          <button
+                            type="button"
+                            className="btn btn--xs btn--ghost"
+                            onClick={() =>
+                              setField('loginBodyExtra', [
+                                ...form.loginBodyExtra,
+                                { key: '', value: '' },
+                              ])
+                            }
+                          >
+                            <Plus size={12} /> Agregar
+                          </button>
+                        </div>
+                        <span className="form-hint">
+                          Medifolios exige <code>token_authenticator</code> aunque vaya vacío.
+                        </span>
+                        {form.loginBodyExtra.map((c, i) => (
+                          <div key={i} className="header-row">
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Campo"
+                              value={c.key}
+                              onChange={(e) => {
+                                const next = [...form.loginBodyExtra];
+                                next[i] = { ...next[i]!, key: e.target.value };
+                                setField('loginBodyExtra', next);
+                              }}
+                            />
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Valor (puede ir vacío)"
+                              value={c.value}
+                              onChange={(e) => {
+                                const next = [...form.loginBodyExtra];
+                                next[i] = { ...next[i]!, value: e.target.value };
+                                setField('loginBodyExtra', next);
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--icon btn--icon-danger"
+                              onClick={() =>
+                                setField(
+                                  'loginBodyExtra',
+                                  form.loginBodyExtra.filter((_, j) => j !== i),
+                                )
+                              }
+                              aria-label="Quitar campo"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {form.authType !== 'none' && form.authType !== 'login' && (
                     <div className="form-group">
                       <label className="form-label" htmlFor="conn-auth-value">
                         {form.authType === 'bearer'

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Conector, TipoConector } from '@prisma/client';
 import { BaseConnector, type ConnectionTestResult } from '../connectors/base.connector.js';
+import { RestConfigSchema } from '../connectors/rest.connector.js';
 export declare const SheetsConfigSchema: z.ZodEffects<z.ZodObject<{
     spreadsheetId: z.ZodOptional<z.ZodString>;
     folderId: z.ZodOptional<z.ZodString>;
@@ -90,64 +91,7 @@ export declare const SheetsConfigSchema: z.ZodEffects<z.ZodObject<{
     folderId?: string | undefined;
     fileNamePattern?: string | undefined;
 }>;
-export declare const RestConfigSchema: z.ZodEffects<z.ZodObject<{
-    baseUrl: z.ZodString;
-    /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
-    endpoint: z.ZodOptional<z.ZodString>;
-    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
-    headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
-    authType: z.ZodOptional<z.ZodEnum<["none", "bearer", "basic", "apiKeyHeader"]>>;
-    authValue: z.ZodOptional<z.ZodString>;
-    authHeaderName: z.ZodOptional<z.ZodString>;
-    /** Campo canónico -> campo tal como llega del origen. */
-    fieldMap: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
-    dataPath: z.ZodOptional<z.ZodString>;
-    timeoutSec: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    baseUrl: string;
-    params?: Record<string, string> | undefined;
-    headers?: Record<string, string> | undefined;
-    endpoint?: string | undefined;
-    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
-    authValue?: string | undefined;
-    authHeaderName?: string | undefined;
-    fieldMap?: Record<string, string> | undefined;
-    dataPath?: string | undefined;
-    timeoutSec?: number | undefined;
-}, {
-    baseUrl: string;
-    params?: Record<string, string> | undefined;
-    headers?: Record<string, string> | undefined;
-    endpoint?: string | undefined;
-    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
-    authValue?: string | undefined;
-    authHeaderName?: string | undefined;
-    fieldMap?: Record<string, string> | undefined;
-    dataPath?: string | undefined;
-    timeoutSec?: number | undefined;
-}>, {
-    baseUrl: string;
-    params?: Record<string, string> | undefined;
-    headers?: Record<string, string> | undefined;
-    endpoint?: string | undefined;
-    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
-    authValue?: string | undefined;
-    authHeaderName?: string | undefined;
-    fieldMap?: Record<string, string> | undefined;
-    dataPath?: string | undefined;
-    timeoutSec?: number | undefined;
-}, {
-    baseUrl: string;
-    params?: Record<string, string> | undefined;
-    headers?: Record<string, string> | undefined;
-    endpoint?: string | undefined;
-    authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | undefined;
-    authValue?: string | undefined;
-    authHeaderName?: string | undefined;
-    fieldMap?: Record<string, string> | undefined;
-    dataPath?: string | undefined;
-    timeoutSec?: number | undefined;
-}>;
+export { RestConfigSchema };
 export declare const FrecuenciaSyncSchema: z.ZodEnum<["30min", "1h", "4h", "daily", "manual"]>;
 export interface CreateConnectorDto {
     nombre: string;
@@ -182,7 +126,9 @@ export declare class ConnectorService {
     getById(id: string): Promise<Conector>;
     update(id: string, data: UpdateConnectorDto): Promise<Conector>;
     delete(id: string): Promise<void>;
-    instantiate(conector: Conector): BaseConnector;
+    instantiate(conector: Conector, opciones?: {
+        efimero?: boolean;
+    }): BaseConnector;
     testConnection(conectorOrDto: Conector | CreateConnectorDto): Promise<ConnectionTestResult>;
     listSheets(conectorId: string): Promise<string[]>;
 }
