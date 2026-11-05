@@ -1893,37 +1893,56 @@ body,
   }
 }
 
+/*
+ * Familia de tarjetas de Reportes.
+ *
+ * Antes cada una llevaba una franja de color de 4 px en el borde izquierdo,
+ * que es un recurso muy visto y dejaba la pantalla impersonal. El color no se
+ * pierde: pasa a teñir el icono (\`--kpi-tono\` / \`--kpi-fondo\`), que ahora va
+ * en un recuadro suave. Borde casi imperceptible y sombra difusa en lugar de
+ * línea dura; el relieve lo da la sombra, no el trazo.
+ */
 .kpi-card {
+  --kpi-tono: #3b82f6;
+  --kpi-fondo: #eff6ff;
   background: var(--color-white);
-  border: 1px solid var(--color-gray-200);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 1rem;
+  padding: 1.25rem 1.375rem;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  transition: box-shadow 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .kpi-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 28px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
-.kpi-card--blue   { border-left: 4px solid #3b82f6; }
-.kpi-card--green  { border-left: 4px solid #22c55e; }
-.kpi-card--purple { border-left: 4px solid #a855f7; }
-.kpi-card--amber  { border-left: 4px solid #f59e0b; }
-.kpi-card--rose   { border-left: 4px solid #f43f5e; }
+.kpi-card--blue   { --kpi-tono: #3b82f6; --kpi-fondo: #eff6ff; }
+.kpi-card--green  { --kpi-tono: #16a34a; --kpi-fondo: #f0fdf4; }
+.kpi-card--purple { --kpi-tono: #9333ea; --kpi-fondo: #faf5ff; }
+.kpi-card--amber  { --kpi-tono: #d97706; --kpi-fondo: #fffbeb; }
+.kpi-card--rose   { --kpi-tono: #e11d48; --kpi-fondo: #fff1f2; }
 
 .kpi-card-header {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.625rem;
 }
 
 .kpi-card-icon {
   display: flex;
   align-items: center;
-  color: var(--color-gray-500);
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.625rem;
+  background: var(--kpi-fondo);
+  color: var(--kpi-tono);
+  flex-shrink: 0;
 }
 
 .kpi-card-title {
@@ -1933,23 +1952,79 @@ body,
 }
 
 .kpi-card-value {
-  font-size: 1.6rem;
+  font-size: 1.85rem;
   font-weight: 700;
   color: var(--color-gray-900);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.25rem;
 }
 
+/* Variación: píldora de fondo tenue en lugar de texto suelto. */
 .kpi-card-delta {
-  display: flex;
+  align-self: flex-start;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
   font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card-delta--up   { color: #15803d; background: #dcfce7; }
+.kpi-card-delta--down { color: #b91c1c; background: #fee2e2; }
+.kpi-card-delta--flat { color: var(--color-gray-500); background: var(--color-gray-100); }
+
+.kpi-card-periodo {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  font-weight: 500;
+  margin-top: -0.15rem;
+}
+
+/* Comparado fijo en modo Año: sin selector, solo se rotula. */
+.comparar-fijo {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: #3730a3;
+  background: #eef2ff;
+  white-space: nowrap;
+}
+
+/* Periodo comparado dentro de la ficha (p. ej. «Octubre 2025  $152.342.876»). */
+.kpi-card-comp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(15, 23, 42, 0.1);
+}
+
+.kpi-card-comp-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.kpi-card-comp-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
   font-weight: 500;
 }
 
-.kpi-card-delta--up   { color: #16a34a; }
-.kpi-card-delta--down { color: #dc2626; }
+.kpi-card-comp-valor {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-gray-600);
+  font-variant-numeric: tabular-nums;
+}
 
 .kpi-card-delta-icon {
   flex-shrink: 0;
@@ -2037,9 +2112,10 @@ body,
 
 .chart-card {
   background: var(--color-white);
-  border: 1px solid var(--color-gray-200);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 1rem;
   padding: var(--space-5);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
 .chart-card--2-3 { /* already handled by grid */ }
@@ -2103,11 +2179,21 @@ body,
   gap: var(--space-3);
 }
 
+/* Sin franja lateral: el color se queda en la cifra y en el punto del título. */
+.mix-summary-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
 .mix-summary-group {
   background: var(--color-gray-50);
-  border-left: 3px solid;
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 0.75rem;
+  padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
   gap: 2px;

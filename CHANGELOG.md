@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.5] - 2026-11-05
+
+### Added
+- **La primera ficha de Reportes muestra el periodo comparado.** *Facturación Bruta* presenta la cifra del periodo, la del comparado y el **% de crecimiento**, en lugar del «Faltó: X / Meta», que no aportaba (el % de cumplimiento ya lo da la tarjeta contigo). La ficha sigue al periodo elegido: un mes contra un mes, o con el atajo **Año**, lo que va del año contra el mismo tramo del año anterior (1 ene → mismo día), no contra el año completo, que daría un crecimiento negativo falso. El 29 de febrero se recorta al último día de febrero.
+- **«Comparar» también en modo Año.** Cubre las tarjetas, el comparativo de totales, las tablas y «Facturado por día». El gráfico de cumplimiento mensual queda sin comparar.
+
+### Changed
+- **El selector de mes ofrece solo el año en curso** (si ese año aún no tiene datos, el último con datos). Los meses de años anteriores siguen disponibles como destino de la comparación y en modo Rango.
+- **Tarjetas más modernas.** Se eliminó la franja de color del borde izquierdo de las tarjetas (de Reportes y de las mini-tarjetas de Mix Pagador). El color no se pierde: pasa a teñir el icono, que va en un recuadro suave. Bordes casi imperceptibles con sombra difusa, cifras tabulares, y la variación pasa de texto suelto a píldora (verde, roja, o gris sin flecha cuando no hubo cambio). Los gráficos y el comparativo comparten el mismo radio y sombra.
+
+---
+
 ## [1.9.4] - 2026-11-05
 
 ### Fixed

@@ -157,11 +157,13 @@ function SummaryGroup({ label, sublabel, valor, pct, accent, isActive, isInactiv
   return (
     <div
       className={`mix-summary-group mix-summary-group--clickable${isActive ? ' mix-summary-group--active' : ''}${isInactive ? ' mix-summary-group--inactive' : ''}`}
-      style={{ borderLeftColor: accent }}
       onClick={onClick}
       title={isActive ? 'Haz clic para ver todo' : 'Haz clic para ver distribución'}
     >
-      <div className="mix-summary-label">{label}</div>
+      <div className="mix-summary-label">
+        <span className="mix-summary-dot" style={{ background: accent }} />
+        {label}
+      </div>
       <div className="mix-summary-sublabel">{sublabel}</div>
       <div className="mix-summary-valor" style={{ color: accent }}>{fmt(valor)}</div>
       <div className="mix-summary-pct">{pct.toFixed(1)}%{isActive && <span className="mix-summary-active-badge"> · filtrando</span>}</div>

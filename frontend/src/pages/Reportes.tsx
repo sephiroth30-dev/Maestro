@@ -61,6 +61,29 @@ function mesesDeRespaldo(): MesAnio[] {
   return list;
 }
 
+const MESES_CORTO = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/**
+ * El mismo día un año antes, para comparar «lo que va del año» con «lo que iba
+ * el año pasado a esta fecha».
+ *
+ * Se compara el MISMO tramo y no el año anterior completo: diez meses contra
+ * doce favorecerían al viejo y darían un «crecimiento» negativo que no existe.
+ * El 29 de febrero se recorta al último día de febrero del año anterior.
+ */
+function desplazarUnAnio(fecha: string): string {
+  const [y, m, d] = fecha.split('-').map(Number) as [number, number, number];
+  const diasDelMes = new Date(y - 1, m, 0).getDate();
+  return `${y - 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, diasDelMes)).padStart(2, '0')}`;
+}
+
+/** «Ene–Nov 2026» para un tramo dentro de un mismo año. */
+function etiquetaTramo(inicio: string, fin: string): string {
+  const [, mi] = inicio.split('-').map(Number) as [number, number];
+  const [yf, mf] = fin.split('-').map(Number) as [number, number];
+  return mi === mf ? `${MESES_CORTO[mf]} ${yf}` : `${MESES_CORTO[mi]}–${MESES_CORTO[mf]} ${yf}`;
+}
+
 /** Posición de un mes concreto dentro de la lista, o -1. */
 function indiceDeMes(lista: MesAnio[], mes: number, anio: number): number {
   return lista.findIndex((m) => m.mes === mes && m.anio === anio);
@@ -444,11 +467,24 @@ export default function Reportes(): React.ReactElement {
   // selector no ofrece meses vacíos y sí ofrece todo el historial, que es lo
   // que hace falta para comparar contra el mismo mes del año pasado.
   const mesesQ = useMesesDisponibles();
-  const meses: MesAnio[] = useMemo(() => {
+  // La lista COMPLETA sigue haciendo falta aunque el selector no la muestre:
+  // el año anterior tiene que existir como destino de la comparación.
+  const mesesTodos: MesAnio[] = useMemo(() => {
     const dato = mesesQ.data;
     if (!dato || dato.length === 0) return mesesDeRespaldo();
     return dato.map((m) => ({ mes: m.mes, anio: m.anio, label: etiquetaMes(m.mes, m.anio) }));
   }, [mesesQ.data]);
+
+  // El selector principal ofrece solo el año en curso. Si ese año aún no tiene
+  // datos (primeros días de enero, por ejemplo), cae al último año con datos
+  // para no quedar vacío.
+  const meses: MesAnio[] = useMemo(() => {
+    const anioActual = new Date().getFullYear();
+    const delAnio = mesesTodos.filter((m) => m.anio === anioActual);
+    if (delAnio.length > 0) return delAnio;
+    const ultimo = mesesTodos[0]?.anio;
+    return mesesTodos.filter((m) => m.anio === ultimo);
+  }, [mesesTodos]);
 
   // El mes elegido se guarda por su VALOR, no por su posición: la lista llega
   // del servidor y cambia de tamaño al cargarse, así que un índice guardado
@@ -485,21 +521,21 @@ export default function Reportes(): React.ReactElement {
   // anterior no está cargado, no hay nada que ofrecer y el control se oculta
   // en vez de prometer una comparación vacía.
   const mesesComparables = useMemo(
-    () => meses.filter((m) => !(m.mes === selected.mes && m.anio === selected.anio)),
-    [meses, selected.mes, selected.anio],
+    () => mesesTodos.filter((m) => !(m.mes === selected.mes && m.anio === selected.anio)),
+    [mesesTodos, selected.mes, selected.anio],
   );
   const mesAnioAnterior = useMemo(
-    () => meses.find((m) => m.mes === selected.mes && m.anio === selected.anio - 1) ?? null,
-    [meses, selected.mes, selected.anio],
+    () => mesesTodos.find((m) => m.mes === selected.mes && m.anio === selected.anio - 1) ?? null,
+    [mesesTodos, selected.mes, selected.anio],
   );
   const mesComparado: MesAnio | null = useMemo(() => {
     if (!compararActivo) return null;
     if (mesComparadoManual) {
-      const i = indiceDeMes(meses, mesComparadoManual.mes, mesComparadoManual.anio);
-      if (i >= 0) return meses[i]!;
+      const i = indiceDeMes(mesesTodos, mesComparadoManual.mes, mesComparadoManual.anio);
+      if (i >= 0) return mesesTodos[i]!;
     }
     return mesAnioAnterior ?? mesesComparables[0] ?? null;
-  }, [compararActivo, mesComparadoManual, meses, mesAnioAnterior, mesesComparables]);
+  }, [compararActivo, mesComparadoManual, mesesTodos, mesAnioAnterior, mesesComparables]);
 
   const [filterMode, setFilterMode] = useState<FilterMode>('mes');
   const [rangeStart, setRangeStart] = useState<string>('');
@@ -549,23 +585,47 @@ export default function Reportes(): React.ReactElement {
   // de día de la semana ni el rango de fechas, porque "enero 2025 contra enero
   // 2026, pero solo los martes" responde a una pregunta que nadie hizo y que
   // además invita a leer mal la cifra.
-  const compMes  = mesComparado?.mes  ?? selected.mes;
-  const compAnio = mesComparado?.anio ?? selected.anio;
-  const activoComp = mesComparado !== null && filterMode === 'mes';
-  const kpisCompQ      = useKpis(compMes, compAnio, selectedEntidadId ?? undefined, undefined, undefined, undefined, activoComp);
-  const entidadesCompQ = useEntidades(compMes, compAnio, undefined, undefined, undefined, activoComp);
-  const serviciosCompQ = useServicios(compMes, compAnio, undefined, undefined, null, null, activoComp);
-  const diasCompQ      = useDiasSemana(compMes, compAnio, undefined, undefined, activoComp);
-  const cumplCompQ     = useCumplimientoSemanal(compMes, compAnio, undefined, undefined, activoComp);
+  //
+  // Dos casos, mismos hooks:
+  //  · modo Mes  → el mes elegido (por omisión, el mismo del año anterior);
+  //  · atajo Año → el mismo tramo del año anterior (1 ene → mismo día), pasado
+  //                como rango de fechas. Los hooks ya aceptaban \`start/end\`.
+  // Los rangos arbitrarios no se comparan: «el mismo rango del año pasado» no es
+  // una pregunta bien definida.
+  const periodoComp: { label: string; mes: number; anio: number; start?: string; end?: string } | null = useMemo(() => {
+    if (!compararActivo) return null;
+    if (filterMode === 'mes') {
+      return mesComparado ? { label: mesComparado.label, mes: mesComparado.mes, anio: mesComparado.anio } : null;
+    }
+    if (isAnioMode && rangeStart && rangeEnd) {
+      const start = desplazarUnAnio(rangeStart);
+      const end = desplazarUnAnio(rangeEnd);
+      return { label: etiquetaTramo(start, end), mes: selected.mes, anio: selected.anio, start, end };
+    }
+    return null;
+  }, [compararActivo, filterMode, mesComparado, isAnioMode, rangeStart, rangeEnd, selected.mes, selected.anio]);
+
+  // Cómo se llama el periodo MOSTRADO, para rotular las dos series.
+  const labelActual = isAnioMode && rangeStart && rangeEnd ? etiquetaTramo(rangeStart, rangeEnd) : selected.label;
+
+  const compMes  = periodoComp?.mes  ?? selected.mes;
+  const compAnio = periodoComp?.anio ?? selected.anio;
+  const activoComp = periodoComp !== null;
+  const kpisCompQ      = useKpis(compMes, compAnio, selectedEntidadId ?? undefined, periodoComp?.start, periodoComp?.end, undefined, activoComp);
+  const entidadesCompQ = useEntidades(compMes, compAnio, periodoComp?.start, periodoComp?.end, undefined, activoComp);
+  const serviciosCompQ = useServicios(compMes, compAnio, periodoComp?.start, periodoComp?.end, null, null, activoComp);
+  const diasCompQ      = useDiasSemana(compMes, compAnio, periodoComp?.start, periodoComp?.end, activoComp);
+  // Las semanas solo existen en el gráfico de modo Mes; el modo Año dibuja meses.
+  const cumplCompQ     = useCumplimientoSemanal(compMes, compAnio, undefined, undefined, activoComp && filterMode === 'mes');
 
   // Lo que reciben los gráficos. `null` mientras el mes comparado no haya
   // llegado: así el gráfico se dibuja con el periodo actual y la serie
   // comparada aparece al llegar, sin que la pantalla parpadee ni se quede
   // esperando una consulta que puede tardar.
-  const compDias = activoComp && mesComparado && diasCompQ.data
-    ? { label: mesComparado.label, rows: diasCompQ.data } : null;
-  const compSemanas = activoComp && mesComparado && cumplCompQ.data
-    ? { label: mesComparado.label, semanas: cumplCompQ.data.semanas } : null;
+  const compDias = periodoComp && diasCompQ.data
+    ? { label: periodoComp.label, rows: diasCompQ.data } : null;
+  const compSemanas = periodoComp && filterMode === 'mes' && cumplCompQ.data
+    ? { label: periodoComp.label, semanas: cumplCompQ.data.semanas } : null;
 
   // Annual mode: filter tendencia to current year, ordered chronologically
   const currentYear = new Date().getFullYear();
@@ -584,22 +644,22 @@ export default function Reportes(): React.ReactElement {
     const v = variacionPct(actual, base);
     return v ?? undefined;
   };
-  const deltaLabel = mesComparado ? `vs ${mesComparado.label}` : undefined;
+  const deltaLabel = periodoComp ? `vs ${periodoComp.label}` : undefined;
 
   // Mapas del mes comparado, para que las tablas puedan enfrentar fila a fila.
   const compEntidades = useMemo(() => {
-    if (!activoComp || !mesComparado || !entidadesCompQ.data) return null;
+    if (!periodoComp || !entidadesCompQ.data) return null;
     const porClave = new Map<string, number>();
     for (const r of entidadesCompQ.data.rows) porClave.set(claveEntidad(r), r.valor_bruto);
-    return { label: mesComparado.label, porClave };
-  }, [activoComp, mesComparado, entidadesCompQ.data]);
+    return { label: periodoComp.label, porClave };
+  }, [periodoComp, entidadesCompQ.data]);
 
   const compServicios = useMemo(() => {
-    if (!activoComp || !mesComparado || !serviciosCompQ.data) return null;
+    if (!periodoComp || !serviciosCompQ.data) return null;
     const porClave = new Map<string, number>();
     for (const r of serviciosCompQ.data.rows) porClave.set(r.nombre, r.valor_bruto);
-    return { label: mesComparado.label, porClave };
-  }, [activoComp, mesComparado, serviciosCompQ.data]);
+    return { label: periodoComp.label, porClave };
+  }, [periodoComp, serviciosCompQ.data]);
 
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
@@ -868,15 +928,15 @@ export default function Reportes(): React.ReactElement {
                   {compararActivo && (
                     <select
                       className="reportes-month-select reportes-month-select--comp"
-                      value={mesComparado ? indiceDeMes(meses, mesComparado.mes, mesComparado.anio) : -1}
+                      value={mesComparado ? indiceDeMes(mesesTodos, mesComparado.mes, mesComparado.anio) : -1}
                       onChange={(e) => {
-                        const m = meses[Number(e.target.value)];
+                        const m = mesesTodos[Number(e.target.value)];
                         if (m) setMesComparadoManual({ mes: m.mes, anio: m.anio });
                       }}
                       aria-label="Mes con el que comparar"
                     >
                       {mesesComparables.map((m) => (
-                        <option key={`c-${m.anio}-${m.mes}`} value={indiceDeMes(meses, m.mes, m.anio)}>
+                        <option key={`c-${m.anio}-${m.mes}`} value={indiceDeMes(mesesTodos, m.mes, m.anio)}>
                           vs {m.label}
                           {m.anio === selected.anio - 1 && m.mes === selected.mes ? '  (año anterior)' : ''}
                         </option>
@@ -908,6 +968,21 @@ export default function Reportes(): React.ReactElement {
                     <input type="date" className="date-input" value={rangeEnd}
                       onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha fin" />
                   </div>
+                  {isAnioMode && rangeStart && rangeEnd && (
+                    <div className="comparar-control">
+                      <label className="comparar-toggle" title="Compara lo que va del año con el mismo tramo del año anterior">
+                        <input
+                          type="checkbox"
+                          checked={compararActivo}
+                          onChange={(e) => setCompararActivo(e.target.checked)}
+                        />
+                        <span>Comparar</span>
+                      </label>
+                      {compararActivo && periodoComp && (
+                        <span className="comparar-fijo">vs {periodoComp.label}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -1068,10 +1143,15 @@ export default function Reportes(): React.ReactElement {
               <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
             ) : kpisQ.data ? (
               <>
+                {/* Sin barra de meta: el % de cumplimiento ya lo da la tarjeta de al lado. */}
                 <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
-                  meta={kpisQ.data.presupuesto} metaLabel="Meta" icon={<DollarSign size={16} />} color="blue"
-                  delta={deltaDe(kpisQ.data.facturacion_bruta, comp?.facturacion_bruta)} deltaLabel={deltaLabel}
-                  showShortfall />
+                  icon={<DollarSign size={16} />} color="blue"
+                  comparacion={periodoComp && comp ? {
+                    labelActual: labelActual,
+                    label: periodoComp.label,
+                    valor: comp.facturacion_bruta,
+                    crecimientoPct: variacionPct(kpisQ.data.facturacion_bruta, comp.facturacion_bruta),
+                  } : undefined} />
                 <KpiCard titulo="Cumplimiento" valor={kpisQ.data.cumplimiento_pct} formato="percent"
                   meta={100} metaLabel="Objetivo" icon={<Target size={16} />}
                   delta={deltaDe(kpisQ.data.cumplimiento_pct, comp?.cumplimiento_pct)} deltaLabel={deltaLabel}
@@ -1087,10 +1167,10 @@ export default function Reportes(): React.ReactElement {
           </div>
 
           {/* Totales de los dos periodos frente a frente (solo con "Comparar" activo) */}
-          {activoComp && mesComparado && kpisQ.data && comp && entidadesQ.data && entidadesCompQ.data && (
+          {periodoComp && kpisQ.data && comp && entidadesQ.data && entidadesCompQ.data && (
             <ResumenComparativo
-              actual={{ label: selected.label, kpis: kpisQ.data, entidades: entidadesQ.data.rows }}
-              comparado={{ label: mesComparado.label, kpis: comp, entidades: entidadesCompQ.data.rows }}
+              actual={{ label: labelActual, kpis: kpisQ.data, entidades: entidadesQ.data.rows }}
+              comparado={{ label: periodoComp.label, kpis: comp, entidades: entidadesCompQ.data.rows }}
             />
           )}
 
@@ -1122,7 +1202,7 @@ export default function Reportes(): React.ReactElement {
                 <>
                   {diasQ.data && diasQ.data.length > 0 ? (
                     <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick}
-                      comparado={compDias} label={selected.label} />
+                      comparado={compDias} label={labelActual} />
                   ) : <div />}
                   {isRangoMode ? (
                     <KpiCard

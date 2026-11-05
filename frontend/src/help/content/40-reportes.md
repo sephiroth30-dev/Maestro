@@ -15,23 +15,31 @@ en X, a Y entidad, en Z período?».
 
 Arriba a la derecha hay dos modos:
 
-- **Mes** — **todos los meses que tienen datos cargados**, del más reciente al más antiguo.
-  Si una fuente trae histórico de varios años, aquí están todos.
+- **Mes** — los meses **del año en curso** que tienen datos cargados, del más reciente al
+  más antiguo.
 - **Rango** — fechas exactas, o los atajos *Hoy*, *Ayer*, *Esta semana*, *Sem. pasada*, *Año*.
 
 > La lista sale de los datos, no del calendario: un mes sin nada cargado no aparece. Si
 > falta un mes que debería estar, el problema está en la fuente, no en este selector.
+>
+> Los meses de años anteriores no se eligen como mes principal, pero **sí están disponibles
+> para comparar**. Para mirar un periodo antiguo por sí solo, usa **Rango**.
 
 ## Comparar contra otro mes
 
-En modo **Mes**, la casilla **Comparar** enfrenta el mes elegido con otro. Por omisión
+La casilla **Comparar** enfrenta el periodo elegido con otro. Funciona en modo **Mes** y con
+el atajo **Año** (ver más abajo).
+
+En modo **Mes**, enfrenta el mes elegido con otro. Por omisión
 propone **el mismo mes del año anterior** —Enero 2026 contra Enero 2025—, que es la
 comparación que tiene sentido en una clínica: diciembre y enero no se parecen, pero dos
 eneros sí.
 
 Con la comparación activa:
 
-- Las **cuatro tarjetas** de arriba muestran la variación («+18,4 % vs Enero 2025»).
+- La primera ficha, **Facturación Bruta**, muestra la cifra del periodo, la del periodo
+  comparado y el **% de crecimiento**. Las otras tres tarjetas muestran su variación
+  («+18,4 % vs Enero 2025»).
 - Aparece el bloque **Comparativo de totales**: la facturación, las atenciones y el ticket
   de cada mes en cifras absolutas, la variación, y el desglose por tipo de pagador.
 - **Facturado por día** y **Cumplimiento semanal** dibujan dos barras: la del mes
@@ -49,6 +57,16 @@ que algo que facturó el año pasado y este año no, no aparece.
 > da una cifra fácil de leer mal.
 
 > Si no hay otros meses cargados, la casilla no aparece: no hay contra qué comparar.
+
+### Comparar el año completo
+
+Con **Rango → Año** y **Comparar** activo, la ficha muestra lo facturado **en lo que va del
+año** contra **el mismo tramo del año anterior**: si hoy es 5 de noviembre, *Ene–Nov 2026*
+contra *Ene–Nov 2025* hasta ese mismo día. No se compara contra el año anterior completo,
+porque diez meses contra doce darían un crecimiento negativo que no existe.
+
+En este modo comparan las tarjetas, el bloque de totales, las tablas y *Facturado por día*.
+El gráfico de **Cumplimiento mensual** no se compara todavía.
 
 ## Filtrar haciendo clic
 

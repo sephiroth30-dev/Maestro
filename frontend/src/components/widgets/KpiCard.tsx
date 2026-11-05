@@ -32,6 +32,21 @@ export interface KpiCardProps {
   icon?: React.ReactNode;
   color?: 'blue' | 'green' | 'purple' | 'amber' | 'rose';
   showShortfall?: boolean;
+  /**
+   * Periodo contra el que se compara, mostrado dentro de la propia ficha: su
+   * etiqueta, su cifra y el crecimiento. Sustituye al «Faltó: X» cuando lo que
+   * interesa es cuánto se creció y no cuánto faltó para la meta.
+   *
+   * `crecimientoPct === null` significa base cero: no se pinta porcentaje,
+   * porque «crecimiento infinito» no informa y 100 % sería falso.
+   */
+  comparacion?: {
+    /** Cómo se llama el periodo MOSTRADO (p. ej. «Octubre 2026»), junto a la cifra grande. */
+    labelActual?: string;
+    label: string;
+    valor: number;
+    crecimientoPct: number | null;
+  };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -47,6 +62,7 @@ export default function KpiCard({
   icon,
   color = 'blue',
   showShortfall = false,
+  comparacion,
 }: KpiCardProps): React.ReactElement {
   const formattedValue =
     formato === 'currency'
@@ -58,6 +74,15 @@ export default function KpiCard({
   const cumplimientoPct = meta && meta > 0 ? Math.min((valor / meta) * 100, 100) : null;
 
   const deltaPositive = delta !== undefined && delta >= 0;
+  // Un 0,0 % con flecha verde hacia arriba se lee como crecimiento cuando no lo
+  // hubo: el empate va en gris y sin flecha.
+  const deltaIgual = delta !== undefined && Math.abs(delta) < 0.05;
+
+  const formatear = (v: number): string =>
+    formato === 'currency' ? formatCOP(v) : formato === 'percent' ? formatPercent(v) : formatNumber(v);
+
+  const crecimiento = comparacion?.crecimientoPct ?? null;
+  const crecimientoIgual = crecimiento !== null && Math.abs(crecimiento) < 0.05;
 
   const colorMap: Record<string, string> = {
     blue:   'kpi-card--blue',
@@ -75,18 +100,39 @@ export default function KpiCard({
       </div>
 
       <div className="kpi-card-value">{formattedValue}</div>
+      {comparacion?.labelActual && <div className="kpi-card-periodo">{comparacion.labelActual}</div>}
 
       {delta !== undefined && (
-        <div className={`kpi-card-delta ${deltaPositive ? 'kpi-card-delta--up' : 'kpi-card-delta--down'}`}>
-          {deltaPositive ? (
+        <div className={`kpi-card-delta ${deltaIgual ? 'kpi-card-delta--flat' : deltaPositive ? 'kpi-card-delta--up' : 'kpi-card-delta--down'}`}>
+          {!deltaIgual && (deltaPositive ? (
             <TrendingUp size={14} className="kpi-card-delta-icon" />
           ) : (
             <TrendingDown size={14} className="kpi-card-delta-icon" />
-          )}
+          ))}
           <span>
-            {deltaPositive ? '+' : ''}
+            {deltaPositive && !deltaIgual ? '+' : ''}
             {formatPercent(delta)} {deltaLabel ?? ''}
           </span>
+        </div>
+      )}
+
+      {comparacion && (
+        <div className="kpi-card-comp">
+          <div className="kpi-card-comp-fila">
+            <span className="kpi-card-comp-label">{comparacion.label}</span>
+            <span className="kpi-card-comp-valor">{formatear(comparacion.valor)}</span>
+          </div>
+          {crecimiento !== null && (
+            <div className={`kpi-card-delta ${crecimientoIgual ? 'kpi-card-delta--flat' : crecimiento > 0 ? 'kpi-card-delta--up' : 'kpi-card-delta--down'}`}>
+              {!crecimientoIgual && (crecimiento > 0
+                ? <TrendingUp size={14} className="kpi-card-delta-icon" />
+                : <TrendingDown size={14} className="kpi-card-delta-icon" />)}
+              <span>
+                {crecimiento > 0 && !crecimientoIgual ? '+' : ''}
+                {formatPercent(crecimiento)} de crecimiento
+              </span>
+            </div>
+          )}
         </div>
       )}
 
