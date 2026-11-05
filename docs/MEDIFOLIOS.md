@@ -102,13 +102,25 @@ campos; ver `docs/CONNECTORS.md`.
 `precioVentaBruto` y no `precioVentaNeto` porque el dashboard reporta **facturación
 bruta**; el neto descuenta ajustes y no es la cifra que se compara contra el presupuesto.
 
-## Pregunta abierta: qué filas excluir
+## Qué filas trae por omisión, y cómo acotarlas
 
-Cada consumo trae `estatus`, `facturable` y `paquete`. No sabemos todavía cuáles de esos
-valores debe contar el dashboard — por ejemplo si un consumo anulado sigue apareciendo, o
-si los procedimientos dentro de un paquete se cuentan aparte del paquete mismo.
+Cada consumo trae `estatus`, `facturable` y `paquete`. Lo que dice la especificación:
 
-**Esto se resuelve comparando, no adivinando.** El camino es:
+| Campo | Valores | Comportamiento |
+|---|---|---|
+| `paquete` | `S` / `N` | **Sin filtro, la API devuelve solo `paquete = N`.** Los paquetes ya vienen excluidos; no hay que hacer nada. |
+| `estatus` | `P` pendiente / `F` facturado | Sin filtro trae **ambos**. |
+| `facturable` | `S` / `N` | Sin filtro trae **ambos**. |
+
+Lo que **no** se puede saber leyendo la especificación es si el dashboard debe contar los
+pendientes (`P`) o los no facturables (`N`): depende de qué venía contando el Sheet.
+
+**Se prueba sin desplegar nada.** Estos filtros son parámetros de la URL, y el conector
+admite parámetros fijos en su configuración (`params`, donde ya van `fechaDesde` y
+`fechaHasta`). Para excluir los no facturables basta añadir `facturable = S` y
+sincronizar; para contar solo lo facturado, `estatus = F`.
+
+**Se decide comparando, no adivinando.** El camino es:
 
 1. Mantener las dos fuentes cargadas (el Sheet como fuente del dashboard, Medifolios
    sincronizando en segundo plano).
