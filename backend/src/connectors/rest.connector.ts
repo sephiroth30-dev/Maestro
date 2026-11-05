@@ -161,6 +161,14 @@ export const CAMPOS_CANONICOS = [
   'documento',
 ] as const;
 
+/** Deja el valor en algo que una fila pueda llevar; lo demás se serializa. */
+function aPrimitivo(v: unknown): string | number | boolean | null {
+  if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+    return v;
+  }
+  return JSON.stringify(v);
+}
+
 /** Navega un JSON por una ruta con puntos ('data.token'). */
 function navegarPorPuntos(json: unknown, ruta: string): unknown {
   let nodo: unknown = json;
@@ -455,16 +463,48 @@ export class RestConnector extends BaseConnector {
    * Renombra los campos del origen a los nombres canónicos que el mapeador
    * reconoce. Los campos no mapeados se conservan tal cual: no estorban y
    * ayudan a diagnosticar desde el diagnóstico de columnas.
+   *
+   * Admite **rutas con punto** (`eps.nomEps`), que es como vienen los datos que
+   * de verdad importan en Medifolios: la entidad, el profesional y el paciente
+   * viajan dentro de objetos anidados. Esas rutas se resuelven sobre el objeto
+   * ORIGINAL, no sobre `row`: para cuando llega aquí, `row` ya tiene los objetos
+   * convertidos a texto JSON, y `entidad` habría acabado valiendo
+   * `{"codEps":5,"nomEps":"NUEVA EPS"}`, que no casa con ningún alias del
+   * catálogo y dejaría Mix Pagador y Honorarios vacíos.
    */
-  private traducir(row: DataRow): DataRow {
+  private traducir(row: DataRow, original: unknown): DataRow {
     const mapa = this.config.fieldMap;
     if (!mapa || Object.keys(mapa).length === 0) return row;
 
     const salida: DataRow = { ...row };
+    const raicesAnidadas = new Set<string>();
+
     for (const [canonico, origen] of Object.entries(mapa)) {
-      if (!origen || !(origen in row)) continue;
-      salida[canonico] = row[origen]!;
+      if (!origen) continue;
+      const anidado = origen.includes('.');
+      const valor = anidado
+        ? navegarPorPuntos(original, origen)
+        : (origen in row ? row[origen] : undefined);
+      if (valor === undefined) continue;
+      salida[canonico] = aPrimitivo(valor);
+      if (anidado) raicesAnidadas.add(origen.split('.')[0]!);
     }
+
+    // Los objetos de origen de las rutas anidadas (`eps` en `eps.nomEps`) se
+    // descartan al final, nunca durante el recorrido: dos campos canónicos
+    // pueden salir del mismo objeto —`paciente` y `documento` vienen ambos de
+    // `paciente`— y borrarlo sobre la marcha se llevaría por delante un valor ya
+    // asignado.
+    //
+    // Si se quedaran, el detector de columnas del mapeador los reconocería por
+    // su nombre (`eps` casa con el patrón de entidad) y los preferiría sobre el
+    // campo canónico, leyendo la entidad del bloque JSON serializado en vez del
+    // nombre: el mismo fallo que la ruta con punto viene a resolver, entrando
+    // por otra puerta.
+    for (const raiz of raicesAnidadas) {
+      if (!(raiz in mapa)) delete salida[raiz];
+    }
+
     return salida;
   }
 
@@ -600,18 +640,9 @@ export class RestConnector extends BaseConnector {
       }
       const row: DataRow = {};
       for (const [k, v] of Object.entries(item as Record<string, unknown>)) {
-        if (
-          v === null ||
-          typeof v === 'string' ||
-          typeof v === 'number' ||
-          typeof v === 'boolean'
-        ) {
-          row[k] = v;
-        } else {
-          row[k] = JSON.stringify(v);
-        }
+        row[k] = aPrimitivo(v);
       }
-      return this.traducir(row);
+      return this.traducir(row, item);
     });
 
     return {

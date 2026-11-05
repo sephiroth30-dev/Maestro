@@ -327,6 +327,14 @@ export declare class RestConnector extends BaseConnector {
      * Renombra los campos del origen a los nombres canónicos que el mapeador
      * reconoce. Los campos no mapeados se conservan tal cual: no estorban y
      * ayudan a diagnosticar desde el diagnóstico de columnas.
+     *
+     * Admite **rutas con punto** (`eps.nomEps`), que es como vienen los datos que
+     * de verdad importan en Medifolios: la entidad, el profesional y el paciente
+     * viajan dentro de objetos anidados. Esas rutas se resuelven sobre el objeto
+     * ORIGINAL, no sobre `row`: para cuando llega aquí, `row` ya tiene los objetos
+     * convertidos a texto JSON, y `entidad` habría acabado valiendo
+     * `{"codEps":5,"nomEps":"NUEVA EPS"}`, que no casa con ningún alias del
+     * catálogo y dejaría Mix Pagador y Honorarios vacíos.
      */
     private traducir;
     fetch(query: ConnectorQuery): Promise<DataSet>;
