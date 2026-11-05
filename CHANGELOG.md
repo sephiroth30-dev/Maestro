@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.1] - 2026-11-05
+
+### Added
+- **Con «Comparar» activo, los gráficos de Reportes muestran los dos periodos.** «Facturado por día» y «Cumplimiento semanal» dibujan una segunda barra con el mes comparado (lunes con lunes; semana 1 con semana 1), y aparece un bloque **«Comparativo de totales»** con facturación, atenciones y ticket de cada mes en cifras absolutas, su variación, y el desglose por tipo de pagador en gráfico y tabla. Antes la comparación solo llegaba a las tarjetas y a las dos tablas.
+
+### Changed
+- El rótulo de tipo de pagador (`tipoLabel`) pasó a un módulo compartido para que Reportes y el comparativo no lo definan por separado.
+
+---
+
 ## [1.9.0] - 2026-11-05
 
 ### Added

@@ -13,6 +13,8 @@ import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import TablaEntidades, { claveEntidad } from '../components/widgets/TablaEntidades.js';
 import TablaServicios from '../components/widgets/TablaServicios.js';
+import { tipoLabel } from '../components/widgets/tipoLabel.js';
+import ResumenComparativo from '../components/widgets/ResumenComparativo.js';
 import { ExportButton } from '../export/index.js';
 import { HelpButton } from '../help/HelpButton.js';
 import { buildReportesDoc } from '../export/docs/reportesDoc.js';
@@ -79,19 +81,6 @@ function variacionPct(actual: number, base: number): number | null {
 
 type FilterMode = 'mes' | 'rango';
 
-const TIPO_DISPLAY_LABEL: Record<string, string> = {
-  EPS:             'EPS',
-  CONVENIO:        'Convenio (cobro)',
-  CONVENIO__CAJA:  'Convenio (directo)',
-  ARL:             'ARL',
-  PARTICULAR:      'Particular',
-  OTRO:            'Otro',
-  OTRO__CAJA:      'Otro (caja)',
-};
-
-function tipoLabel(tipo: string): string {
-  return TIPO_DISPLAY_LABEL[tipo] ?? tipo.replace('__CAJA', ' (caja)');
-}
 
 // Use LOCAL calendar date — toISOString() converts to UTC and shifts the day
 // when the client is in a negative-offset timezone (Colombia = UTC-5).
@@ -175,13 +164,20 @@ function countWorkingDaysInRange(start: string, end: string): number {
 // ─── Días de semana mini card ─────────────────────────────────────────────────
 
 interface DiasSemanaMiniProps {
+  /** Periodo con el que comparar; se dibuja como segunda barra de cada día. */
+  comparado?: { label: string; rows: DiaSemanaRow[] } | null;
+  label?: string;
   rows: DiaSemanaRow[];
   selectedDia: number | null;
   onDayClick: (diaNum: number) => void;
 }
 
-function DiasSemanaMini({ rows, selectedDia, onDayClick }: DiasSemanaMiniProps): React.ReactElement {
-  const maxVal = Math.max(...rows.map((r) => r.total), 1);
+function DiasSemanaMini({ rows, selectedDia, onDayClick, comparado, label }: DiasSemanaMiniProps): React.ReactElement {
+  // El comparado se casa por día de la semana (lunes con lunes). Se funde en las
+  // mismas filas para que el gráfico tenga un solo conjunto de datos.
+  const compPorDia = new Map((comparado?.rows ?? []).map((r) => [r.dia_num, r.total]));
+  const datos = rows.map((r) => ({ ...r, comparado: compPorDia.get(r.dia_num) ?? 0 }));
+  const maxVal = Math.max(...rows.map((r) => r.total), ...(comparado?.rows ?? []).map((r) => r.total), 1);
   const fmtShort = (n: number): string =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
@@ -205,7 +201,7 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick }: DiasSemanaMiniProps):
       </div>
       <ResponsiveContainer width="100%" height={110}>
         <BarChart
-          data={rows}
+          data={datos}
           margin={{ top: 4, right: 4, left: 4, bottom: 0 }}
           barCategoryGap="20%"
           onClick={(payload) => {
@@ -225,11 +221,14 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick }: DiasSemanaMiniProps):
           />
           <YAxis hide domain={[0, maxVal * 1.15]} />
           <RechartTooltip
-            formatter={(val: number) => [fmtShort(val), 'Total']}
+            formatter={(val: number, name: string) => [fmtShort(val), name]}
             contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
             cursor={{ fill: '#f1f5f9' }}
           />
-          <Bar dataKey="total" radius={[3, 3, 0, 0]}>
+          {comparado && (
+            <Bar dataKey="comparado" name={comparado.label} fill="#c7d2fe" radius={[3, 3, 0, 0]} />
+          )}
+          <Bar dataKey="total" name={label ?? 'Total'} radius={[3, 3, 0, 0]}>
             {rows.map((r) => (
               <Cell key={r.dia_num} fill={getBarColor(r)} />
             ))}
@@ -556,6 +555,17 @@ export default function Reportes(): React.ReactElement {
   const kpisCompQ      = useKpis(compMes, compAnio, selectedEntidadId ?? undefined, undefined, undefined, undefined, activoComp);
   const entidadesCompQ = useEntidades(compMes, compAnio, undefined, undefined, undefined, activoComp);
   const serviciosCompQ = useServicios(compMes, compAnio, undefined, undefined, null, null, activoComp);
+  const diasCompQ      = useDiasSemana(compMes, compAnio, undefined, undefined, activoComp);
+  const cumplCompQ     = useCumplimientoSemanal(compMes, compAnio, undefined, undefined, activoComp);
+
+  // Lo que reciben los gráficos. `null` mientras el mes comparado no haya
+  // llegado: así el gráfico se dibuja con el periodo actual y la serie
+  // comparada aparece al llegar, sin que la pantalla parpadee ni se quede
+  // esperando una consulta que puede tardar.
+  const compDias = activoComp && mesComparado && diasCompQ.data
+    ? { label: mesComparado.label, rows: diasCompQ.data } : null;
+  const compSemanas = activoComp && mesComparado && cumplCompQ.data
+    ? { label: mesComparado.label, semanas: cumplCompQ.data.semanas } : null;
 
   // Annual mode: filter tendencia to current year, ordered chronologically
   const currentYear = new Date().getFullYear();
@@ -1076,6 +1086,14 @@ export default function Reportes(): React.ReactElement {
             ) : null}
           </div>
 
+          {/* Totales de los dos periodos frente a frente (solo con "Comparar" activo) */}
+          {activoComp && mesComparado && kpisQ.data && comp && entidadesQ.data && entidadesCompQ.data && (
+            <ResumenComparativo
+              actual={{ label: selected.label, kpis: kpisQ.data, entidades: entidadesQ.data.rows }}
+              comparado={{ label: mesComparado.label, kpis: comp, entidades: entidadesCompQ.data.rows }}
+            />
+          )}
+
           {/* KPI Row 2 — annual: monthly bars + Meses en Meta | normal: day bars + Semanas en Meta */}
           <div className="kpi-grid kpi-grid--2 kpi-grid--sm">
             {isAnioMode ? (
@@ -1103,7 +1121,8 @@ export default function Reportes(): React.ReactElement {
               ) : (
                 <>
                   {diasQ.data && diasQ.data.length > 0 ? (
-                    <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
+                    <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick}
+                      comparado={compDias} label={selected.label} />
                   ) : <div />}
                   {isRangoMode ? (
                     <KpiCard
@@ -1149,6 +1168,8 @@ export default function Reportes(): React.ReactElement {
                   <ChartCumplimiento
                     semanas={cumplimientoQ.data.semanas}
                     onWeekClick={handleWeekClick}
+                    comparado={compSemanas}
+                    label={compSemanas ? selected.label : undefined}
                   />
                 ) : null
               )}

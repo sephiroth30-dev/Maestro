@@ -32,6 +32,11 @@ eneros sí.
 Con la comparación activa:
 
 - Las **cuatro tarjetas** de arriba muestran la variación («+18,4 % vs Enero 2025»).
+- Aparece el bloque **Comparativo de totales**: la facturación, las atenciones y el ticket
+  de cada mes en cifras absolutas, la variación, y el desglose por tipo de pagador.
+- **Facturado por día** y **Cumplimiento semanal** dibujan dos barras: la del mes
+  comparado (más clara, a la izquierda) y la del mes mostrado. Los días se casan por día de
+  la semana y las semanas por número (la 1 con la 1), porque dos meses no comparten fechas.
 - La tabla de **entidades** y la de **servicios** ganan una columna con la cifra del mes
   comparado y su variación: verde si subió, roja si bajó, gris si quedó igual.
 

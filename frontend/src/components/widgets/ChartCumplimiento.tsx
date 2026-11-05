@@ -19,6 +19,14 @@ import { formatCOP } from './KpiCard.js';
 interface ChartCumplimientoProps {
   semanas: SemanaRow[];
   onWeekClick?: (semana: SemanaRow) => void;
+  /**
+   * Semanas del mes con el que se compara. Se enfrentan por NÚMERO de semana
+   * (la 1 con la 1), no por fecha: dos meses distintos no comparten días, y lo
+   * que interesa es cómo rindió cada tramo del mes.
+   */
+  comparado?: { label: string; semanas: SemanaRow[] } | null;
+  /** Nombre del periodo mostrado, para distinguirlo del comparado en la leyenda. */
+  label?: string;
 }
 
 // ─── Color logic ──────────────────────────────────────────────────────────────
@@ -34,6 +42,7 @@ function barColor(pct: number, estado: SemanaRow['estado']): string {
 
 interface TooltipPayloadItem {
   name: string;
+  dataKey?: string;
   value: number;
   color: string;
 }
@@ -47,8 +56,9 @@ interface CustomTooltipProps {
 function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.ReactElement | null {
   if (!active || !payload?.length) return null;
 
-  const venta = payload.find((p) => p.name === 'Facturado');
-  const estimado = payload.find((p) => p.name === 'Estimado');
+  const venta = payload.find((p) => p.dataKey === 'Facturado');
+  const estimado = payload.find((p) => p.dataKey === 'Estimado');
+  const comp = payload.find((p) => p.dataKey === 'Comparado');
 
   const pct =
     venta && estimado && estimado.value > 0
@@ -60,7 +70,12 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.Re
       <p className="chart-tooltip-label">{label}</p>
       {venta && (
         <p className="chart-tooltip-row" style={{ color: venta.color }}>
-          Facturado: {formatCOP(venta.value)}
+          {venta.name}: {formatCOP(venta.value)}
+        </p>
+      )}
+      {comp && (
+        <p className="chart-tooltip-row" style={{ color: comp.color }}>
+          {comp.name}: {formatCOP(comp.value)}
         </p>
       )}
       {estimado && (
@@ -79,15 +94,25 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.Re
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ChartCumplimiento({ semanas, onWeekClick }: ChartCumplimientoProps): React.ReactElement {
-  const data = semanas.map((s) => ({
-    nombre: `Sem ${s.numero}`,
-    Facturado: s.venta,
-    Estimado: s.estimado,
-    pct: s.cumplimiento_pct,
-    estado: s.estado,
-    _raw: s,
-  }));
+export default function ChartCumplimiento({ semanas, onWeekClick, comparado, label }: ChartCumplimientoProps): React.ReactElement {
+  // Un mes puede tener 4 semanas y el otro 5: se grafica hasta la mayor, y la
+  // que falta en uno queda en blanco en vez de inventar un cero.
+  const porNumero = new Map((comparado?.semanas ?? []).map((s) => [s.numero, s]));
+  const numeros = new Set<number>([...semanas.map((s) => s.numero), ...porNumero.keys()]);
+  const actuales = new Map(semanas.map((s) => [s.numero, s]));
+
+  const data = [...numeros].sort((a, b) => a - b).map((n) => {
+    const s = actuales.get(n);
+    return {
+      nombre: `Sem ${n}`,
+      Facturado: s?.venta,
+      Estimado: s?.estimado,
+      Comparado: porNumero.get(n)?.venta,
+      pct: s?.cumplimiento_pct ?? 0,
+      estado: s?.estado ?? 'FUTURA',
+      _raw: s,
+    };
+  });
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -109,11 +134,17 @@ export default function ChartCumplimiento({ semanas, onWeekClick }: ChartCumplim
         <Legend
           wrapperStyle={{ fontSize: 12, color: '#64748b' }}
         />
+        {comparado && (
+          // Va ANTES de la serie principal para que quede a la izquierda: el
+          // periodo anterior se lee primero y el actual cierra el par.
+          <Bar dataKey="Comparado" name={comparado.label} fill="#a5b4fc" maxBarSize={40} radius={[3, 3, 0, 0]} />
+        )}
         <Bar
           dataKey="Facturado"
-          maxBarSize={56}
+          name={label ?? 'Facturado'}
+          maxBarSize={comparado ? 40 : 56}
           style={{ cursor: onWeekClick ? 'pointer' : 'default' }}
-          onClick={(entry: { _raw: SemanaRow }) => onWeekClick?.(entry._raw)}
+          onClick={(entry: { _raw?: SemanaRow }) => { if (entry._raw) onWeekClick?.(entry._raw); }}
         >
           {data.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={barColor(entry.pct, entry.estado)} />
@@ -121,6 +152,7 @@ export default function ChartCumplimiento({ semanas, onWeekClick }: ChartCumplim
         </Bar>
         <Line
           type="monotone"
+          name="Estimado"
           dataKey="Estimado"
           stroke="#94a3b8"
           strokeDasharray="6 3"

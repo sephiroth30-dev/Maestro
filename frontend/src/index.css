@@ -2428,6 +2428,44 @@ body,
   color: var(--color-gray-400);
 }
 
+/* Bloque comparativo de totales (Reportes con "Comparar" activo). */
+.resumen-comp { margin-bottom: var(--space-6); }
+.resumen-comp-grid {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.2fr) 1fr 1fr 0.8fr;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  margin-bottom: var(--space-5);
+}
+.resumen-comp-col {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray-500);
+}
+.resumen-comp-metrica { font-size: var(--font-size-sm); color: var(--color-gray-600); }
+.resumen-comp-valor { font-size: 1.25rem; font-weight: 700; color: var(--color-gray-900, #0f172a); }
+.resumen-comp-valor--base { color: var(--color-gray-500); font-weight: 600; }
+.resumen-comp-sub {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-700);
+  margin: 0 0 var(--space-2);
+}
+.resumen-comp-var { font-weight: 600; white-space: nowrap; }
+.resumen-comp-var--sube  { color: #059669; }
+.resumen-comp-var--baja  { color: #dc2626; }
+.resumen-comp-var--igual { color: var(--color-gray-400); }
+.resumen-comp-tabla { width: 100%; border-collapse: collapse; margin-top: var(--space-3); font-size: var(--font-size-sm); }
+.resumen-comp-tabla th {
+  text-align: right; padding: 6px 12px; font-size: var(--font-size-xs); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-gray-500);
+  border-bottom: 1px solid var(--color-gray-200); background: var(--color-gray-50);
+}
+.resumen-comp-tabla td { text-align: right; padding: 6px 12px; border-bottom: 1px solid var(--color-gray-100); }
+.resumen-comp-tabla th:first-child, .resumen-comp-tabla td:first-child { text-align: left; }
+
 /* ─── Alerta KPI ─────────────────────────────────────────────────────────────── */
 
 .alerta-kpi {

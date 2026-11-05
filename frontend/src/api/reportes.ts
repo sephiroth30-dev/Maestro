@@ -134,7 +134,7 @@ export function useEntidades(mesIdx: number, anio: number, startDate?: string, e
   });
 }
 
-export function useCumplimientoSemanal(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+export function useCumplimientoSemanal(mesIdx: number, anio: number, startDate?: string, endDate?: string, enabled = true) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -150,12 +150,13 @@ export function useCumplimientoSemanal(mesIdx: number, anio: number, startDate?:
       const response = await apiClient.get<CumplimientoSemanalResult>(`/reportes/cumplimiento/semanal?${params}`);
       return response.data;
     },
+    enabled,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
   });
 }
 
-export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, endDate?: string) {
+export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, endDate?: string, enabled = true) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -170,6 +171,7 @@ export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, 
       const response = await apiClient.get<DiaSemanaRow[]>(`/reportes/dias-semana?${params}`);
       return response.data;
     },
+    enabled,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
   });
