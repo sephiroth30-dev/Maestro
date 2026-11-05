@@ -24,8 +24,9 @@ exports.getDetalleAtenciones = getDetalleAtenciones;
 const prisma_js_1 = require("../config/prisma.js");
 const reportes_repo_js_1 = require("./reportes.repo.js");
 const paciente_key_js_1 = require("./paciente-key.js");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 function where(p) {
-    const [clause, params] = (0, reportes_repo_js_1.buildDateWhere)(p.mesIdx, p.anio, p.startDate, p.endDate, p.diaSemana);
+    const [clause, params] = (0, reportes_repo_js_1.buildDateWhere)(p.mesIdx, p.anio, p.startDate, p.endDate, p.diaSemana, 'a');
     const out = [...params];
     let c = clause;
     if (p.entidadId) {
@@ -102,6 +103,8 @@ async function getResumen(p) {
 async function getNuevosRecurrentes(p) {
     const K = await (0, paciente_key_js_1.getKeyExpr)();
     const [w, params] = where(p);
+    const [fuenteSqlA, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)('a');
+    const fuenteWhere = fuenteSqlA ? ` WHERE 1=1${(0, fuente_activa_service_js_1.sqlFiltroFuente)()[0]}` : '';
     const [rows] = await prisma_js_1.pool.query(`SELECT
        SUM(CASE WHEN periodo.primera = historico.primera THEN 1 ELSE 0 END) AS nuevos,
        SUM(CASE WHEN periodo.primera > historico.primera THEN 1 ELSE 0 END) AS recurrentes
@@ -114,10 +117,10 @@ async function getNuevosRecurrentes(p) {
      JOIN (
        SELECT ${K} AS k, MIN(DATE(a.fecha_dia)) AS primera
        FROM atenciones a
-       WHERE ${K} IS NOT NULL
+       WHERE ${K} IS NOT NULL${fuenteSqlA}
        GROUP BY k
-     ) historico ON historico.k = periodo.k`, params);
-    const [hist] = await prisma_js_1.pool.query(`SELECT MIN(DATE(fecha_dia)) AS desde FROM atenciones`);
+     ) historico ON historico.k = periodo.k`, [...params, ...fuenteParams]);
+    const [hist] = await prisma_js_1.pool.query(`SELECT MIN(DATE(fecha_dia)) AS desde FROM atenciones${fuenteWhere}`, fuenteParams);
     const r = rows[0] ?? {};
     const desde = hist[0]?.desde;
     return {
@@ -236,6 +239,13 @@ async function getRetencion(p, desde, hasta) {
     if (p.diaSemana !== undefined) {
         extra.push('DAYOFWEEK(a.fecha_dia) = ?');
         extraParams.push(p.diaSemana);
+    }
+    // La fuente activa va aquí dentro para que aplique a las dos subconsultas:
+    // si solo filtrara una, la retención compararía pacientes de fuentes distintas.
+    const [fuenteSqlA, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)('a');
+    if (fuenteSqlA) {
+        extra.push('a.conector_id = ?');
+        extraParams.push(...fuenteParams);
     }
     const f = extra.length > 0 ? ` AND ${extra.join(' AND ')}` : '';
     const [rows] = await prisma_js_1.pool.query(`SELECT m.anio, m.mes_idx,

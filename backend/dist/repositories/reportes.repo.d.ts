@@ -33,8 +33,16 @@ export interface PresupuestoRow {
 /**
  * Returns a [whereClause, params] tuple for filtering atenciones by date range
  * or by mes_idx/anio.
+ *
+ * Incluye además el filtro por **fuente activa**: con dos conectores cargando el
+ * mismo mes, sin él las cifras se sumarían y la facturación saldría duplicada
+ * sin ninguna señal. Si no hay fuente marcada no añade nada, que es el
+ * comportamiento anterior.
+ *
+ * @param alias Alias de `atenciones` en la consulta, si lo tiene ('a').
  */
-export declare function buildDateWhere(mesIdx?: number, anio?: number, startDate?: Date, endDate?: Date, diaSemana?: number): [string, (Date | number)[]];
+export declare function buildDateWhere(mesIdx?: number, anio?: number, startDate?: Date, endDate?: Date, diaSemana?: number, // MySQL DAYOFWEEK: 2=Lun, 3=Mar, 4=Mié, 5=Jue, 6=Vie
+alias?: string): [string, (Date | number | string)[]];
 export declare function getAgregadoMes(mesIdx: number, anio: number, entidadId?: string, startDate?: Date, endDate?: Date, diaSemana?: number): Promise<{
     total: number;
     atenciones: number;

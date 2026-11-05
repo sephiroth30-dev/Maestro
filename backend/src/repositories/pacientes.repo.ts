@@ -15,6 +15,7 @@ import { pool } from '../config/prisma.js';
 import type { RowDataPacket } from 'mysql2';
 import { buildDateWhere } from './reportes.repo.js';
 import { getKeyExpr } from './paciente-key.js';
+import { sqlFiltroFuente } from '../services/fuente-activa.service.js';
 
 export interface PacientesParams {
   mesIdx?: number;
@@ -26,7 +27,7 @@ export interface PacientesParams {
 }
 
 function where(p: PacientesParams): [string, (Date | number | string)[]] {
-  const [clause, params] = buildDateWhere(p.mesIdx, p.anio, p.startDate, p.endDate, p.diaSemana);
+  const [clause, params] = buildDateWhere(p.mesIdx, p.anio, p.startDate, p.endDate, p.diaSemana, 'a');
   const out: (Date | number | string)[] = [...params];
   let c = clause;
   if (p.entidadId) {
@@ -149,6 +150,8 @@ export async function getNuevosRecurrentes(
 ): Promise<{ nuevos: number; recurrentes: number; historia_desde: string | null }> {
   const K = await getKeyExpr();
   const [w, params] = where(p);
+  const [fuenteSqlA, fuenteParams] = sqlFiltroFuente('a');
+  const fuenteWhere = fuenteSqlA ? ` WHERE 1=1${sqlFiltroFuente()[0]}` : '';
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT
@@ -163,14 +166,15 @@ export async function getNuevosRecurrentes(
      JOIN (
        SELECT ${K} AS k, MIN(DATE(a.fecha_dia)) AS primera
        FROM atenciones a
-       WHERE ${K} IS NOT NULL
+       WHERE ${K} IS NOT NULL${fuenteSqlA}
        GROUP BY k
      ) historico ON historico.k = periodo.k`,
-    params,
+    [...params, ...fuenteParams],
   );
 
   const [hist] = await pool.query<RowDataPacket[]>(
-    `SELECT MIN(DATE(fecha_dia)) AS desde FROM atenciones`,
+    `SELECT MIN(DATE(fecha_dia)) AS desde FROM atenciones${fuenteWhere}`,
+    fuenteParams,
   );
 
   const r = rows[0] ?? {};
@@ -337,6 +341,10 @@ export async function getRetencion(p: PacientesParams, desde: Date, hasta: Date)
   const extraParams: (string | number)[] = [];
   if (p.entidadId) { extra.push('a.entidad_id = ?'); extraParams.push(p.entidadId); }
   if (p.diaSemana !== undefined) { extra.push('DAYOFWEEK(a.fecha_dia) = ?'); extraParams.push(p.diaSemana); }
+  // La fuente activa va aquí dentro para que aplique a las dos subconsultas:
+  // si solo filtrara una, la retención compararía pacientes de fuentes distintas.
+  const [fuenteSqlA, fuenteParams] = sqlFiltroFuente('a');
+  if (fuenteSqlA) { extra.push('a.conector_id = ?'); extraParams.push(...fuenteParams); }
   const f = extra.length > 0 ? ` AND ${extra.join(' AND ')}` : '';
 
   const [rows] = await pool.query<RowDataPacket[]>(

@@ -11,6 +11,8 @@ const logger_js_1 = require("../config/logger.js");
 const prisma_js_1 = require("../config/prisma.js");
 const redis_js_1 = require("../config/redis.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
+const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 // ─── Cron helper ──────────────────────────────────────────────────────────────
 function applyConnectorCron(conector) {
     (0, cron_service_js_1.unscheduleConnector)(conector.id);
@@ -137,6 +139,29 @@ async function connectorRoutes(fastify) {
         (0, redis_js_1.flushReportesCache)();
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ELIMINADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.status(204).send();
+    });
+    // POST /api/connectors/:id/fuente-activa
+    //
+    // Distinto de `activo`: eso decide si el conector SE SINCRONIZA; esto decide
+    // qué fuente VE el dashboard. Durante la transición hay que poder sincronizar
+    // una fuente nueva en segundo plano y compararla en Diagnóstico antes de que
+    // el dashboard la muestre.
+    fastify.post('/connectors/:id/fuente-activa', { preHandler: [...adminOnly] }, async (req, reply) => {
+        const { id } = req.params;
+        await connector_service_js_1.connectorService.getById(id); // 404 si no existe
+        await conectores_repo_js_1.conectoresRepo.setFuenteActiva(id);
+        await (0, fuente_activa_service_js_1.cargarFuenteActiva)();
+        // Lo cacheado se calculó con la fuente anterior.
+        (0, redis_js_1.flushReportesCache)();
+        void auditoria_repo_js_1.auditoriaRepo.insert({
+            usuarioId: req.authenticatedUser.id,
+            accion: auditoria_repo_js_1.ACCION.CONECTOR_ACTUALIZADO,
+            entidadTipo: 'conector',
+            entidadId: id,
+            ip: req.ip,
+            detalle: { fuenteActiva: true },
+        }).catch(() => { });
+        await reply.send({ ok: true, fuenteActiva: id });
     });
     // POST /api/connectors/:id/test  (test existing connector)
     fastify.post('/connectors/:id/test', { preHandler: [...adminOnly] }, async (req, reply) => {

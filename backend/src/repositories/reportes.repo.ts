@@ -1,6 +1,7 @@
 import { pool } from '../config/prisma.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { randomUUID } from 'node:crypto';
+import { sqlFiltroFuente } from '../services/fuente-activa.service.js';
 
 // ─── Types returned by raw repo queries ──────────────────────────────────────
 
@@ -48,6 +49,13 @@ export interface PresupuestoRow {
 /**
  * Returns a [whereClause, params] tuple for filtering atenciones by date range
  * or by mes_idx/anio.
+ *
+ * Incluye además el filtro por **fuente activa**: con dos conectores cargando el
+ * mismo mes, sin él las cifras se sumarían y la facturación saldría duplicada
+ * sin ninguna señal. Si no hay fuente marcada no añade nada, que es el
+ * comportamiento anterior.
+ *
+ * @param alias Alias de `atenciones` en la consulta, si lo tiene ('a').
  */
 export function buildDateWhere(
   mesIdx?: number,
@@ -55,9 +63,10 @@ export function buildDateWhere(
   startDate?: Date,
   endDate?: Date,
   diaSemana?: number, // MySQL DAYOFWEEK: 2=Lun, 3=Mar, 4=Mié, 5=Jue, 6=Vie
-): [string, (Date | number)[]] {
+  alias?: string,
+): [string, (Date | number | string)[]] {
   let clause: string;
-  let params: (Date | number)[];
+  let params: (Date | number | string)[];
 
   if (startDate && endDate) {
     clause = 'fecha_dia >= ? AND fecha_dia <= ?';
@@ -71,6 +80,10 @@ export function buildDateWhere(
     clause += ' AND DAYOFWEEK(fecha_dia) = ?';
     params.push(diaSemana);
   }
+
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente(alias);
+  clause += fuenteSql;
+  params.push(...fuenteParams);
 
   return [clause, params];
 }
@@ -112,9 +125,10 @@ export async function getFacturacionDia(fecha: Date): Promise<number> {
   const endOfDay = new Date(fecha);
   endOfDay.setUTCHours(23, 59, 59, 999);
 
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
   const [rows] = await pool.query<(RowDataPacket & { total: string | null })[]>(
-    'SELECT SUM(valor_bruto) AS total FROM atenciones WHERE fecha_dia >= ? AND fecha_dia <= ?',
-    [startOfDay, endOfDay]
+    `SELECT SUM(valor_bruto) AS total FROM atenciones WHERE fecha_dia >= ? AND fecha_dia <= ?${fuenteSql}`,
+    [startOfDay, endOfDay, ...fuenteParams]
   );
   return Number(rows[0]?.total ?? 0);
 }
@@ -137,9 +151,10 @@ export async function getFechasDelMes(
   mesIdx: number,
   anio: number
 ): Promise<Date[]> {
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
   const [rows] = await pool.query<(RowDataPacket & { fecha_dia: Date })[]>(
-    'SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ? ORDER BY fecha_dia ASC',
-    [mesIdx, anio]
+    `SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ?${fuenteSql} ORDER BY fecha_dia ASC`,
+    [mesIdx, anio, ...fuenteParams]
   );
   return rows.map((r) => r.fecha_dia);
 }
@@ -151,7 +166,7 @@ export async function getEntidadesAgg(
   endDate?: Date,
   diaSemana?: number,
 ): Promise<EntidadAggRow[]> {
-  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana, 'a');
   const [rows] = await pool.query<(RowDataPacket & EntidadAggRow)[]>(
     `SELECT
       a.entidad_id,
@@ -234,16 +249,20 @@ export async function getTendenciaMeses(
   meses: number
 ): Promise<Array<{ anio: number; mes_idx: number; total: number }>> {
   // Subquery: pick the N most-recent months, then re-sort ascending for display.
+  // El filtro va dentro de la subconsulta: sin él la tendencia sumaría las dos
+  // fuentes y los meses presentes en ambas saldrían al doble.
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
+  const where = fuenteSql ? ` WHERE 1=1${fuenteSql}` : '';
   const [rows] = await pool.query<(RowDataPacket & { anio: number; mes_idx: number; total: string })[]>(
     `SELECT anio, mes_idx, total FROM (
        SELECT anio, mes_idx, SUM(valor_bruto) AS total
-       FROM atenciones
+       FROM atenciones${where}
        GROUP BY anio, mes_idx
        ORDER BY anio DESC, mes_idx DESC
        LIMIT ?
      ) sub
      ORDER BY anio ASC, mes_idx ASC`,
-    [meses]
+    [...fuenteParams, meses]
   );
   return rows.map((r) => ({
     anio: Number(r.anio),
@@ -289,11 +308,13 @@ export interface EntidadCatalogRow {
 }
 
 export async function listEntidades(): Promise<EntidadCatalogRow[]> {
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
   const [rows] = await pool.query<(RowDataPacket & { id: string; nombre: string; tipo: string; es_grupo_caja: number; activa: number; nombres_raw: string; total_atenciones: string })[]>(
     `SELECT e.id, e.nombre, e.tipo, e.es_grupo_caja, e.activa, e.nombres_raw,
-      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id) AS total_atenciones
+      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id${fuenteSql}) AS total_atenciones
      FROM entidades e
-     ORDER BY e.tipo ASC, e.nombre ASC`
+     ORDER BY e.tipo ASC, e.nombre ASC`,
+    fuenteParams,
   );
   return rows.map((r) => ({
     id: r.id,
@@ -495,14 +516,16 @@ export interface ProfesionalRow {
 }
 
 export async function listProfesionales(): Promise<ProfesionalRow[]> {
+  const [fuenteSqlA, fuenteParams] = sqlFiltroFuente('a');
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT p.id, p.nombre, p.nombre_completo, p.nombres_raw, p.es_nomina, p.especialidad,
             COUNT(a.id) AS total_atenciones
      FROM profesionales p
-     LEFT JOIN atenciones a ON a.profesional_id = p.id
+     LEFT JOIN atenciones a ON a.profesional_id = p.id${fuenteSqlA}
      WHERE p.activo = 1
      GROUP BY p.id
-     ORDER BY total_atenciones DESC, p.nombre ASC`
+     ORDER BY total_atenciones DESC, p.nombre ASC`,
+    fuenteParams,
   );
   return rows.map((r) => ({
     id: r['id'] as string,
@@ -739,7 +762,7 @@ export async function getServiciosAgg(
   entidadId?: string,
   diaSemana?: number,
 ): Promise<ServicioAggRow[]> {
-  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
+  const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana, 'a');
 
   const entidadExtra = entidadId ? ' AND a.entidad_id = ?' : '';
   const entidadParams = entidadId ? [entidadId] : [];
@@ -835,19 +858,20 @@ export interface ServicioCatalogRow {
 }
 
 export async function listServiciosCatalog(): Promise<ServicioCatalogRow[]> {
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
   // Try with nombre_display first; fall back gracefully if column not yet migrated
   const queries = [
     `SELECT s.id, s.nombre, s.nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
-       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id${fuenteSql}) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
     `SELECT s.id, s.nombre, NULL AS nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
-       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id${fuenteSql}) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
   ];
   type SvcRow = RowDataPacket & { id: string; nombre: string; nombre_display: string | null; palabras_clave: string | null; tipo_conteo: string; orden: string; total_atenciones: string };
   let rows: SvcRow[] = [];
   for (const q of queries) {
-    try { [rows] = await pool.query<SvcRow[]>(q); break; } catch { /* try next */ }
+    try { [rows] = await pool.query<SvcRow[]>(q, fuenteParams); break; } catch { /* try next */ }
   }
   return rows.map((r) => ({
     id: r.id,
@@ -889,6 +913,7 @@ export interface ServicioAgrupacion {
 }
 
 export async function getServicioAgrupaciones(): Promise<ServicioAgrupacion[]> {
+  const [fuenteSqlA, fuenteParams] = sqlFiltroFuente('a');
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT s.id AS servicio_id,
             COALESCE(s.nombre_display, s.nombre) AS nombre,
@@ -896,9 +921,10 @@ export async function getServicioAgrupaciones(): Promise<ServicioAgrupacion[]> {
             COUNT(*) AS cnt,
             SUM(a.valor_bruto) AS valor
      FROM servicios s
-     JOIN atenciones a ON a.servicio_id = s.id
+     JOIN atenciones a ON a.servicio_id = s.id${fuenteSqlA}
      GROUP BY s.id, nombre, a.descripcion_raw
-     ORDER BY s.orden ASC, s.nombre ASC, cnt DESC`
+     ORDER BY s.orden ASC, s.nombre ASC, cnt DESC`,
+    fuenteParams,
   );
   const map = new Map<string, ServicioAgrupacion>();
   for (const r of rows) {

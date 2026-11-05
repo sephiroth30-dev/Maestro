@@ -9,6 +9,7 @@ import { autoSeedServicios } from './services/servicios-seed.service.js';
 import { autoSeedCapacidad } from './services/capacidad-seed.service.js';
 import { autoSeedReglasHonorarios } from './services/reglas-honorarios-seed.service.js';
 import { runSchemaMigrations } from './services/schema-migrations.service.js';
+import { cargarFuenteActiva } from './services/fuente-activa.service.js';
 
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
@@ -132,6 +133,10 @@ async function connectInBackground(): Promise<void> {
           error: migrationErr instanceof Error ? migrationErr.message : String(migrationErr),
         });
       }
+      // Qué fuente ve el dashboard. Va después de las migraciones porque la
+      // columna puede acabar de crearse, y antes de servir peticiones para que
+      // ninguna consulta corra sin saber por cuál conector filtrar.
+      await cargarFuenteActiva();
       // Sync entity catalog on every startup so deploys automatically pick up new entities
       try {
         await autoSeedEntidades();

@@ -6,6 +6,7 @@ import {
   type UseMutationResult,
 } from '@tanstack/react-query';
 import { apiClient } from './client.js';
+import { invalidarReportes } from './reportes.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,9 @@ export interface Conector {
   tipo: TipoConector;
   config: Record<string, unknown>;
   activo: boolean;
+  /** Si esta es la fuente que ve el dashboard. Distinto de `activo`, que solo
+   *  decide si el conector se sincroniza. */
+  esFuenteActiva: boolean;
   frecuenciaSync: FrecuenciaSync;
   ultimaSync: string | null;
   lastSyncEstado: EstadoSync | null;
@@ -257,6 +261,30 @@ export function useTriggerSync(): UseMutationResult<SyncStartedResult, Error, st
       // Invalidate history so the card can poll it for completion
       void qc.invalidateQueries({ queryKey: connectorKeys.history(id) });
       void qc.invalidateQueries({ queryKey: connectorKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Cambia qué fuente ve el dashboard.
+ *
+ * Invalida TODAS las consultas de reportes además de la lista de conectores:
+ * las cifras de cada pantalla acaban de cambiar de origen y lo que hubiera en
+ * caché corresponde a la fuente anterior.
+ */
+export function useSetFuenteActiva(): UseMutationResult<
+  { ok: boolean; fuenteActiva: string },
+  Error,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.post<{ ok: boolean; fuenteActiva: string }>(`/connectors/${id}/fuente-activa`)
+        .then((r) => r.data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: connectorKeys.lists() });
+      invalidarReportes(qc);
     },
   });
 }

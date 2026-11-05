@@ -31,6 +31,7 @@ import {
   useDeleteConnectorData,
   useDeleteOrphanData,
   useColumnDiagnostico,
+  useSetFuenteActiva,
   type Conector,
   type TipoConector,
   type FrecuenciaSync,
@@ -158,6 +159,7 @@ function ConnectorCard({
   const syncMutation = useTriggerSync();
   const wipeMutation = useDeleteConnectorData();
   const colDiagMutation = useColumnDiagnostico();
+  const fuenteMutation = useSetFuenteActiva();
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [syncPolling, setSyncPolling] = useState(false);
   const [wipeResult, setWipeResult] = useState<string | null>(null);
@@ -265,6 +267,12 @@ function ConnectorCard({
                 </>
               )}
             </span>
+            {conector.esFuenteActiva && (
+              <span className="badge badge--blue" title="El dashboard muestra los datos de esta fuente">
+                <span className="badge-dot badge-dot--green" />
+                Fuente del dashboard
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -450,6 +458,23 @@ function ConnectorCard({
           <History size={13} />
           Historial
         </button>
+
+        {!conector.esFuenteActiva && (
+          <button
+            type="button"
+            className="btn btn--sm btn--ghost"
+            onClick={() => { void fuenteMutation.mutateAsync(conector.id); }}
+            disabled={fuenteMutation.isPending}
+            title="Hacer que el dashboard muestre los datos de esta fuente"
+          >
+            {fuenteMutation.isPending ? (
+              <Loader2 size={13} className="spin" />
+            ) : (
+              <Database size={13} />
+            )}
+            Usar como fuente
+          </button>
+        )}
 
         <button
           type="button"
@@ -2116,6 +2141,21 @@ export default function Conectores(): React.ReactElement {
           </button>
         </div>
       ) : (
+        <>
+        {conectores.length > 1 && !conectores.some((c) => c.esFuenteActiva) && (
+          <div
+            className="entidades-config-banner"
+            style={{ background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412', marginBottom: '1rem' }}
+          >
+            <AlertCircle size={14} />
+            <span>
+              Hay <strong>{conectores.length} fuentes</strong> y ninguna marcada como fuente del
+              dashboard, así que los reportes están <strong>sumando todas</strong>. Si dos
+              fuentes cubren el mismo mes, esa facturación aparece duplicada. Marca una con
+              <strong> Usar como fuente</strong>.
+            </span>
+          </div>
+        )}
         <div className="connectors-grid">
           {conectores.map((c) => (
             <ConnectorCard
@@ -2127,6 +2167,7 @@ export default function Conectores(): React.ReactElement {
             />
           ))}
         </div>
+        </>
       )}
 
       {/* Modals */}

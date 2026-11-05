@@ -130,6 +130,49 @@ const MIGRATIONS: Migration[] = [
     sql: "ALTER TABLE capacidad_instalada ADD COLUMN base_conteo ENUM('pacientes','estudios') NULL",
     columna: { tabla: 'capacidad_instalada', columna: 'base_conteo' },
   },
+  // ─── Fuente activa del dashboard ──────────────────────────────────────────
+  //
+  // Hasta ahora ninguna consulta de reportes distinguía de qué conector venía
+  // cada atención: todas sumaban la tabla entera. Con dos fuentes cargadas (el
+  // Sheet histórico y la API de Medifolios), cada mes presente en ambas habría
+  // aparecido con la facturación duplicada, sin ninguna alerta.
+  //
+  // Esta columna marca cuál es la fuente que ve el dashboard. Es distinta de
+  // `activo`, que decide si el conector SE SINCRONIZA: durante la transición hay
+  // que poder sincronizar Medifolios en segundo plano y compararlo en
+  // Diagnóstico antes de que el dashboard lo muestre.
+  {
+    id: 'm18_conectores_fuente_activa',
+    sql: 'ALTER TABLE conectores ADD COLUMN es_fuente_activa TINYINT(1) NOT NULL DEFAULT 0',
+    columna: { tabla: 'conectores', columna: 'es_fuente_activa' },
+  },
+  // El filtro nuevo se aplica en cada consulta de reportes y esta columna no
+  // tenía índice (sí lo tienen fecha, mes/año, entidad, profesional y autorización).
+  {
+    id: 'm19_atenciones_conector_id_idx',
+    sql: 'CREATE INDEX atenciones_conector_id_idx ON atenciones (conector_id)',
+    index: { tabla: 'atenciones', columna: 'conector_id' },
+  },
+  // Marca como fuente activa la que más atenciones tiene — hoy el Sheet, el
+  // único con datos — para que el dashboard no cambie ni una cifra al desplegar.
+  //
+  // El guardia `NOT EXISTS` es obligatorio: el runner reejecuta la lista completa
+  // en cada arranque, así que sin él esto pisaría la elección del administrador
+  // en cada reinicio del servidor.
+  {
+    id: 'm20_marcar_fuente_activa_inicial',
+    sql: `UPDATE conectores c
+          JOIN (
+            SELECT conector_id, COUNT(*) AS n
+            FROM atenciones
+            WHERE conector_id IS NOT NULL
+            GROUP BY conector_id
+            ORDER BY n DESC
+            LIMIT 1
+          ) top ON top.conector_id = c.id
+          SET c.es_fuente_activa = 1
+          WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM conectores) x WHERE x.es_fuente_activa = 1)`,
+  },
 ];
 
 async function columnaExiste(tabla: string, columna: string): Promise<boolean> {

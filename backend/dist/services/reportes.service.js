@@ -37,6 +37,7 @@ exports.reportesService = void 0;
 const redis_js_1 = require("../config/redis.js");
 const logger_js_1 = require("../config/logger.js");
 const repo = __importStar(require("../repositories/reportes.repo.js"));
+const fuente_activa_service_js_1 = require("./fuente-activa.service.js");
 // Colombia is UTC-5 with no DST. All "today" logic must use Colombia time,
 // not the UTC clock of the Hostinger server.
 function getColombiaDate() {
@@ -44,10 +45,22 @@ function getColombiaDate() {
 }
 // ─── Cache helpers ────────────────────────────────────────────────────────────
 const DIA_NOMBRES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+/**
+ * Antepone la fuente activa a la clave.
+ *
+ * Va aquí y no en `makeCacheKey` a propósito: hay claves que se arman a mano
+ * (`tendencia:6`, las de día de semana) y si el prefijo dependiera de recordar
+ * ponerlo en cada sitio, al cambiar de fuente alguna pantalla seguiría
+ * mostrando las cifras de la anterior sin que nada lo delatara.
+ */
+function conFuente(key) {
+    const id = (0, fuente_activa_service_js_1.fuenteActivaId)();
+    return id ? `f:${id}:${key}` : key;
+}
 async function cacheGet(key) {
     try {
         const redis = (0, redis_js_1.getRedisClient)();
-        const raw = await redis.get(key);
+        const raw = await redis.get(conFuente(key));
         if (!raw)
             return null;
         return JSON.parse(raw);
@@ -73,7 +86,7 @@ const TTL_REPORTES = 60;
 async function cacheSet(key, value, ttlSeconds) {
     try {
         const redis = (0, redis_js_1.getRedisClient)();
-        await redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+        await redis.set(conFuente(key), JSON.stringify(value), 'EX', ttlSeconds);
     }
     catch (err) {
         logger_js_1.logger.warn('Redis SET failed', { key, error: err.message });

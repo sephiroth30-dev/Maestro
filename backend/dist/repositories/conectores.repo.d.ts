@@ -38,6 +38,14 @@ export declare class ConectoresRepository {
         finalizadaAt: Date;
     }>): Promise<Sincronizacion>;
     findSincronizacionesByConector(conectorId: string, limit?: number): Promise<Sincronizacion[]>;
+    /**
+     * Marca un conector como la fuente que ve el dashboard, y desmarca el resto.
+     *
+     * Las dos sentencias van en una transacción: si la segunda fallara quedarían
+     * cero fuentes activas (o dos), y el dashboard pasaría a sumar las dos sin
+     * que nadie lo pidiera.
+     */
+    setFuenteActiva(id: string): Promise<void>;
 }
 export declare const conectoresRepo: ConectoresRepository;
 //# sourceMappingURL=conectores.repo.d.ts.map

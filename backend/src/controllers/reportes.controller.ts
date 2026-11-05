@@ -24,6 +24,7 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
 import { flushReportesCache } from '../config/redis.js';
+import { sqlFiltroFuente } from '../services/fuente-activa.service.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -635,10 +636,10 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         INNER JOIN profesionales p ON p.id = a.profesional_id
         LEFT  JOIN entidades     e ON e.id = a.entidad_id
         WHERE DATE(a.fecha_dia) BETWEEN ? AND ?
-          AND a.profesional_id IS NOT NULL
+          AND a.profesional_id IS NOT NULL${sqlFiltroFuente('a')[0]}
         GROUP BY p.id, COALESCE(p.nombre_completo, p.nombre)
         ORDER BY total_bruto DESC`,
-        [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]
+        [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta, ...sqlFiltroFuente()[1]]
       );
 
       return reply.send(

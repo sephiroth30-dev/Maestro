@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getLineasHonorarios = getLineasHonorarios;
 exports.getLineasHonorariosRango = getLineasHonorariosRango;
 const prisma_js_1 = require("../config/prisma.js");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 async function getLineasHonorarios(mesIdx, anio) {
     const [rows] = await prisma_js_1.pool.query(`SELECT
         p.id                                                  AS profesional_id,
@@ -24,12 +25,12 @@ async function getLineasHonorarios(mesIdx, anio) {
      INNER JOIN profesionales p ON p.id = a.profesional_id
      LEFT  JOIN servicios     s ON s.id = a.servicio_id
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
-     WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL
+     WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL${(0, fuente_activa_service_js_1.sqlFiltroFuente)('a')[0]}
      GROUP BY
         p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
-     ORDER BY p.nombre, s.nombre`, [mesIdx, anio]);
+     ORDER BY p.nombre, s.nombre`, [mesIdx, anio, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1]]);
     return rows.map((r) => ({
         profesional_id: r.profesional_id,
         profesional_nombre: r.profesional_nombre,
@@ -67,12 +68,12 @@ fechaHasta) {
      LEFT  JOIN servicios     s ON s.id = a.servicio_id
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
      WHERE DATE(a.fecha_dia) >= ? AND DATE(a.fecha_dia) <= ?
-       AND a.profesional_id IS NOT NULL
+       AND a.profesional_id IS NOT NULL${(0, fuente_activa_service_js_1.sqlFiltroFuente)('a')[0]}
      GROUP BY
         p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
-     ORDER BY p.nombre, s.nombre`, [fechaDesde, fechaHasta]);
+     ORDER BY p.nombre, s.nombre`, [fechaDesde, fechaHasta, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1]]);
     return rows.map((r) => ({
         profesional_id: r.profesional_id,
         profesional_nombre: r.profesional_nombre,

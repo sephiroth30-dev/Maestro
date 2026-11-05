@@ -1,5 +1,6 @@
 import { pool } from '../config/prisma.js';
 import type { RowDataPacket } from 'mysql2';
+import { sqlFiltroFuente } from '../services/fuente-activa.service.js';
 
 export interface HonorariosLineaDB {
   profesional_id: string;
@@ -40,13 +41,13 @@ export async function getLineasHonorarios(
      INNER JOIN profesionales p ON p.id = a.profesional_id
      LEFT  JOIN servicios     s ON s.id = a.servicio_id
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
-     WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL
+     WHERE a.mes_idx = ? AND a.anio = ? AND a.profesional_id IS NOT NULL${sqlFiltroFuente('a')[0]}
      GROUP BY
         p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`,
-    [mesIdx, anio],
+    [mesIdx, anio, ...sqlFiltroFuente()[1]],
   );
 
   return rows.map((r) => ({
@@ -90,13 +91,13 @@ export async function getLineasHonorariosRango(
      LEFT  JOIN servicios     s ON s.id = a.servicio_id
      LEFT  JOIN entidades     e ON e.id = a.entidad_id
      WHERE DATE(a.fecha_dia) >= ? AND DATE(a.fecha_dia) <= ?
-       AND a.profesional_id IS NOT NULL
+       AND a.profesional_id IS NOT NULL${sqlFiltroFuente('a')[0]}
      GROUP BY
         p.id, p.nombre, p.nombre_completo, p.es_nomina,
         s.nombre, s.tipo_conteo,
         e.tipo, e.nombre
      ORDER BY p.nombre, s.nombre`,
-    [fechaDesde, fechaHasta],
+    [fechaDesde, fechaHasta, ...sqlFiltroFuente()[1]],
   );
 
   return rows.map((r) => ({

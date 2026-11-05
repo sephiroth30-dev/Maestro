@@ -35,12 +35,21 @@ exports.upsertPresupuesto = upsertPresupuesto;
 exports.reclasificarServicios = reclasificarServicios;
 const prisma_js_1 = require("../config/prisma.js");
 const node_crypto_1 = require("node:crypto");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /**
  * Returns a [whereClause, params] tuple for filtering atenciones by date range
  * or by mes_idx/anio.
+ *
+ * Incluye además el filtro por **fuente activa**: con dos conectores cargando el
+ * mismo mes, sin él las cifras se sumarían y la facturación saldría duplicada
+ * sin ninguna señal. Si no hay fuente marcada no añade nada, que es el
+ * comportamiento anterior.
+ *
+ * @param alias Alias de `atenciones` en la consulta, si lo tiene ('a').
  */
-function buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana) {
+function buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana, // MySQL DAYOFWEEK: 2=Lun, 3=Mar, 4=Mié, 5=Jue, 6=Vie
+alias) {
     let clause;
     let params;
     if (startDate && endDate) {
@@ -55,6 +64,9 @@ function buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana) {
         clause += ' AND DAYOFWEEK(fecha_dia) = ?';
         params.push(diaSemana);
     }
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)(alias);
+    clause += fuenteSql;
+    params.push(...fuenteParams);
     return [clause, params];
 }
 // ─── Repository ───────────────────────────────────────────────────────────────
@@ -79,7 +91,8 @@ async function getFacturacionDia(fecha) {
     startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(fecha);
     endOfDay.setUTCHours(23, 59, 59, 999);
-    const [rows] = await prisma_js_1.pool.query('SELECT SUM(valor_bruto) AS total FROM atenciones WHERE fecha_dia >= ? AND fecha_dia <= ?', [startOfDay, endOfDay]);
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
+    const [rows] = await prisma_js_1.pool.query(`SELECT SUM(valor_bruto) AS total FROM atenciones WHERE fecha_dia >= ? AND fecha_dia <= ?${fuenteSql}`, [startOfDay, endOfDay, ...fuenteParams]);
     return Number(rows[0]?.total ?? 0);
 }
 async function getDiasTranscurridos(mesIdx, anio, startDate, endDate) {
@@ -88,11 +101,12 @@ async function getDiasTranscurridos(mesIdx, anio, startDate, endDate) {
     return Number(rows[0]?.cnt ?? 0);
 }
 async function getFechasDelMes(mesIdx, anio) {
-    const [rows] = await prisma_js_1.pool.query('SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ? ORDER BY fecha_dia ASC', [mesIdx, anio]);
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
+    const [rows] = await prisma_js_1.pool.query(`SELECT DISTINCT fecha_dia FROM atenciones WHERE mes_idx = ? AND anio = ?${fuenteSql} ORDER BY fecha_dia ASC`, [mesIdx, anio, ...fuenteParams]);
     return rows.map((r) => r.fecha_dia);
 }
 async function getEntidadesAgg(mesIdx, anio, startDate, endDate, diaSemana) {
-    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana, 'a');
     const [rows] = await prisma_js_1.pool.query(`SELECT
       a.entidad_id,
       e.nombre,
@@ -151,14 +165,18 @@ async function getDiasSemanaAgg(mesIdx, anio, startDate, endDate) {
 }
 async function getTendenciaMeses(meses) {
     // Subquery: pick the N most-recent months, then re-sort ascending for display.
+    // El filtro va dentro de la subconsulta: sin él la tendencia sumaría las dos
+    // fuentes y los meses presentes en ambas saldrían al doble.
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
+    const where = fuenteSql ? ` WHERE 1=1${fuenteSql}` : '';
     const [rows] = await prisma_js_1.pool.query(`SELECT anio, mes_idx, total FROM (
        SELECT anio, mes_idx, SUM(valor_bruto) AS total
-       FROM atenciones
+       FROM atenciones${where}
        GROUP BY anio, mes_idx
        ORDER BY anio DESC, mes_idx DESC
        LIMIT ?
      ) sub
-     ORDER BY anio ASC, mes_idx ASC`, [meses]);
+     ORDER BY anio ASC, mes_idx ASC`, [...fuenteParams, meses]);
     return rows.map((r) => ({
         anio: Number(r.anio),
         mes_idx: Number(r.mes_idx),
@@ -181,10 +199,11 @@ async function listPresupuestos() {
     }));
 }
 async function listEntidades() {
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
     const [rows] = await prisma_js_1.pool.query(`SELECT e.id, e.nombre, e.tipo, e.es_grupo_caja, e.activa, e.nombres_raw,
-      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id) AS total_atenciones
+      (SELECT COUNT(*) FROM atenciones WHERE entidad_id = e.id${fuenteSql}) AS total_atenciones
      FROM entidades e
-     ORDER BY e.tipo ASC, e.nombre ASC`);
+     ORDER BY e.tipo ASC, e.nombre ASC`, fuenteParams);
     return rows.map((r) => ({
         id: r.id,
         nombre: r.nombre,
@@ -306,13 +325,14 @@ async function getDiagnosticoConectores() {
     }));
 }
 async function listProfesionales() {
+    const [fuenteSqlA, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)('a');
     const [rows] = await prisma_js_1.pool.query(`SELECT p.id, p.nombre, p.nombre_completo, p.nombres_raw, p.es_nomina, p.especialidad,
             COUNT(a.id) AS total_atenciones
      FROM profesionales p
-     LEFT JOIN atenciones a ON a.profesional_id = p.id
+     LEFT JOIN atenciones a ON a.profesional_id = p.id${fuenteSqlA}
      WHERE p.activo = 1
      GROUP BY p.id
-     ORDER BY total_atenciones DESC, p.nombre ASC`);
+     ORDER BY total_atenciones DESC, p.nombre ASC`, fuenteParams);
     return rows.map((r) => ({
         id: r['id'],
         nombre: r['nombre'],
@@ -462,7 +482,7 @@ async function getServiciosDiagnostico() {
     };
 }
 async function getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId, diaSemana) {
-    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana);
+    const [whereClause, params] = buildDateWhere(mesIdx, anio, startDate, endDate, diaSemana, 'a');
     const entidadExtra = entidadId ? ' AND a.entidad_id = ?' : '';
     const entidadParams = entidadId ? [entidadId] : [];
     // Step 1: Core aggregation — only columns that always exist
@@ -531,19 +551,20 @@ async function getServiciosAgg(mesIdx, anio, startDate, endDate, entidadId, diaS
     return result.sort((a, b) => a.orden - b.orden || (a.nombre ?? '').localeCompare(b.nombre ?? ''));
 }
 async function listServiciosCatalog() {
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
     // Try with nombre_display first; fall back gracefully if column not yet migrated
     const queries = [
         `SELECT s.id, s.nombre, s.nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
-       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id${fuenteSql}) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
         `SELECT s.id, s.nombre, NULL AS nombre_display, s.palabras_clave, s.tipo_conteo, s.orden,
-       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id) AS total_atenciones
+       (SELECT COUNT(*) FROM atenciones WHERE servicio_id = s.id${fuenteSql}) AS total_atenciones
      FROM servicios s ORDER BY s.orden ASC, s.nombre ASC`,
     ];
     let rows = [];
     for (const q of queries) {
         try {
-            [rows] = await prisma_js_1.pool.query(q);
+            [rows] = await prisma_js_1.pool.query(q, fuenteParams);
             break;
         }
         catch { /* try next */ }
@@ -580,15 +601,16 @@ async function patchServicio(id, fields) {
     await prisma_js_1.pool.execute(`UPDATE servicios SET ${sets.join(', ')} WHERE id = ?`, params);
 }
 async function getServicioAgrupaciones() {
+    const [fuenteSqlA, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)('a');
     const [rows] = await prisma_js_1.pool.query(`SELECT s.id AS servicio_id,
             COALESCE(s.nombre_display, s.nombre) AS nombre,
             a.descripcion_raw,
             COUNT(*) AS cnt,
             SUM(a.valor_bruto) AS valor
      FROM servicios s
-     JOIN atenciones a ON a.servicio_id = s.id
+     JOIN atenciones a ON a.servicio_id = s.id${fuenteSqlA}
      GROUP BY s.id, nombre, a.descripcion_raw
-     ORDER BY s.orden ASC, s.nombre ASC, cnt DESC`);
+     ORDER BY s.orden ASC, s.nombre ASC, cnt DESC`, fuenteParams);
     const map = new Map();
     for (const r of rows) {
         const sid = r['servicio_id'];

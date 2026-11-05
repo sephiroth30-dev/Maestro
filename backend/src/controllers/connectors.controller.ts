@@ -10,6 +10,8 @@ import { pool } from '../config/prisma.js';
 import { flushReportesCache } from '../config/redis.js';
 import { auditoriaRepo, ACCION } from '../repositories/auditoria.repo.js';
 import type { TipoConector } from '@prisma/client';
+import { conectoresRepo } from '../repositories/conectores.repo.js';
+import { cargarFuenteActiva } from '../services/fuente-activa.service.js';
 
 // ─── Cron helper ──────────────────────────────────────────────────────────────
 
@@ -180,6 +182,34 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
       flushReportesCache();
       void auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: ACCION.CONECTOR_ELIMINADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => {});
       await reply.status(204).send();
+    }
+  );
+
+  // POST /api/connectors/:id/fuente-activa
+  //
+  // Distinto de `activo`: eso decide si el conector SE SINCRONIZA; esto decide
+  // qué fuente VE el dashboard. Durante la transición hay que poder sincronizar
+  // una fuente nueva en segundo plano y compararla en Diagnóstico antes de que
+  // el dashboard la muestre.
+  fastify.post(
+    '/connectors/:id/fuente-activa',
+    { preHandler: [...adminOnly] },
+    async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+      const { id } = req.params as { id: string };
+      await connectorService.getById(id);   // 404 si no existe
+      await conectoresRepo.setFuenteActiva(id);
+      await cargarFuenteActiva();
+      // Lo cacheado se calculó con la fuente anterior.
+      flushReportesCache();
+      void auditoriaRepo.insert({
+        usuarioId: req.authenticatedUser.id,
+        accion: ACCION.CONECTOR_ACTUALIZADO,
+        entidadTipo: 'conector',
+        entidadId: id,
+        ip: req.ip,
+        detalle: { fuenteActiva: true },
+      }).catch(() => {});
+      await reply.send({ ok: true, fuenteActiva: id });
     }
   );
 

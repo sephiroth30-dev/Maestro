@@ -6,6 +6,7 @@ const node_crypto_1 = require("node:crypto");
 const prisma_js_1 = require("../config/prisma.js");
 const logger_js_1 = require("../config/logger.js");
 const paciente_key_js_1 = require("./paciente-key.js");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 const capacidad_grupos_js_1 = require("../config/capacidad-grupos.js");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function mapCapacidad(row) {
@@ -87,7 +88,7 @@ function sqlDemanda(keyExpr, whereClause, extraCols = '', extraGroup = '') {
           SUM(CASE WHEN ${keyExpr} IS NULL THEN 1 ELSE 0 END) AS sin_paciente
         FROM atenciones a
         JOIN servicios sv ON sv.id = a.servicio_id
-        WHERE ${whereClause}
+        WHERE ${whereClause}${(0, fuente_activa_service_js_1.sqlFiltroFuente)('a')[0]}
         GROUP BY ${extraGroup}grupo
         HAVING grupo IS NOT NULL`;
 }
@@ -147,7 +148,7 @@ class CapacidadRepository {
       LEFT JOIN (
         ${sqlDemanda(keyExpr, 'a.mes_idx = ? AND a.anio = ?')}
       ) s ON s.grupo = g.grupo
-      ORDER BY ${(0, capacidad_grupos_js_1.sqlOrdenGrupos)('g.grupo')}`, [anio, mesIdx, mesIdx, anio]);
+      ORDER BY ${(0, capacidad_grupos_js_1.sqlOrdenGrupos)('g.grupo')}`, [anio, mesIdx, mesIdx, anio, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1]]);
         return rows.map(mapUtilizacion);
     }
     /**
@@ -186,7 +187,7 @@ class CapacidadRepository {
         ) g
         CROSS JOIN (
           SELECT DISTINCT anio, mes_idx FROM atenciones
-          WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?
+          WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?${(0, fuente_activa_service_js_1.sqlFiltroFuente)()[0]}
           UNION
           SELECT DISTINCT anio, mes_idx FROM capacidad_instalada
           WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?
@@ -197,7 +198,11 @@ class CapacidadRepository {
       LEFT JOIN (
         ${sqlDemanda(keyExpr, '(a.anio * 12 + a.mes_idx) BETWEEN ? AND ?', 'a.anio,\n          a.mes_idx,\n          ', 'a.anio, a.mes_idx, ')}
       ) s ON s.grupo = p.grupo AND s.anio = p.anio AND s.mes_idx = p.mes_idx
-      ORDER BY p.anio, p.mes_idx, ${(0, capacidad_grupos_js_1.sqlOrdenGrupos)('p.grupo')}`, [desde, hasta, desde, hasta, desde, hasta]);
+      ORDER BY p.anio, p.mes_idx, ${(0, capacidad_grupos_js_1.sqlOrdenGrupos)('p.grupo')}`, [
+            desde, hasta, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1], // meses con atenciones
+            desde, hasta, // meses con capacidad configurada
+            desde, hasta, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1], // subconsulta de demanda
+        ]);
         return rows.map((r) => ({
             ...mapUtilizacion(r),
             anio: Number(r.anio),

@@ -262,6 +262,28 @@ export class ConectoresRepository {
     );
     return rows.map(mapSincronizacion);
   }
+
+  /**
+   * Marca un conector como la fuente que ve el dashboard, y desmarca el resto.
+   *
+   * Las dos sentencias van en una transacción: si la segunda fallara quedarían
+   * cero fuentes activas (o dos), y el dashboard pasaría a sumar las dos sin
+   * que nadie lo pidiera.
+   */
+  async setFuenteActiva(id: string): Promise<void> {
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute('UPDATE conectores SET es_fuente_activa = 0 WHERE es_fuente_activa = 1');
+      await conn.execute('UPDATE conectores SET es_fuente_activa = 1 WHERE id = ?', [id]);
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
 }
 
 export const conectoresRepo = new ConectoresRepository();

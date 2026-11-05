@@ -45,6 +45,7 @@ const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const auditoria_repo_js_1 = require("../repositories/auditoria.repo.js");
 const redis_js_1 = require("../config/redis.js");
+const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
 // ─── Constants ────────────────────────────────────────────────────────────────
 const REPORTES_ROLES = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'];
 // ADMISIONES can only see current month — override any period params.
@@ -470,9 +471,9 @@ async function registerReportesController(fastify) {
         INNER JOIN profesionales p ON p.id = a.profesional_id
         LEFT  JOIN entidades     e ON e.id = a.entidad_id
         WHERE DATE(a.fecha_dia) BETWEEN ? AND ?
-          AND a.profesional_id IS NOT NULL
+          AND a.profesional_id IS NOT NULL${(0, fuente_activa_service_js_1.sqlFiltroFuente)('a')[0]}
         GROUP BY p.id, COALESCE(p.nombre_completo, p.nombre)
-        ORDER BY total_bruto DESC`, [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta]);
+        ORDER BY total_bruto DESC`, [rangoQ.data.fecha_desde, rangoQ.data.fecha_hasta, ...(0, fuente_activa_service_js_1.sqlFiltroFuente)()[1]]);
         return reply.send(rows.map((r) => ({
             profesional_nombre: r.profesional_nombre,
             total_particular: Number(r.total_particular),

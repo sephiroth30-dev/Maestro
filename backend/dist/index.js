@@ -11,6 +11,7 @@ const servicios_seed_service_js_1 = require("./services/servicios-seed.service.j
 const capacidad_seed_service_js_1 = require("./services/capacidad-seed.service.js");
 const reglas_honorarios_seed_service_js_1 = require("./services/reglas-honorarios-seed.service.js");
 const schema_migrations_service_js_1 = require("./services/schema-migrations.service.js");
+const fuente_activa_service_js_1 = require("./services/fuente-activa.service.js");
 // Earliest possible log — antes de cualquier inicialización
 console.log('[BOOT] index.ts loaded, Node', process.version, 'PORT env:', process.env.PORT);
 // ─── Crash handlers ───────────────────────────────────────────────────────────
@@ -125,6 +126,10 @@ async function connectInBackground() {
                     error: migrationErr instanceof Error ? migrationErr.message : String(migrationErr),
                 });
             }
+            // Qué fuente ve el dashboard. Va después de las migraciones porque la
+            // columna puede acabar de crearse, y antes de servir peticiones para que
+            // ninguna consulta corra sin saber por cuál conector filtrar.
+            await (0, fuente_activa_service_js_1.cargarFuenteActiva)();
             // Sync entity catalog on every startup so deploys automatically pick up new entities
             try {
                 await (0, entity_seed_service_js_1.autoSeedEntidades)();

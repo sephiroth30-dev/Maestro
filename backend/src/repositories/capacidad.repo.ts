@@ -3,6 +3,7 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/prisma.js';
 import { logger } from '../config/logger.js';
 import { getKeyExpr, sqlLlaveVisita } from './paciente-key.js';
+import { sqlFiltroFuente } from '../services/fuente-activa.service.js';
 import {
   BASE_POR_GRUPO,
   sqlCatalogoGrupos,
@@ -178,7 +179,7 @@ function sqlDemanda(keyExpr: string, whereClause: string, extraCols = '', extraG
           SUM(CASE WHEN ${keyExpr} IS NULL THEN 1 ELSE 0 END) AS sin_paciente
         FROM atenciones a
         JOIN servicios sv ON sv.id = a.servicio_id
-        WHERE ${whereClause}
+        WHERE ${whereClause}${sqlFiltroFuente('a')[0]}
         GROUP BY ${extraGroup}grupo
         HAVING grupo IS NOT NULL`;
 }
@@ -262,7 +263,7 @@ export class CapacidadRepository {
         ${sqlDemanda(keyExpr, 'a.mes_idx = ? AND a.anio = ?')}
       ) s ON s.grupo = g.grupo
       ORDER BY ${sqlOrdenGrupos('g.grupo')}`,
-      [anio, mesIdx, mesIdx, anio],
+      [anio, mesIdx, mesIdx, anio, ...sqlFiltroFuente()[1]],
     );
     return rows.map(mapUtilizacion);
   }
@@ -311,7 +312,7 @@ export class CapacidadRepository {
         ) g
         CROSS JOIN (
           SELECT DISTINCT anio, mes_idx FROM atenciones
-          WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?
+          WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?${sqlFiltroFuente()[0]}
           UNION
           SELECT DISTINCT anio, mes_idx FROM capacidad_instalada
           WHERE (anio * 12 + mes_idx) BETWEEN ? AND ?
@@ -328,7 +329,11 @@ export class CapacidadRepository {
         )}
       ) s ON s.grupo = p.grupo AND s.anio = p.anio AND s.mes_idx = p.mes_idx
       ORDER BY p.anio, p.mes_idx, ${sqlOrdenGrupos('p.grupo')}`,
-      [desde, hasta, desde, hasta, desde, hasta],
+      [
+        desde, hasta, ...sqlFiltroFuente()[1],   // meses con atenciones
+        desde, hasta,                             // meses con capacidad configurada
+        desde, hasta, ...sqlFiltroFuente()[1],   // subconsulta de demanda
+      ],
     );
 
     return rows.map((r) => ({

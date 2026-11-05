@@ -144,6 +144,29 @@ class ConectoresRepository {
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM sincronizaciones WHERE conector_id = ? ORDER BY iniciada_at DESC LIMIT ?', [conectorId, limit]);
         return rows.map(mapSincronizacion);
     }
+    /**
+     * Marca un conector como la fuente que ve el dashboard, y desmarca el resto.
+     *
+     * Las dos sentencias van en una transacción: si la segunda fallara quedarían
+     * cero fuentes activas (o dos), y el dashboard pasaría a sumar las dos sin
+     * que nadie lo pidiera.
+     */
+    async setFuenteActiva(id) {
+        const conn = await prisma_js_1.pool.getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute('UPDATE conectores SET es_fuente_activa = 0 WHERE es_fuente_activa = 1');
+            await conn.execute('UPDATE conectores SET es_fuente_activa = 1 WHERE id = ?', [id]);
+            await conn.commit();
+        }
+        catch (err) {
+            await conn.rollback();
+            throw err;
+        }
+        finally {
+            conn.release();
+        }
+    }
 }
 exports.ConectoresRepository = ConectoresRepository;
 exports.conectoresRepo = new ConectoresRepository();
