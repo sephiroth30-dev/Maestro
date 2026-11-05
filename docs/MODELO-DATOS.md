@@ -172,6 +172,14 @@ dejaría de ser externa), `listServiciosCatalog`, `getServicioAgrupaciones`,
 `getDiagnosticoConectores` queda **deliberadamente sin filtrar**: su trabajo es enfrentar
 las fuentes entre sí, y filtrarla por la activa la dejaría comparando una consigo misma.
 
+El valor vive en la memoria de cada proceso (`fuente-activa.service.ts`), y Passenger puede
+tener varios, así que **no basta con leerlo al arrancar**: un hook en `app.ts` lo relee en
+cada petición a `/api/` si tiene más de 5 s. Ante un fallo de lectura se conserva el último
+valor bueno, y si nunca se ha leído se responde 503. Lo que **no** debe hacerse es tratar un
+error de lectura como «no hay fuente marcada»: eso significa «suma todo», y duplica las
+cifras sin ningún aviso (pasó en 1.9.2; ver CHANGELOG 1.9.4). La lógica está en
+`fuente-activa.core.ts`, sin acceso a base de datos, para poder probarla.
+
 > **Sin ninguna fuente marcada, los reportes suman todas.** Cualquier mes presente en dos
 > fuentes aparece con la facturación duplicada. Es el estado que la pantalla de Fuentes
 > avisa en naranja.

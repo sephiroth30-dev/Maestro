@@ -25,6 +25,8 @@ const APP_VERSION: string = (require('../../package.json') as { version: string 
 // compiled file lives at backend/dist/app.js → ../../frontend/dist = frontend/dist
 const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
 
+import { asegurarFuenteActiva } from './services/fuente-activa.service.js';
+
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: false, // We use Winston instead of Fastify's built-in logger
@@ -40,6 +42,32 @@ export async function buildApp(): Promise<FastifyInstance> {
       url: request.url,
       ip: request.ip,
     });
+  });
+
+  // ─── Fuente activa del dashboard ──────────────────────────────────────────
+  //
+  // Antes de CUALQUIER consulta de datos hay que saber qué fuente muestra el
+  // dashboard, y saberlo con frescura: el valor vive en la memoria de cada
+  // proceso y un cambio hecho en otro tiene que llegar aquí en pocos segundos.
+  //
+  // Si no se puede leer y nunca se ha leído, se responde 503 en vez de
+  // continuar: la alternativa era consultar sin filtro, que suma todas las
+  // fuentes y devuelve cifras duplicadas sin ningún error visible.
+  fastify.addHook('onRequest', async (request, reply) => {
+    const url = request.url;
+    if (!url.startsWith('/api/') || url.startsWith('/api/auth') || url.startsWith('/api/health')) return;
+    try {
+      await asegurarFuenteActiva();
+    } catch (err) {
+      logger.error('No se pudo determinar la fuente activa del dashboard', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return reply.status(503).send({
+        error: 'Service Unavailable',
+        message: 'No se pudo determinar la fuente de datos activa. Intenta de nuevo en unos segundos.',
+        statusCode: 503,
+      });
+    }
   });
 
   fastify.addHook('onResponse', async (request, reply) => {

@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.4] - 2026-11-05
+
+### Fixed
+- **Con una sola fuente marcada, los reportes sumaban las dos y las cifras salían al doble.** Octubre 2026 pasó de $345,8 M a $696,2 M sin que Medifolios sincronizara de nuevo: la base no cambió, lo que falló fue el filtro por fuente. Tres defectos en cómo se conocía la fuente activa, que daban la misma cifra equivocada sin avisar:
+  1. **Se leía una sola vez, al arrancar**, y vive en la memoria de cada proceso. Passenger puede tener varios, y el clic en «Usar como fuente» solo actualizaba el que atendía la petición; los demás seguían con el valor viejo.
+  2. **Un fallo de lectura se convertía en «no filtrar».** El `catch` dejaba el valor en `null`, que significa «no hay fuente marcada, suma todo». Un hipo de la base al arrancar bastaba para duplicar las cifras de ese proceso hasta el siguiente reinicio.
+  3. **Se servían peticiones antes de leerla.** El puerto se abre primero (lo exige el watchdog de Hostinger), así que durante la conexión a la base las consultas corrían sin filtro; el comentario de `index.ts` decía lo contrario.
+
+  Ahora cada petición a `/api/` asegura una lectura de **máximo 5 s** (con una sola consulta compartida entre peticiones simultáneas), un cambio hecho en otro proceso llega solo, y ante un fallo **se conserva el último valor bueno**. Si nunca se ha podido leer, el servidor responde **503** en vez de dar cifras duplicadas, y `sqlFiltroFuente` lanza si se llama sin haberla leído. La única excepción tratada como «sin fuente» es que la columna aún no exista.
+
+---
+
 ## [1.9.1] - 2026-11-05
 
 ### Added

@@ -28,6 +28,7 @@ const APP_VERSION = require('../../package.json').version;
 // __dirname is reliable in CommonJS output regardless of cwd
 // compiled file lives at backend/dist/app.js → ../../frontend/dist = frontend/dist
 const FRONTEND_DIST = path_1.default.resolve(__dirname, '../../frontend/dist');
+const fuente_activa_service_js_1 = require("./services/fuente-activa.service.js");
 async function buildApp() {
     const fastify = (0, fastify_1.default)({
         logger: false, // We use Winston instead of Fastify's built-in logger
@@ -42,6 +43,33 @@ async function buildApp() {
             url: request.url,
             ip: request.ip,
         });
+    });
+    // ─── Fuente activa del dashboard ──────────────────────────────────────────
+    //
+    // Antes de CUALQUIER consulta de datos hay que saber qué fuente muestra el
+    // dashboard, y saberlo con frescura: el valor vive en la memoria de cada
+    // proceso y un cambio hecho en otro tiene que llegar aquí en pocos segundos.
+    //
+    // Si no se puede leer y nunca se ha leído, se responde 503 en vez de
+    // continuar: la alternativa era consultar sin filtro, que suma todas las
+    // fuentes y devuelve cifras duplicadas sin ningún error visible.
+    fastify.addHook('onRequest', async (request, reply) => {
+        const url = request.url;
+        if (!url.startsWith('/api/') || url.startsWith('/api/auth') || url.startsWith('/api/health'))
+            return;
+        try {
+            await (0, fuente_activa_service_js_1.asegurarFuenteActiva)();
+        }
+        catch (err) {
+            logger_js_1.logger.error('No se pudo determinar la fuente activa del dashboard', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+            return reply.status(503).send({
+                error: 'Service Unavailable',
+                message: 'No se pudo determinar la fuente de datos activa. Intenta de nuevo en unos segundos.',
+                statusCode: 503,
+            });
+        }
     });
     fastify.addHook('onResponse', async (request, reply) => {
         logger_js_1.logger.info('Request completed', {
