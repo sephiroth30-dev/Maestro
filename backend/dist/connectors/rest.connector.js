@@ -49,15 +49,39 @@ exports.RestConfigSchema = zod_1.z
     /** Ruta del token dentro de la respuesta del login, p. ej. 'data.token'. */
     loginTokenPath: zod_1.z.string().optional(),
     /** Dónde viaja el token en las llamadas siguientes. */
-    tokenPlacement: zod_1.z.enum(['header', 'queryParam']).optional(),
+    tokenPlacement: zod_1.z.enum(['header', 'queryParam', 'both']).optional(),
     /** Nombre de la cabecera o del parámetro, según tokenPlacement. */
     tokenParamName: zod_1.z.string().optional(),
+    /** Nombre de la cabecera cuando tokenPlacement es 'both'. */
+    tokenHeaderName: zod_1.z.string().optional(),
     /**
      * Códigos que se interpretan como "el token ya no sirve" y disparan un
      * relogin. Configurable porque no todas las APIs devuelven 401: las que
      * corren sobre CodeIgniter responden a veces 200 con el error en el cuerpo.
      */
     loginRetryStatuses: zod_1.z.array(zod_1.z.number().int()).optional(),
+    // ── Paginación ──
+    /**
+     * Activa el recorrido de páginas. Sin esto el conector trae solo la primera
+     * y el resto se pierde **sin ningún error**, que para facturación es el peor
+     * fallo posible: el total sale bajo y nada lo delata.
+     */
+    paginar: zod_1.z.boolean().optional(),
+    /** Nombre del parámetro de página. */
+    paginaParam: zod_1.z.string().optional(),
+    /** Nombre del parámetro de tamaño de página. */
+    limiteParam: zod_1.z.string().optional(),
+    /** Registros por página. */
+    limite: zod_1.z.number().int().min(1).max(1000).optional(),
+    /** Número de la primera página: 1 en casi todas las APIs, 0 en algunas. */
+    paginaInicial: zod_1.z.number().int().min(0).max(1).optional(),
+    /** Ruta al total de páginas en la respuesta, p. ej. 'totalPaginas'. */
+    totalPaginasPath: zod_1.z.string().optional(),
+    /**
+     * Tope de páginas. Al alcanzarlo se falla con un error explícito en vez de
+     * devolver un conjunto incompleto que parecería correcto.
+     */
+    maxPaginas: zod_1.z.number().int().min(1).max(5000).optional(),
     /**
      * Traduce los nombres de campo del origen a los que el mapeador reconoce.
      * Clave = campo canónico, valor = campo tal como viene en la respuesta.
@@ -82,8 +106,13 @@ exports.RestConfigSchema = zod_1.z
         + 'formato del cuerpo, ruta del token en la respuesta y dónde enviarlo',
     path: ['loginEndpoint'],
 });
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_RETRY_STATUSES = [401, 403];
+const DEFAULT_LIMITE = 200;
+const DEFAULT_PAGINA_PARAM = 'pagina';
+const DEFAULT_LIMITE_PARAM = 'limite';
+const DEFAULT_TOTAL_PAGINAS_PATH = 'totalPaginas';
+const DEFAULT_MAX_PAGINAS = 500;
 /**
  * Campos que el mapeador de atenciones sabe reconocer. `fieldMap` traduce a
  * estos nombres exactos, elegidos para caer siempre dentro de los patrones de
@@ -145,10 +174,28 @@ class RestConnector extends base_connector_js_1.BaseConnector {
         else if (this.config.authType === 'apiKeyHeader' && this.config.authValue) {
             headers[this.config.authHeaderName || 'X-Auth-Token'] = this.config.authValue;
         }
-        else if (this.usaLogin() && this.config.tokenPlacement === 'header' && this.cachedToken) {
-            headers[this.config.tokenParamName || 'X-Auth-Token'] = this.cachedToken;
+        else if (this.usaLogin() && this.cachedToken && this.tokenEnCabecera()) {
+            headers[this.nombreCabeceraToken()] = this.cachedToken;
         }
         return headers;
+    }
+    /** `both` manda el token por los dos caminos, como los clientes de referencia
+     *  de Medifolios, para no depender de cuál espera cada endpoint. */
+    tokenEnCabecera() {
+        const p = this.config.tokenPlacement;
+        return p === 'header' || p === 'both';
+    }
+    tokenEnQueryParam() {
+        const p = this.config.tokenPlacement;
+        return p === 'queryParam' || p === 'both';
+    }
+    nombreCabeceraToken() {
+        // Con 'both' el nombre de la cabecera y el del parámetro son distintos, así
+        // que hay un campo para cada uno.
+        if (this.config.tokenPlacement === 'both') {
+            return this.config.tokenHeaderName || 'X-Auth-Token';
+        }
+        return this.config.tokenParamName || 'X-Auth-Token';
     }
     // ─── Fetch with timeout ───────────────────────────────────────────────────
     async fetchWithTimeout(url, options = {}, headers) {
@@ -286,8 +333,8 @@ class RestConnector extends base_connector_js_1.BaseConnector {
             searchParams.set('limit', String(query.limit));
         if (query.offset)
             searchParams.set('offset', String(query.offset));
-        // Medifolios espera el token aquí, no en una cabecera.
-        if (this.usaLogin() && this.config.tokenPlacement === 'queryParam' && this.cachedToken) {
+        // Medifolios espera el token aquí en /facturacion/buscar, no en una cabecera.
+        if (this.usaLogin() && this.cachedToken && this.tokenEnQueryParam()) {
             searchParams.set(this.config.tokenParamName || 'token', this.cachedToken);
         }
         const qs = searchParams.toString();
@@ -295,7 +342,7 @@ class RestConnector extends base_connector_js_1.BaseConnector {
     }
     /** Oculta el token cuando la URL va a un log o a la interfaz. */
     urlSinToken(url) {
-        if (!this.usaLogin() || this.config.tokenPlacement !== 'queryParam')
+        if (!this.usaLogin() || !this.tokenEnQueryParam())
             return url;
         const nombre = this.config.tokenParamName || 'token';
         return url.replace(new RegExp(`([?&]${nombre}=)[^&]*`), '$1[REDACTED]');
@@ -347,14 +394,73 @@ class RestConnector extends base_connector_js_1.BaseConnector {
     }
     async fetch(query) {
         await this.ensureToken(false);
-        return this.fetchConReintento(query, 0);
+        const crudos = this.config.paginar
+            ? await this.traerTodasLasPaginas(query)
+            : this.extraerArreglo(await this.pedirJson(query, 0));
+        return this.armarDataSet(crudos);
     }
     /**
-     * Un solo reintento: si el token caducó, se pide otro y se repite. No hay
-     * forma de saber de antemano cuánto dura —la API no lo expone—, así que
-     * reaccionar al rechazo es la única estrategia posible.
+     * Recorre las páginas hasta agotarlas.
+     *
+     * Se corta por tres vías, en orden: el total de páginas que informe la
+     * respuesta, una página vacía (para las APIs que no informan el total), y el
+     * tope de seguridad. El tope **lanza error** en vez de devolver lo acumulado:
+     * un conjunto incompleto de facturación se ve igual de sano que uno completo,
+     * y nadie notaría que falta medio año.
      */
-    async fetchConReintento(query, intento) {
+    async traerTodasLasPaginas(query) {
+        const paginaParam = this.config.paginaParam ?? DEFAULT_PAGINA_PARAM;
+        const limiteParam = this.config.limiteParam ?? DEFAULT_LIMITE_PARAM;
+        const limite = this.config.limite ?? DEFAULT_LIMITE;
+        const primera = this.config.paginaInicial ?? 1;
+        const maxPaginas = this.config.maxPaginas ?? DEFAULT_MAX_PAGINAS;
+        const acumulado = [];
+        let totalPaginas = null;
+        for (let i = 0; i < maxPaginas; i++) {
+            const pagina = primera + i;
+            const json = await this.pedirJson({
+                ...query,
+                params: {
+                    ...(query.params ?? {}),
+                    [paginaParam]: String(pagina),
+                    [limiteParam]: String(limite),
+                },
+            }, 0);
+            if (totalPaginas === null) {
+                const t = navegarPorPuntos(json, this.config.totalPaginasPath ?? DEFAULT_TOTAL_PAGINAS_PATH);
+                const n = typeof t === 'number' ? t : typeof t === 'string' ? Number(t) : NaN;
+                if (Number.isFinite(n) && n > 0)
+                    totalPaginas = n;
+            }
+            const filas = this.extraerArreglo(json);
+            // Una respuesta sin registros significa que ya no hay más. Se comprueba
+            // también `[json]`, el último recurso de extraerArreglo cuando no encuentra
+            // ningún arreglo: eso no son datos, es la envoltura.
+            const vacia = filas.length === 0 || (filas.length === 1 && filas[0] === json);
+            if (vacia)
+                break;
+            acumulado.push(...filas);
+            if (totalPaginas !== null && pagina - primera + 1 >= totalPaginas)
+                break;
+            if (i === maxPaginas - 1) {
+                throw new Error(`Se alcanzó el tope de ${maxPaginas} páginas sin terminar de leer la fuente `
+                    + `(${acumulado.length} registros hasta ahora). Sube el tope o acota el rango de `
+                    + `fechas: continuar devolvería un conjunto incompleto sin avisar.`);
+            }
+        }
+        logger_js_1.logger.info('RestConnector: paginación completa', {
+            registros: acumulado.length,
+            totalPaginas,
+            source: this.config.name,
+        });
+        return acumulado;
+    }
+    /**
+     * Una petición, con un solo reintento: si el token caducó, se pide otro y se
+     * repite. No hay forma de saber de antemano cuánto dura —la API no lo
+     * expone—, así que reaccionar al rechazo es la única estrategia posible.
+     */
+    async pedirJson(query, intento) {
         const url = this.buildUrl(query);
         const response = await this.fetchWithTimeout(url);
         const statusReintentables = this.config.loginRetryStatuses ?? DEFAULT_RETRY_STATUSES;
@@ -366,13 +472,14 @@ class RestConnector extends base_connector_js_1.BaseConnector {
             this.session?.clearToken();
             this.cachedToken = undefined;
             await this.ensureToken(true);
-            return this.fetchConReintento(query, intento + 1);
+            return this.pedirJson(query, intento + 1);
         }
         if (!response.ok) {
             throw new Error(`REST API error: HTTP ${response.status} ${response.statusText}`);
         }
-        const json = await response.json();
-        const rawArray = this.extraerArreglo(json);
+        return (await response.json());
+    }
+    armarDataSet(rawArray) {
         if (rawArray.length === 0) {
             return {
                 columns: [],

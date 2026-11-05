@@ -42,15 +42,38 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     /** Ruta del token dentro de la respuesta del login, p. ej. 'data.token'. */
     loginTokenPath: z.ZodOptional<z.ZodString>;
     /** Dónde viaja el token en las llamadas siguientes. */
-    tokenPlacement: z.ZodOptional<z.ZodEnum<["header", "queryParam"]>>;
+    tokenPlacement: z.ZodOptional<z.ZodEnum<["header", "queryParam", "both"]>>;
     /** Nombre de la cabecera o del parámetro, según tokenPlacement. */
     tokenParamName: z.ZodOptional<z.ZodString>;
+    /** Nombre de la cabecera cuando tokenPlacement es 'both'. */
+    tokenHeaderName: z.ZodOptional<z.ZodString>;
     /**
      * Códigos que se interpretan como "el token ya no sirve" y disparan un
      * relogin. Configurable porque no todas las APIs devuelven 401: las que
      * corren sobre CodeIgniter responden a veces 200 con el error en el cuerpo.
      */
     loginRetryStatuses: z.ZodOptional<z.ZodArray<z.ZodNumber, "many">>;
+    /**
+     * Activa el recorrido de páginas. Sin esto el conector trae solo la primera
+     * y el resto se pierde **sin ningún error**, que para facturación es el peor
+     * fallo posible: el total sale bajo y nada lo delata.
+     */
+    paginar: z.ZodOptional<z.ZodBoolean>;
+    /** Nombre del parámetro de página. */
+    paginaParam: z.ZodOptional<z.ZodString>;
+    /** Nombre del parámetro de tamaño de página. */
+    limiteParam: z.ZodOptional<z.ZodString>;
+    /** Registros por página. */
+    limite: z.ZodOptional<z.ZodNumber>;
+    /** Número de la primera página: 1 en casi todas las APIs, 0 en algunas. */
+    paginaInicial: z.ZodOptional<z.ZodNumber>;
+    /** Ruta al total de páginas en la respuesta, p. ej. 'totalPaginas'. */
+    totalPaginasPath: z.ZodOptional<z.ZodString>;
+    /**
+     * Tope de páginas. Al alcanzarlo se falla con un error explícito en vez de
+     * devolver un conjunto incompleto que parecería correcto.
+     */
+    maxPaginas: z.ZodOptional<z.ZodNumber>;
     /**
      * Traduce los nombres de campo del origen a los que el mapeador reconoce.
      * Clave = campo canónico, valor = campo tal como viene en la respuesta.
@@ -78,9 +101,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -99,9 +130,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -120,9 +159,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -141,9 +188,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -162,9 +217,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -183,9 +246,17 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     loginUsuario?: string | undefined;
     loginBodyExtra?: Record<string, string> | undefined;
     loginTokenPath?: string | undefined;
-    tokenPlacement?: "header" | "queryParam" | undefined;
+    tokenPlacement?: "both" | "header" | "queryParam" | undefined;
     tokenParamName?: string | undefined;
+    tokenHeaderName?: string | undefined;
     loginRetryStatuses?: number[] | undefined;
+    paginar?: boolean | undefined;
+    paginaParam?: string | undefined;
+    limiteParam?: string | undefined;
+    limite?: number | undefined;
+    paginaInicial?: number | undefined;
+    totalPaginasPath?: string | undefined;
+    maxPaginas?: number | undefined;
     fieldMap?: Record<string, string> | undefined;
     dataPath?: string | undefined;
     timeoutSec?: number | undefined;
@@ -221,6 +292,11 @@ export declare class RestConnector extends BaseConnector {
     private timeoutMs;
     private usaLogin;
     private buildHeaders;
+    /** `both` manda el token por los dos caminos, como los clientes de referencia
+     *  de Medifolios, para no depender de cuál espera cada endpoint. */
+    private tokenEnCabecera;
+    private tokenEnQueryParam;
+    private nombreCabeceraToken;
     private fetchWithTimeout;
     /**
      * Pide un token con usuario y contraseña.
@@ -255,10 +331,21 @@ export declare class RestConnector extends BaseConnector {
     private traducir;
     fetch(query: ConnectorQuery): Promise<DataSet>;
     /**
-     * Un solo reintento: si el token caducó, se pide otro y se repite. No hay
-     * forma de saber de antemano cuánto dura —la API no lo expone—, así que
-     * reaccionar al rechazo es la única estrategia posible.
+     * Recorre las páginas hasta agotarlas.
+     *
+     * Se corta por tres vías, en orden: el total de páginas que informe la
+     * respuesta, una página vacía (para las APIs que no informan el total), y el
+     * tope de seguridad. El tope **lanza error** en vez de devolver lo acumulado:
+     * un conjunto incompleto de facturación se ve igual de sano que uno completo,
+     * y nadie notaría que falta medio año.
      */
-    private fetchConReintento;
+    private traerTodasLasPaginas;
+    /**
+     * Una petición, con un solo reintento: si el token caducó, se pide otro y se
+     * repite. No hay forma de saber de antemano cuánto dura —la API no lo
+     * expone—, así que reaccionar al rechazo es la única estrategia posible.
+     */
+    private pedirJson;
+    private armarDataSet;
 }
 //# sourceMappingURL=rest.connector.d.ts.map

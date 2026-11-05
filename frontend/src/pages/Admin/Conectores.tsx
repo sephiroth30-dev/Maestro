@@ -638,10 +638,18 @@ interface ConnectorFormState {
   loginUsuario: string;
   loginPassword: string;
   loginTokenPath: string;
-  tokenPlacement: 'header' | 'queryParam';
+  tokenPlacement: 'header' | 'queryParam' | 'both';
   tokenParamName: string;
+  tokenHeaderName: string;
   /** Campos fijos extra del cuerpo del login, p. ej. token_authenticator vacío. */
   loginBodyExtra: Array<{ key: string; value: string }>;
+  // Paginación
+  paginar: boolean;
+  paginaParam: string;
+  limiteParam: string;
+  limite: string;
+  totalPaginasPath: string;
+  maxPaginas: string;
   headers: Array<{ key: string; value: string }>;
   /** Ruta al arreglo dentro del JSON, p. ej. 'data.items'. */
   dataPath: string;
@@ -690,7 +698,14 @@ const DEFAULT_FORM: ConnectorFormState = {
   loginTokenPath: '',
   tokenPlacement: 'header',
   tokenParamName: '',
+  tokenHeaderName: '',
   loginBodyExtra: [],
+  paginar: false,
+  paginaParam: '',
+  limiteParam: '',
+  limite: '',
+  totalPaginasPath: '',
+  maxPaginas: '',
   headers: [],
   dataPath: '',
   timeoutSec: '',
@@ -740,7 +755,14 @@ function ConnectorModal({
       loginTokenPath: '',
       tokenPlacement: 'header',
       tokenParamName: '',
+      tokenHeaderName: '',
       loginBodyExtra: [],
+      paginar: false,
+      paginaParam: '',
+      limiteParam: '',
+      limite: '',
+      totalPaginasPath: '',
+      maxPaginas: '',
       headers: [],
       dataPath: '',
       timeoutSec: '',
@@ -770,8 +792,15 @@ function ConnectorModal({
       base.loginUsuario = (cfg['loginUsuario'] as string) ?? '';
       base.loginPassword = (cfg['password'] as string) ?? '';
       base.loginTokenPath = (cfg['loginTokenPath'] as string) ?? '';
-      base.tokenPlacement = (cfg['tokenPlacement'] as 'header' | 'queryParam') ?? 'header';
+      base.tokenPlacement = (cfg['tokenPlacement'] as 'header' | 'queryParam' | 'both') ?? 'header';
       base.tokenParamName = (cfg['tokenParamName'] as string) ?? '';
+      base.tokenHeaderName = (cfg['tokenHeaderName'] as string) ?? '';
+      base.paginar = Boolean(cfg['paginar']);
+      base.paginaParam = (cfg['paginaParam'] as string) ?? '';
+      base.limiteParam = (cfg['limiteParam'] as string) ?? '';
+      base.limite = cfg['limite'] ? String(cfg['limite']) : '';
+      base.totalPaginasPath = (cfg['totalPaginasPath'] as string) ?? '';
+      base.maxPaginas = cfg['maxPaginas'] ? String(cfg['maxPaginas']) : '';
       const extra = cfg['loginBodyExtra'] as Record<string, string> | undefined;
       if (extra) {
         base.loginBodyExtra = Object.entries(extra).map(([key, value]) => ({ key, value }));
@@ -853,7 +882,18 @@ function ConnectorModal({
           loginTokenPath: form.loginTokenPath.trim(),
           tokenPlacement: form.tokenPlacement,
           ...(form.tokenParamName.trim() && { tokenParamName: form.tokenParamName.trim() }),
+          ...(form.tokenPlacement === 'both' && form.tokenHeaderName.trim() && {
+            tokenHeaderName: form.tokenHeaderName.trim(),
+          }),
           ...(Object.keys(loginExtra).length > 0 && { loginBodyExtra: loginExtra }),
+        }),
+        ...(form.paginar && {
+          paginar: true,
+          ...(form.paginaParam.trim() && { paginaParam: form.paginaParam.trim() }),
+          ...(form.limiteParam.trim() && { limiteParam: form.limiteParam.trim() }),
+          ...(form.limite.trim() && { limite: Number(form.limite) }),
+          ...(form.totalPaginasPath.trim() && { totalPaginasPath: form.totalPaginasPath.trim() }),
+          ...(form.maxPaginas.trim() && { maxPaginas: Number(form.maxPaginas) }),
         }),
         ...(form.dataPath.trim() && { dataPath: form.dataPath.trim() }),
         ...(form.timeoutSec.trim() && { timeoutSec: Number(form.timeoutSec) }),
@@ -1404,15 +1444,17 @@ function ConnectorModal({
                           className="form-input form-select"
                           value={form.tokenPlacement}
                           onChange={(e) =>
-                            setField('tokenPlacement', e.target.value as 'header' | 'queryParam')
+                            setField('tokenPlacement', e.target.value as 'header' | 'queryParam' | 'both')
                           }
                         >
                           <option value="header">En una cabecera</option>
                           <option value="queryParam">Como parámetro en la URL</option>
+                          <option value="both">De las dos formas a la vez</option>
                         </select>
                         <span className="form-hint">
-                          Ojo: en Medifolios depende del endpoint. <code>/facturacion/buscar</code>
-                          {' '}lo espera como <strong>parámetro en la URL</strong>, no como cabecera.
+                          En Medifolios depende del endpoint: <code>/facturacion/buscar</code> lo
+                          espera en la URL y otros en la cabecera. <strong>De las dos formas</strong>
+                          {' '}es lo más seguro si no sabes cuál usa el tuyo.
                         </span>
                       </div>
 
@@ -1420,7 +1462,7 @@ function ConnectorModal({
                         <label className="form-label" htmlFor="conn-token-param">
                           {form.tokenPlacement === 'header'
                             ? 'Nombre de la cabecera'
-                            : 'Nombre del parámetro'}
+                            : 'Nombre del parámetro en la URL'}
                         </label>
                         <input
                           id="conn-token-param"
@@ -1431,6 +1473,22 @@ function ConnectorModal({
                           placeholder={form.tokenPlacement === 'header' ? 'X-Auth-Token' : 'token'}
                         />
                       </div>
+
+                      {form.tokenPlacement === 'both' && (
+                        <div className="form-group">
+                          <label className="form-label" htmlFor="conn-token-header">
+                            Nombre de la cabecera
+                          </label>
+                          <input
+                            id="conn-token-header"
+                            type="text"
+                            className="form-input"
+                            value={form.tokenHeaderName}
+                            onChange={(e) => setField('tokenHeaderName', e.target.value)}
+                            placeholder="X-Auth-Token"
+                          />
+                        </div>
+                      )}
 
                       <div className="form-group">
                         <div className="form-label-row">
@@ -1576,6 +1634,111 @@ function ConnectorModal({
                       </div>
                     ))}
                   </div>
+
+                  {/* ── Paginación ─────────────────────────────────────── */}
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.paginar}
+                        onChange={(e) => setField('paginar', e.target.checked)}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      La API devuelve los datos por páginas
+                    </label>
+                    <span className="form-hint">
+                      Actívalo si la fuente entrega los registros de a lotes. Sin esto solo se
+                      trae el primer lote y <strong>el resto se pierde sin ningún aviso</strong>:
+                      el total saldría bajo y nada lo delataría.
+                    </span>
+                  </div>
+
+                  {form.paginar && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-pagina-param">
+                          Parámetro de página
+                        </label>
+                        <input
+                          id="conn-pagina-param"
+                          type="text"
+                          className="form-input"
+                          value={form.paginaParam}
+                          onChange={(e) => setField('paginaParam', e.target.value)}
+                          placeholder="pagina"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-limite-param">
+                          Parámetro de tamaño de página
+                        </label>
+                        <input
+                          id="conn-limite-param"
+                          type="text"
+                          className="form-input"
+                          value={form.limiteParam}
+                          onChange={(e) => setField('limiteParam', e.target.value)}
+                          placeholder="limite"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-limite">
+                          Registros por página
+                        </label>
+                        <input
+                          id="conn-limite"
+                          type="number"
+                          className="form-input"
+                          value={form.limite}
+                          onChange={(e) => setField('limite', e.target.value)}
+                          placeholder="200"
+                          min={1}
+                          max={1000}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-total-paginas">
+                          Dónde viene el total de páginas
+                        </label>
+                        <input
+                          id="conn-total-paginas"
+                          type="text"
+                          className="form-input"
+                          value={form.totalPaginasPath}
+                          onChange={(e) => setField('totalPaginasPath', e.target.value)}
+                          placeholder="totalPaginas"
+                        />
+                        <span className="form-hint">
+                          Ruta separada por puntos, igual que la del listado. Si la API no lo
+                          informa, déjalo vacío: se seguirá pidiendo hasta que una página llegue
+                          sin registros.
+                        </span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-max-paginas">
+                          Tope de páginas
+                        </label>
+                        <input
+                          id="conn-max-paginas"
+                          type="number"
+                          className="form-input"
+                          value={form.maxPaginas}
+                          onChange={(e) => setField('maxPaginas', e.target.value)}
+                          placeholder="500"
+                          min={1}
+                          max={5000}
+                        />
+                        <span className="form-hint">
+                          Red de seguridad. Si se alcanza, la sincronización falla con un aviso
+                          claro en vez de guardar un histórico a medias.
+                        </span>
+                      </div>
+                    </>
+                  )}
 
                   {/* ── Correspondencia de campos ──────────────────────── */}
                   <div className="form-group">
