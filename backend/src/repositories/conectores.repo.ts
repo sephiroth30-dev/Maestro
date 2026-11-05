@@ -2,6 +2,9 @@ import type { Conector, Sincronizacion, EstadoSync, TipoConector } from '@prisma
 import { randomUUID } from 'node:crypto';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/prisma.js';
+import { mapConector, type ConectorRow } from './conectores.map.js';
+
+export { mapConector };
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────────
 
@@ -31,18 +34,6 @@ export interface CreateSincronizacionData {
 
 // ─── Row shapes from DB ───────────────────────────────────────────────────────
 
-interface ConectorRow extends RowDataPacket {
-  id: string;
-  nombre: string;
-  tipo: TipoConector;
-  config: string | Record<string, unknown>;
-  activo: number;
-  frecuencia_sync: string;
-  ultima_sync: Date | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
 interface SincronizacionRow extends RowDataPacket {
   id: string;
   conector_id: string;
@@ -55,20 +46,6 @@ interface SincronizacionRow extends RowDataPacket {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function mapConector(row: ConectorRow): Conector {
-  return {
-    id: row.id,
-    nombre: row.nombre,
-    tipo: row.tipo,
-    config: (typeof row.config === 'string' ? JSON.parse(row.config) : row.config) as Record<string, unknown>,
-    activo: Boolean(row.activo),
-    frecuenciaSync: row.frecuencia_sync,
-    ultimaSync: row.ultima_sync,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  } as unknown as Conector;
-}
 
 function mapSincronizacion(row: SincronizacionRow): Sincronizacion {
   return {

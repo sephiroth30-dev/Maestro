@@ -1227,6 +1227,38 @@ body,
   border-style: dashed;
 }
 
+/*
+ * `--inactive` y `--fuente` dicen cosas distintas y por eso no comparten
+ * estilo: `activo` es si la fuente SE SINCRONIZA, `es_fuente_activa` es si el
+ * dashboard LA MUESTRA. Reutilizar el atenuado de `--inactive` haría que una
+ * fuente que sincroniza perfectamente pareciera apagada.
+ */
+.connector-card--fuente {
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 1px var(--color-primary, #2563eb), var(--shadow-md);
+}
+
+.connector-card--fuente .connector-card-header {
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
+  padding: var(--space-4) var(--space-5);
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.connector-card--no-fuente {
+  opacity: 0.85;
+  background: var(--color-gray-50, #f8fafc);
+}
+
+.connector-card-nota-fuente {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--color-gray-500, #64748b);
+}
+
 .connector-card-header {
   display: flex;
   gap: var(--space-3);

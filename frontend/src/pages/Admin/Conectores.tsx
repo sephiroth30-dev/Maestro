@@ -143,6 +143,13 @@ const ESTADO_LABELS: Record<string, string> = {
 
 interface ConnectorCardProps {
   conector: Conector;
+  /**
+   * Si ALGUNA fuente está marcada. La tarjeta sola no puede saberlo, y sin ese
+   * dato marcaría "No alimenta el dashboard" en todas cuando no hay ninguna
+   * marcada — que es justo el caso contrario: entonces el dashboard las suma
+   * todas, y quien lo dice es el aviso naranja de arriba.
+   */
+  hayFuenteActiva: boolean;
   onEdit: (c: Conector) => void;
   onDelete: (c: Conector) => void;
   onHistory: (c: Conector) => void;
@@ -150,6 +157,7 @@ interface ConnectorCardProps {
 
 function ConnectorCard({
   conector,
+  hayFuenteActiva,
   onEdit,
   onDelete,
   onHistory,
@@ -165,6 +173,7 @@ function ConnectorCard({
   const [wipeResult, setWipeResult] = useState<string | null>(null);
   const [colDiagResult, setColDiagResult] = useState<ColumnDiagnosticoResult | null>(null);
   const [colDiagError, setColDiagError] = useState<string | null>(null);
+  const [fuenteError, setFuenteError] = useState<string | null>(null);
 
   // Only fetch history while polling; invalidate every 3s to detect completion
   const { data: polledHistory } = useSyncHistory(syncPolling ? conector.id : '');
@@ -241,11 +250,46 @@ function ConnectorCard({
     }
   };
 
+  /**
+   * Antes esto era un `void fuenteMutation.mutateAsync(...)` suelto: si el
+   * servidor fallaba, el botón giraba un momento y no pasaba nada visible.
+   *
+   * El código HTTP va en el mensaje a propósito, porque los dos fallos
+   * probables se distinguen solo por él: 404 = el backend desplegado no tiene
+   * el endpoint; 500 = la columna `es_fuente_activa` no existe.
+   */
+  const handleFuente = async (): Promise<void> => {
+    setFuenteError(null);
+    try {
+      await fuenteMutation.mutateAsync(conector.id);
+    } catch (err) {
+      const resp = (err as { response?: { status?: number; data?: { message?: string } } })?.response;
+      const status = resp?.status;
+      // El `message` de axios solo repite el código que ya mostramos aparte
+      // ("Request failed with status code 500"); el del servidor es el que de
+      // verdad dice qué pasó.
+      const detalle = resp?.data?.message
+        ?? (err instanceof Error ? err.message : 'Error desconocido');
+      setFuenteError(
+        status !== undefined
+          ? `No se pudo marcar como fuente (HTTP ${status}): ${detalle}`
+          : `No se pudo marcar como fuente: ${detalle}`
+      );
+    }
+  };
+
   const latestSync = polledHistory?.[0];
   const syncDone = !syncPolling && syncMutation.isSuccess;
 
   return (
-    <div className={`connector-card ${!conector.activo ? 'connector-card--inactive' : ''}`}>
+    <div
+      className={[
+        'connector-card',
+        !conector.activo ? 'connector-card--inactive' : '',
+        conector.esFuenteActiva ? 'connector-card--fuente' : '',
+        hayFuenteActiva && !conector.esFuenteActiva ? 'connector-card--no-fuente' : '',
+      ].filter(Boolean).join(' ')}
+    >
       <div className="connector-card-header">
         <div className="connector-card-icon">{TIPO_ICONS[conector.tipo]}</div>
         <div className="connector-card-meta">
@@ -273,6 +317,12 @@ function ConnectorCard({
                 Fuente del dashboard
               </span>
             )}
+            {hayFuenteActiva && !conector.esFuenteActiva && (
+              <span className="badge badge--gray" title="Esta fuente se guarda y se puede comparar en Diagnóstico, pero el dashboard no la muestra">
+                <span className="badge-dot badge-dot--gray" />
+                No alimenta el dashboard
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -295,6 +345,26 @@ function ConnectorCard({
             {FRECUENCIA_LABELS[conector.frecuenciaSync] ?? conector.frecuenciaSync}
           </span>
         </div>
+        {hayFuenteActiva && !conector.esFuenteActiva && (
+          <div className="connector-card-nota-fuente">
+            <Database size={13} />
+            {/*
+              El texto cambia según `activo` porque si no se contradice: una
+              fuente pausada NO se sigue sincronizando, y decirlo haría dudar
+              de qué está mirando el usuario.
+            */}
+            <span>
+              {conector.activo ? (
+                <>
+                  Se sigue sincronizando y se puede comparar en <strong>Diagnóstico</strong>,
+                  pero sus cifras no salen en el dashboard.
+                </>
+              ) : (
+                <>Está pausada y tampoco alimenta el dashboard.</>
+              )}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Persistent status banners (always visible, not just during current session) */}
@@ -390,6 +460,13 @@ function ConnectorCard({
         </div>
       )}
 
+      {fuenteError && (
+        <div className="connector-test-result connector-test-result--error">
+          <XCircle size={14} />
+          <span>{fuenteError}</span>
+        </div>
+      )}
+
       {colDiagResult && (
         <div className="col-diag-panel">
           {(() => {
@@ -463,7 +540,7 @@ function ConnectorCard({
           <button
             type="button"
             className="btn btn--sm btn--ghost"
-            onClick={() => { void fuenteMutation.mutateAsync(conector.id); }}
+            onClick={() => { void handleFuente(); }}
             disabled={fuenteMutation.isPending}
             title="Hacer que el dashboard muestre los datos de esta fuente"
           >
@@ -2161,6 +2238,7 @@ export default function Conectores(): React.ReactElement {
             <ConnectorCard
               key={c.id}
               conector={c}
+              hayFuenteActiva={conectores.some((x) => x.esFuenteActiva)}
               onEdit={handleEdit}
               onDelete={setDeletingConector}
               onHistory={setHistoryConector}

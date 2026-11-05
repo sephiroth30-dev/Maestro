@@ -1,4 +1,6 @@
 import type { Conector, Sincronizacion, EstadoSync, TipoConector } from '@prisma/client';
+import { mapConector } from './conectores.map.js';
+export { mapConector };
 export interface CreateConectorData {
     nombre: string;
     tipo: TipoConector;

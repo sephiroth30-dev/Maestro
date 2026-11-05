@@ -1,22 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.conectoresRepo = exports.ConectoresRepository = void 0;
+exports.conectoresRepo = exports.ConectoresRepository = exports.mapConector = void 0;
 const node_crypto_1 = require("node:crypto");
 const prisma_js_1 = require("../config/prisma.js");
+const conectores_map_js_1 = require("./conectores.map.js");
+Object.defineProperty(exports, "mapConector", { enumerable: true, get: function () { return conectores_map_js_1.mapConector; } });
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function mapConector(row) {
-    return {
-        id: row.id,
-        nombre: row.nombre,
-        tipo: row.tipo,
-        config: (typeof row.config === 'string' ? JSON.parse(row.config) : row.config),
-        activo: Boolean(row.activo),
-        frecuenciaSync: row.frecuencia_sync,
-        ultimaSync: row.ultima_sync,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-    };
-}
 function mapSincronizacion(row) {
     return {
         id: row.id,
@@ -39,7 +28,7 @@ class ConectoresRepository {
         const frecuenciaSync = data.frecuenciaSync ?? 'daily';
         await prisma_js_1.pool.execute('INSERT INTO conectores (id, nombre, tipo, config, activo, frecuencia_sync, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, NOW(), NOW())', [id, data.nombre, data.tipo, JSON.stringify(data.config), frecuenciaSync]);
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM conectores WHERE id = ? LIMIT 1', [id]);
-        return mapConector(rows[0]);
+        return (0, conectores_map_js_1.mapConector)(rows[0]);
     }
     async findAll() {
         // Join with the most recent sincronizacion per connector to expose last sync status
@@ -52,18 +41,18 @@ class ConectoresRepository {
       ORDER BY c.created_at DESC
     `);
         return rows.map((r) => ({
-            ...mapConector(r),
+            ...(0, conectores_map_js_1.mapConector)(r),
             lastSyncEstado: r.last_sync_estado ?? null,
         }));
     }
     async findAllActive() {
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM conectores WHERE activo = 1 ORDER BY nombre ASC');
-        return rows.map(mapConector);
+        return rows.map(conectores_map_js_1.mapConector);
     }
     async findById(id) {
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM conectores WHERE id = ? LIMIT 1', [id]);
         const row = rows[0];
-        return row ? mapConector(row) : null;
+        return row ? (0, conectores_map_js_1.mapConector)(row) : null;
     }
     async update(id, data) {
         const setClauses = [];
@@ -92,7 +81,7 @@ class ConectoresRepository {
         params.push(id);
         await prisma_js_1.pool.execute(`UPDATE conectores SET ${setClauses.join(', ')} WHERE id = ?`, params);
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM conectores WHERE id = ? LIMIT 1', [id]);
-        return mapConector(rows[0]);
+        return (0, conectores_map_js_1.mapConector)(rows[0]);
     }
     async softDelete(id) {
         await prisma_js_1.pool.execute('DELETE FROM atenciones WHERE conector_id = ?', [id]);

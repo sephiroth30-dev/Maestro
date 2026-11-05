@@ -161,6 +161,14 @@ const MIGRATIONS: Migration[] = [
   // en cada reinicio del servidor.
   {
     id: 'm20_marcar_fuente_activa_inicial',
+    // El guardia usa una subconsulta CON AGREGADO a propósito. La versión
+    // anterior envolvía la tabla en `(SELECT * FROM conectores) x`, que era el
+    // truco clásico contra el error 1093 de MySQL ("no se puede usar la
+    // tabla destino en un FROM"). Desde MySQL 5.7 el optimizador FUSIONA esas
+    // subconsultas en vez de materializarlas, así que el truco dejó de servir y
+    // la migración fallaba en cada arranque —registrada solo como aviso— sin
+    // marcar ninguna fuente. Un agregado no se puede fusionar, así que obliga a
+    // materializar y el 1093 no aparece.
     sql: `UPDATE conectores c
           JOIN (
             SELECT conector_id, COUNT(*) AS n
@@ -170,8 +178,11 @@ const MIGRATIONS: Migration[] = [
             ORDER BY n DESC
             LIMIT 1
           ) top ON top.conector_id = c.id
+          CROSS JOIN (
+            SELECT COALESCE(SUM(es_fuente_activa), 0) AS activas FROM conectores
+          ) chk
           SET c.es_fuente_activa = 1
-          WHERE NOT EXISTS (SELECT 1 FROM (SELECT * FROM conectores) x WHERE x.es_fuente_activa = 1)`,
+          WHERE chk.activas = 0`,
   },
 ];
 
