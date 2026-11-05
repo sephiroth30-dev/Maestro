@@ -153,6 +153,33 @@ interfaz lo advierta.
 Un paciente atendido por dos pagadores cuenta en ambos tramos. `SUM()` sobre esa columna
 no da el total de pacientes únicos. Se presentan como tabla o barras, nunca como torta.
 
+### 6. Toda consulta de reportes filtra por la fuente activa
+
+`conectores.es_fuente_activa` marca **la única fuente que ve el dashboard**. No es lo
+mismo que `activo`, que decide si el conector **se sincroniza**: durante una migración de
+origen hace falta poder sincronizar la fuente nueva en segundo plano y compararla en
+Diagnóstico antes de que el dashboard la muestre.
+
+El filtro lo aplica `sqlFiltroFuente(alias?)`
+(`backend/src/services/fuente-activa.service.ts`), que devuelve `[' AND c.conector_id = ?',
+[id]]` o `['', []]` si no hay ninguna marcada. Va dentro de `buildDateWhere()` —el
+constructor de WHERE que comparten 8 de las 21 consultas— y **a mano en las demás**, que
+son las que no tienen rango de fechas: `getTendenciaMeses` (que no tenía WHERE ninguno),
+`listEntidades`, `listProfesionales` (en el `ON` del LEFT JOIN, no en el WHERE, o la unión
+dejaría de ser externa), `listServiciosCatalog`, `getServicioAgrupaciones`,
+`getFacturacionDia`, `getFechasDelMes` y `getMesesDisponibles`.
+
+`getDiagnosticoConectores` queda **deliberadamente sin filtrar**: su trabajo es enfrentar
+las fuentes entre sí, y filtrarla por la activa la dejaría comparando una consigo misma.
+
+> **Sin ninguna fuente marcada, los reportes suman todas.** Cualquier mes presente en dos
+> fuentes aparece con la facturación duplicada. Es el estado que la pantalla de Fuentes
+> avisa en naranja.
+
+El caché lleva la fuente en la clave (`conFuente()` en `reportes.service.ts`), porque si
+no, al cambiar de fuente las pantallas seguirían mostrando las cifras de la anterior hasta
+que venciera el TTL.
+
 ---
 
 ## Migraciones
@@ -176,6 +203,14 @@ adelante. Se ejecutan en cada inicio y son las que realmente están en producci�
 > que la columna nunca se crea y nada falla de forma visible. Para migraciones nuevas hay
 > que declarar `columna: { tabla, columna }` o `index: { tabla, columna }`, y el runner
 > consulta `information_schema` y emite la sentencia desnuda, que ambos motores aceptan.
+
+> **El guardia de una migración de datos no puede apoyarse en `(SELECT * FROM t) x`.**
+> Era el truco clásico contra el error 1093 de MySQL ("no se puede usar la tabla destino
+> en un FROM"), pero desde MySQL 5.7 el optimizador **fusiona** esas subconsultas en vez
+> de materializarlas, así que el 1093 vuelve. `m20` cayó en eso: fallaba en cada arranque,
+> se registraba como simple aviso, y nunca marcó la fuente inicial que debía marcar. La
+> salida es una subconsulta **con agregado** (`SELECT SUM(...) FROM t`), que no se puede
+> fusionar y obliga a materializar.
 
 **Los índices necesitan guardia por columna.** `CREATE INDEX IF NOT EXISTS` es sintaxis de
 MariaDB y MySQL 8 la rechaza como error de sintaxis, así que esas migraciones fallaban en

@@ -232,14 +232,50 @@ REST sincronizaba en verde, reportaba filas leídas e insertaba cero registros s
 |---|---|
 | **URL base** | El servidor, sin la ruta. `https://api.ejemplo.com/v2` |
 | **Ruta del endpoint** | Lo que se cuelga de la base. `facturacion/atenciones` |
-| **Autenticación** | `Sin autenticación`, `Bearer token`, `Basic auth` o **`Token en cabecera propia`** |
-| **Nombre de la cabecera** | Solo con la última opción. P. ej. `X-Auth-Token` |
+| **Autenticación** | `Sin autenticación`, `Bearer token`, `Basic auth`, **`Token en cabecera propia`** o **`Login` (usuario y contraseña contra un endpoint)** |
+| **Nombre de la cabecera** | Solo con `Token en cabecera propia`. P. ej. `X-Auth-Token` |
 | **Correspondencia de campos** | Cómo se llama cada dato en la respuesta |
 | **Ruta al listado** | Si la respuesta envuelve los registros: `resultado.items` |
-| **Tiempo máximo** | Por defecto 10 s; el histórico completo suele necesitar más |
+| **Tiempo máximo** | Por defecto 15 s; el histórico completo suele necesitar más |
 
 `Basic auth` es usuario y contraseña en base64 — **dos** datos. Una API que pide un token
 en una cabecera propia necesita `Token en cabecera propia`, no Basic.
+
+### `authType: 'login'` — sesión con usuario y contraseña
+
+Para APIs que no entregan un token fijo, sino que exigen autenticarse y usar el token que
+devuelven. El conector hace el login, guarda el token en memoria, y lo renueva solo cuando
+el servidor lo rechaza — no en cada petición.
+
+| Campo | Para qué |
+|---|---|
+| `loginEndpoint` | Ruta del login, relativa a la URL base. P. ej. `auth` |
+| `loginBodyFormat` | `form` (x-www-form-urlencoded) o `json` |
+| `loginUsuario` / `password` | Credenciales del usuario de API |
+| `loginBodyExtra` | Campos adicionales que el login exija |
+| `loginTokenPath` | Dónde viene el token en la respuesta. P. ej. `data.token` |
+| `tokenPlacement` | `header` (por omisión) o **`queryParam`** |
+| `tokenParamName` | Nombre del parámetro cuando va en la URL. P. ej. `token` |
+| `loginRetryStatuses` | Códigos que significan "token caducado". Por omisión `[401, 403]` |
+
+> **La renovación importa más de lo que parece.** Antes el token configurado se usaba tal
+> cual y, al caducar, la sincronización fallaba hasta que alguien lo cambiara a mano. Con
+> `loginRetryStatuses`, un 401 a mitad del histórico reautentica y reintenta esa página en
+> vez de abandonar el cargue entero.
+
+### Paginación
+
+| Campo | Para qué |
+|---|---|
+| `paginar` | Activa el recorrido por páginas |
+| `paginaParam` / `limiteParam` | Nombres de los parámetros. P. ej. `pagina` y `limite` |
+| `limite` | Registros por página. Por omisión 200 |
+| `totalPaginasPath` | Dónde viene el total. P. ej. `data.totalPaginas` |
+| `maxPaginas` | Tope de seguridad. Por omisión 500 |
+
+> **Al llegar al tope, la sincronización FALLA en vez de guardar lo que lleva.** Es
+> deliberado: un cargue parcial que se marca "Completada" es indistinguible de un mes
+> tranquilo, y las cifras saldrían bajas sin que nada lo delate.
 
 ### La correspondencia de campos es lo que hace que funcione
 
@@ -258,6 +294,20 @@ Con `valor_total` sin mapear, **todo el valor bruto entraría en cero** y el das
 mostraría atenciones sin facturación. Por eso el formulario pide la correspondencia de los
 ocho campos canónicos: `fecha`, `valor`, `descripcion`, `entidad`, `profesional`,
 `paciente`, `documento`, `autorizacion`.
+
+#### Rutas con punto, para respuestas anidadas
+
+El origen de cada campo admite una **ruta**, no solo un nombre de columna:
+`eps.nomEps`, `medico.nomMedico`, `paciente.numIdPaciente`.
+
+Hace falta porque muchas APIs devuelven objetos, no columnas planas. Sin esto, mapear
+`entidad` al objeto `eps` metía en la columna el JSON entero
+(`{"codEps":5,"nomEps":"NUEVA EPS"}`), que no casa con ningún alias de entidad: las filas
+se insertaban y los reportes por entidad salían vacíos.
+
+Cuando un campo se toma de una ruta anidada, **la raíz de esa ruta se descarta** de la
+fila. Si no, el detector de columnas seguía prefiriendo el objeto original (`eps`) sobre
+el canónico ya resuelto (`entidad`), y el problema volvía por la puerta de atrás.
 
 > `entidad` y `profesional` se resuelven **por el texto del nombre** contra los alias de
 > los catálogos. Si la API devuelve códigos en vez de nombres, esas columnas quedan nulas
@@ -283,8 +333,9 @@ borra su token.
 
 ### Limitaciones vigentes
 
-- **Sin paginación.** Una sola petición por sincronización.
 - **Reemplazo total.** Cada sync borra las atenciones del conector y reinserta. Si la API
   devuelve solo los últimos días, se pierde el resto del histórico de esa fuente.
-- **Sin renovación de token.** El valor configurado se usa tal cual; si caduca, la
-  sincronización falla y hay que actualizarlo a mano.
+- **`hash_fila` es único a nivel global**, no por conector. Dos fuentes con la misma fila
+  exacta chocan entre sí.
+
+(La paginación y la renovación de token ya no son limitaciones — ver arriba.)

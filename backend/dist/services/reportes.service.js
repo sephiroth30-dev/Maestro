@@ -450,6 +450,21 @@ class ReportesService {
             await cacheSet(cacheKey, result, TTL_REPORTES);
         return result;
     }
+    /**
+     * Meses con datos, para el selector de Reportes.
+     *
+     * Se cachea como todo lo demás —y con el mismo prefijo de fuente— porque es
+     * un agrupado sobre la tabla entera y lo pide cada carga de la pantalla.
+     */
+    async getMesesDisponibles() {
+        const cacheKey = 'meses-disponibles';
+        const cached = await cacheGet(cacheKey);
+        if (cached)
+            return cached;
+        const result = await repo.getMesesDisponibles();
+        await cacheSet(cacheKey, result, TTL_REPORTES);
+        return result;
+    }
 }
 exports.reportesService = new ReportesService();
 //# sourceMappingURL=reportes.service.js.map

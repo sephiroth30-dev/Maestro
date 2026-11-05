@@ -6,6 +6,13 @@ import type { ServiciosResult, ServicioRow } from '../../api/reportes.js';
 interface Props {
   result: ServiciosResult;
   entidadNombre?: string | null;
+  /**
+   * Mes contra el que comparar. `null` o ausente = sin columna de comparación.
+   *
+   * Como en la tabla de entidades, las filas son las del mes MOSTRADO: un
+   * procedimiento que se hizo el año pasado y este no, no sale.
+   */
+  comparacion?: { label: string; porClave: Map<string, number> } | null;
 }
 
 function fmtCOP(v: number): string {
@@ -24,15 +31,42 @@ const BAR_COLORS = [
   '#f97316', '#6366f1', '#14b8a6', '#e11d48',
 ];
 
+/** Celda del mes comparado: cifra anterior y variación. */
+function CeldaComp({ actual, base }: { actual: number; base: number | undefined }): React.ReactElement {
+  if (base === undefined) {
+    return (
+      <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }} title="No tuvo movimiento en el mes comparado">—</td>
+    );
+  }
+  // Sin porcentaje cuando la base es cero: "infinito por ciento" no informa.
+  const pct = base === 0 ? null : ((actual - base) / base) * 100;
+  // El empate va en gris y sin flecha, por el mismo motivo que en la tabla de
+  // entidades: una flecha verde con 0,0 % se lee como crecimiento.
+  const igual = pct === null || Math.abs(pct) < 0.05;
+  const color = igual ? 'var(--color-text-muted)' : (pct ?? 0) > 0 ? '#059669' : '#dc2626';
+  const flecha = igual ? '=' : (pct ?? 0) > 0 ? '▲' : '▼';
+  return (
+    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{fmtCOP(base)}</span>
+      {pct !== null && (
+        <span style={{ marginLeft: 6, fontWeight: 600, color }}>
+          {flecha} {Math.abs(pct).toFixed(1)}%
+        </span>
+      )}
+    </td>
+  );
+}
+
 interface ServiceRowProps {
   r: ServicioRow;
   colorIdx: number;
   totalValor: number;
   maxCantidad: number;
   isAlerta: boolean;
+  comparacion?: { label: string; porClave: Map<string, number> } | null;
 }
 
-function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceRowProps): React.ReactElement {
+function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta, comparacion }: ServiceRowProps): React.ReactElement {
   const pctValor = totalValor > 0 ? (r.valor_bruto / totalValor) * 100 : 0;
   const pctBar   = maxCantidad > 0 ? (r.cantidad / maxCantidad) * 100 : 0;
   const promedio = r.cantidad > 0 ? r.valor_bruto / r.cantidad : 0;
@@ -59,6 +93,7 @@ function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceR
         </div>
       </td>
       <td style={{ textAlign: 'right' }}>{fmtCOP(r.valor_bruto)}</td>
+      {comparacion && <CeldaComp actual={r.valor_bruto} base={comparacion.porClave.get(r.nombre)} />}
       <td style={{ textAlign: 'right', color: promedio < 50000 ? '#ef4444' : 'var(--color-text-primary)' }}>
         {fmtCOP(promedio)}
       </td>
@@ -69,7 +104,7 @@ function ServiceRow({ r, colorIdx, totalValor, maxCantidad, isAlerta }: ServiceR
   );
 }
 
-export default function TablaServicios({ result, entidadNombre }: Props): React.ReactElement {
+export default function TablaServicios({ result, entidadNombre, comparacion }: Props): React.ReactElement {
   const { rows, sin_clasificar, valor_sin_clasificar, alerta_emg_neuro, emg_count, neuro_count } = result;
 
   const totalValor    = rows.reduce((s, r) => s + r.valor_bruto, 0) + valor_sin_clasificar;
@@ -125,6 +160,11 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
               <ColFilter label="Cantidad"       field="cantidad" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
               <th style={{ width: '20%', padding: '6px 12px', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--color-gray-200)', background: 'var(--color-gray-50)' }}>Volumen</th>
               <ColFilter label="Valor total"    field="valor"    sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
+              {comparacion && (
+                <th style={{ width: '16%', textAlign: 'right', padding: '6px 12px', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--color-gray-200)', background: 'var(--color-gray-50)' }}>
+                  {comparacion.label}
+                </th>
+              )}
               <ColFilter label="Promedio"       field="promedio" sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
               <ColFilter label="% Facturación"  field="pct"      sortField={sortField} sortDir={sortDir} onSort={onSort} align="right" sortLabels={['Menor → Mayor', 'Mayor → Menor']} />
             </tr>
@@ -143,6 +183,7 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
                   totalValor={totalValor}
                   maxCantidad={maxCantidad}
                   isAlerta={isAlerta}
+                  comparacion={comparacion}
                 />
               );
             })}
@@ -160,6 +201,7 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
                   </div>
                 </td>
                 <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtCOP(valor_sin_clasificar)}</td>
+                {comparacion && <td />}
                 <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
                   {sin_clasificar > 0 ? fmtCOP(valor_sin_clasificar / sin_clasificar) : '—'}
                 </td>
@@ -175,6 +217,11 @@ export default function TablaServicios({ result, entidadNombre }: Props): React.
               <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtNum(totalCantidad)}</td>
               <td />
               <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtCOP(totalValor)}</td>
+              {comparacion && (
+                <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                  {fmtCOP([...comparacion.porClave.values()].reduce((s, v) => s + v, 0))}
+                </td>
+              )}
               <td style={{ textAlign: 'right', fontWeight: 600 }}>
                 {totalCantidad > 0 ? fmtCOP(totalValor / totalCantidad) : '—'}
               </td>

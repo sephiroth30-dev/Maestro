@@ -217,4 +217,23 @@ export declare function reclasificarServicios(): Promise<{
     updated: number;
     sin_clasificar: number;
 }>;
+/**
+ * Meses que de verdad tienen atenciones cargadas, del más reciente al más
+ * antiguo.
+ *
+ * El selector de Reportes mostraba los seis meses anteriores a HOY, calculados
+ * en el navegador y sin mirar la base de datos. Eso fallaba por los dos lados:
+ * ofrecía meses vacíos —si la fuente no llega tan atrás— y escondía todo el
+ * historial anterior, que es justo lo que hace falta para comparar un mes
+ * contra el mismo mes del año pasado.
+ *
+ * Respeta la fuente activa: los meses ofrecidos son los de la fuente que el
+ * dashboard está mostrando, no los de la suma de todas.
+ */
+export declare function getMesesDisponibles(): Promise<Array<{
+    anio: number;
+    mes: number;
+    total: number;
+    atenciones: number;
+}>>;
 //# sourceMappingURL=reportes.repo.d.ts.map

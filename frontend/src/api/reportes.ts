@@ -80,7 +80,14 @@ const REFETCH_INTERVAL = 10 * 60 * 1000; // 10 min
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
-export function useKpis(mesIdx: number, anio: number, entidadId?: string, startDate?: string, endDate?: string, diaSemana?: number) {
+/**
+ * `enabled` existe para la comparación entre meses: la pantalla llama a estos
+ * hooks una segunda vez con el mes comparado, y sin esto pediría ese mes al
+ * servidor aunque la comparación esté apagada. Las reglas de React prohíben
+ * llamar un hook condicionalmente, así que lo condicional tiene que ser la
+ * petición, no la llamada.
+ */
+export function useKpis(mesIdx: number, anio: number, entidadId?: string, startDate?: string, endDate?: string, diaSemana?: number, enabled = true) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -93,6 +100,7 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string, startD
   if (diaSemana !== undefined) params.set('dia_semana', String(diaSemana));
 
   return useQuery<KpisResult>({
+    enabled,
     queryKey: ['kpis', mesIdx, anio, entidadId, startDate, endDate, diaSemana],
     queryFn: async () => {
       const response = await apiClient.get<KpisResult>(`/reportes/kpis?${params}`);
@@ -103,7 +111,7 @@ export function useKpis(mesIdx: number, anio: number, entidadId?: string, startD
   });
 }
 
-export function useEntidades(mesIdx: number, anio: number, startDate?: string, endDate?: string, diaSemana?: number) {
+export function useEntidades(mesIdx: number, anio: number, startDate?: string, endDate?: string, diaSemana?: number, enabled = true) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
     params.set('start_date', startDate);
@@ -120,6 +128,7 @@ export function useEntidades(mesIdx: number, anio: number, startDate?: string, e
       const response = await apiClient.get<EntidadesResult>(`/reportes/entidades?${params}`);
       return response.data;
     },
+    enabled,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
   });
@@ -159,6 +168,32 @@ export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, 
     queryKey: ['dias-semana', mesIdx, anio, startDate, endDate],
     queryFn: async () => {
       const response = await apiClient.get<DiaSemanaRow[]>(`/reportes/dias-semana?${params}`);
+      return response.data;
+    },
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
+export interface MesDisponible {
+  anio: number;
+  mes: number;
+  total: number;
+  atenciones: number;
+}
+
+/**
+ * Los meses que de verdad tienen datos, del más reciente al más antiguo.
+ *
+ * El selector de Reportes los calculaba antes en el navegador ("los seis
+ * anteriores a hoy"), así que ofrecía meses vacíos y escondía el historial.
+ * Viene del servidor y ya respeta la fuente activa del dashboard.
+ */
+export function useMesesDisponibles() {
+  return useQuery<MesDisponible[]>({
+    queryKey: ['meses-disponibles'],
+    queryFn: async () => {
+      const response = await apiClient.get<MesDisponible[]>('/reportes/meses-disponibles');
       return response.data;
     },
     staleTime: STALE_TIME,
@@ -207,6 +242,7 @@ export function useServicios(
   endDate?: string,
   entidadId?: string | null,
   diaSemana?: number | null,
+  enabled = true,
 ) {
   const params = new URLSearchParams();
   if (startDate && endDate) {
@@ -224,6 +260,7 @@ export function useServicios(
       const response = await apiClient.get<ServiciosResult>(`/reportes/servicios?${params}`);
       return response.data;
     },
+    enabled,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,
   });
@@ -372,6 +409,9 @@ export const CLAVES_REPORTES = [
   'kpis', 'entidades', 'cumplimiento-semanal', 'dias-semana', 'tendencia',
   'servicios', 'pacientes', 'utilizacion', 'liquidaciones', 'honorarios',
   'contribucion', 'diagnostico',
+  // Un cargue puede estrenar un mes que antes no existía; sin esto el selector
+  // seguiría sin ofrecerlo hasta recargar la página.
+  'meses-disponibles',
 ] as const;
 
 /** Marca como obsoleto todo lo que dependa de las atenciones. */

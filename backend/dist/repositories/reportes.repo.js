@@ -33,6 +33,7 @@ exports.patchServicio = patchServicio;
 exports.getServicioAgrupaciones = getServicioAgrupaciones;
 exports.upsertPresupuesto = upsertPresupuesto;
 exports.reclasificarServicios = reclasificarServicios;
+exports.getMesesDisponibles = getMesesDisponibles;
 const prisma_js_1 = require("../config/prisma.js");
 const node_crypto_1 = require("node:crypto");
 const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js");
@@ -709,5 +710,32 @@ async function reclasificarServicios() {
         return !catalog.some((svc) => svc.keywords.some((kw) => norm.includes(kw)));
     }).length;
     return { total: rows.length, updated, sin_clasificar: sinClasificar };
+}
+/**
+ * Meses que de verdad tienen atenciones cargadas, del más reciente al más
+ * antiguo.
+ *
+ * El selector de Reportes mostraba los seis meses anteriores a HOY, calculados
+ * en el navegador y sin mirar la base de datos. Eso fallaba por los dos lados:
+ * ofrecía meses vacíos —si la fuente no llega tan atrás— y escondía todo el
+ * historial anterior, que es justo lo que hace falta para comparar un mes
+ * contra el mismo mes del año pasado.
+ *
+ * Respeta la fuente activa: los meses ofrecidos son los de la fuente que el
+ * dashboard está mostrando, no los de la suma de todas.
+ */
+async function getMesesDisponibles() {
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
+    const [rows] = await prisma_js_1.pool.query(`SELECT anio, mes_idx, SUM(valor_bruto) AS total, COUNT(id) AS cnt
+       FROM atenciones
+      WHERE anio IS NOT NULL AND mes_idx IS NOT NULL${fuenteSql}
+      GROUP BY anio, mes_idx
+      ORDER BY anio DESC, mes_idx DESC`, fuenteParams);
+    return rows.map((r) => ({
+        anio: Number(r.anio),
+        mes: Number(r.mes_idx),
+        total: Number(r.total ?? 0),
+        atenciones: Number(r.cnt ?? 0),
+    }));
 }
 //# sourceMappingURL=reportes.repo.js.map

@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.0] - 2026-11-05
+
+### Added
+- **Medifolios como fuente del dashboard.** El conector REST admite ahora lo que la API de Medifolios exige y antes no soportaba: autenticación por **login** con renovación automática del token, token **como parámetro de la URL** (no solo cabecera), **paginación** completa y **rutas con punto** en la correspondencia de campos (`eps.nomEps`, `medico.nomMedico`), para respuestas con objetos anidados. Documentado en `docs/MEDIFOLIOS.md`, incluida la razón por la que se usa `/consumos/buscar` y no `/facturacion/buscar`: este último devuelve facturas, no procedimientos, y dejaría el 100 % de las filas sin clasificar.
+- **Fuente activa del dashboard** (`conectores.es_fuente_activa`). Con dos orígenes cargados, el dashboard muestra **uno solo**. Es distinto de `activo` —que decide si el conector *se sincroniza*— para poder cargar Medifolios en segundo plano y compararlo en Diagnóstico antes de que sustituya al Sheet. Sin ninguna marcada, los reportes suman todas y la pantalla lo avisa.
+- **El selector de mes de Reportes ofrece todos los meses con datos**, no los seis anteriores a hoy. La lista venía del calendario del navegador: ofrecía meses vacíos y escondía el histórico. Ahora sale de `GET /api/reportes/meses-disponibles`, que además respeta la fuente activa.
+- **Comparación entre meses en Reportes**, pensada para el caso interanual (Enero 2026 contra Enero 2025, que es el que propone por omisión). Las cuatro tarjetas muestran la variación, y las tablas de entidades y de servicios ganan una columna con la cifra del mes comparado y su variación. La comparación es mes completo contra mes completo: no arrastra el filtro de día ni el de entidad.
+
+### Fixed
+- **La pantalla de Fuentes no reflejaba qué fuente alimenta el dashboard.** `mapConector` construye el objeto campo a campo y nunca copió `es_fuente_activa`; la consulta sí la traía y `publicView` hace spread, así que el dato se perdía justo en medio. El efecto: marcar una fuente **sí** la guardaba en la base de datos, pero `GET /api/connectors` no la devolvía, de modo que la etiqueta no aparecía, el botón no desaparecía y el aviso de «ninguna marcada» seguía ahí. El compilador no lo detectó porque el mapeador termina en un `as unknown as Conector`; el mapeo puro se separó a `conectores.map.ts` y quedó cubierto por pruebas.
+- **`m20_marcar_fuente_activa_inicial` no podía funcionar.** Su guardia usaba `(SELECT * FROM conectores) x` contra el error 1093 de MySQL, truco que MySQL 5.7+ anula fusionando la subconsulta. Fallaba en cada arranque, se registraba solo como aviso, y por eso ninguna fuente quedó marcada automáticamente — justo lo que debía evitar que el dashboard cambiara de cifras al desplegar. Sustituido por una subconsulta con agregado, que no se puede fusionar.
+- **«Usar como fuente» no mostraba sus errores.** Era un `void mutateAsync()` sin `catch`: un 404 o un 500 giraban el botón y no decían nada. Ahora el fallo sale en la tarjeta con su código HTTP y el mensaje del servidor, que es lo que distingue «backend sin desplegar» de «columna ausente».
+
+### Changed
+- La fuente activa se distingue a simple vista: borde azul y cabecera tintada; las demás, atenuadas y con la línea *No alimenta el dashboard*. `activo` y `es_fuente_activa` llevan estilos distintos a propósito — una fuente que sincroniza bien no debe parecer apagada.
+- `jest` puede ahora importar módulos de `src/`: el mapeo puro quedó en un módulo sin acceso a base de datos, así que se prueba sin levantar el pool.
+
+---
+
 ## [1.8.14] - 2026-09-04
 
 ### Fixed

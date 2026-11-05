@@ -16,6 +16,58 @@ interface TablaEntidadesProps {
   rows: EntidadRow[];
   onEntityClick?: (row: EntidadRow) => void;
   selectedEntidadId?: string | null;
+  /**
+   * Mes contra el que comparar. `null` o ausente = sin columna de comparación.
+   *
+   * La tabla sigue listando las entidades del mes MOSTRADO: una entidad que
+   * facturó el año pasado y este no, no aparece. Es a propósito —la tabla
+   * responde "de qué se compone este mes"— pero conviene tenerlo presente al
+   * leer la comparación.
+   */
+  comparacion?: ComparacionEntidades | null;
+}
+
+export interface ComparacionEntidades {
+  /** Texto del encabezado, p. ej. "Enero 2025". */
+  label: string;
+  /** Valor bruto del mes comparado, por `id` de entidad (o por nombre si no tiene id). */
+  porClave: Map<string, number>;
+}
+
+/**
+ * Clave para enfrentar la misma entidad en dos meses distintos.
+ *
+ * Se usa el `id` cuando existe; las filas sin id (agrupaciones y "SIN
+ * ENTIDAD") solo se pueden casar por nombre.
+ */
+export function claveEntidad(row: Pick<EntidadRow, 'id' | 'entidad'>): string {
+  return row.id ?? `nombre:${row.entidad}`;
+}
+
+/** Celda compartida: valor del mes comparado y su variación. */
+export function CeldaComparacion({ actual, base }: { actual: number; base: number | undefined }): React.ReactElement {
+  if (base === undefined) {
+    return <span className="tabla-comp-nuevo" title="No tuvo movimiento en el mes comparado">—</span>;
+  }
+  // Variación porcentual; con base cero no se muestra porcentaje, porque
+  // "infinito por ciento" no informa de nada.
+  const pct = base === 0 ? null : ((actual - base) / base) * 100;
+  // El empate va en gris y sin flecha: una flecha verde hacia arriba junto a
+  // un 0,0 % se lee como crecimiento cuando no lo hubo.
+  const clase = pct === null || Math.abs(pct) < 0.05
+    ? 'tabla-comp-delta--igual'
+    : pct > 0 ? 'tabla-comp-delta--sube' : 'tabla-comp-delta--baja';
+  const flecha = clase === 'tabla-comp-delta--igual' ? '=' : clase === 'tabla-comp-delta--sube' ? '▲' : '▼';
+  return (
+    <span className="tabla-comp">
+      <span className="tabla-comp-base">{formatCOP(base)}</span>
+      {pct !== null && (
+        <span className={`tabla-comp-delta ${clase}`}>
+          {flecha} {Math.abs(pct).toFixed(1)}%
+        </span>
+      )}
+    </span>
+  );
 }
 
 // ─── Tipo badge ───────────────────────────────────────────────────────────────
@@ -40,7 +92,7 @@ function TipoBadge({ tipo }: { tipo: string }): React.ReactElement {
 
 const colHelper = createColumnHelper<EntidadRow>();
 
-const columns = [
+const columnasBase = [
   colHelper.accessor('entidad', {
     header: 'Entidad',
     cell: (info) => (
@@ -80,7 +132,27 @@ const columns = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId }: TablaEntidadesProps): React.ReactElement {
+export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId, comparacion }: TablaEntidadesProps): React.ReactElement {
+  // Las columnas se arman dentro del componente porque la de comparación
+  // depende del mes elegido; antes eran una constante de módulo.
+  const columns = useMemo(() => {
+    if (!comparacion) return columnasBase;
+    const colComp = colHelper.display({
+      id: 'comparacion',
+      header: comparacion.label,
+      cell: (info) => (
+        <CeldaComparacion
+          actual={info.row.original.valor_bruto}
+          base={comparacion.porClave.get(claveEntidad(info.row.original))}
+        />
+      ),
+    });
+    // Va justo después de "Valor Bruto", que es la cifra con la que se compara.
+    const i = columnasBase.findIndex((c) => 'accessorKey' in c && c.accessorKey === 'valor_bruto');
+    const corte = i >= 0 ? i + 1 : columnasBase.length;
+    return [...columnasBase.slice(0, corte), colComp, ...columnasBase.slice(corte)];
+  }, [comparacion]);
+
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'valor_bruto', desc: true },
   ]);

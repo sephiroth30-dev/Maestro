@@ -2371,6 +2371,63 @@ body,
   cursor: pointer;
 }
 
+/* ─── Comparación entre meses ────────────────────────────────────────────────── */
+
+.comparar-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.comparar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  background: var(--color-white);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.comparar-toggle input {
+  cursor: pointer;
+  margin: 0;
+}
+
+.reportes-month-select--comp {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+/* Celda de comparación en las tablas de entidades. */
+.tabla-comp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.tabla-comp-base {
+  color: var(--color-gray-500);
+}
+
+.tabla-comp-delta {
+  font-weight: 600;
+}
+
+.tabla-comp-delta--sube  { color: #059669; }
+.tabla-comp-delta--baja  { color: #dc2626; }
+.tabla-comp-delta--igual { color: var(--color-gray-400); }
+
+.tabla-comp-nuevo {
+  color: var(--color-gray-400);
+}
+
 /* ─── Alerta KPI ─────────────────────────────────────────────────────────────── */
 
 .alerta-kpi {

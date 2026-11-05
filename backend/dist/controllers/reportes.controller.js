@@ -148,6 +148,18 @@ async function registerReportesController(fastify) {
         });
         return reply.send(result);
     });
+    /**
+     * GET /api/reportes/meses-disponibles
+     *
+     * Los meses que el selector de Reportes puede ofrecer. Antes esa lista se
+     * calculaba en el navegador como "los seis anteriores a hoy", sin mirar los
+     * datos: ofrecía meses vacíos y escondía el historial, que es justo lo que
+     * hace falta para comparar contra el mismo mes del año pasado.
+     */
+    fastify.get('/api/reportes/meses-disponibles', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (_request, reply) => {
+        const meses = await reportes_service_js_1.reportesService.getMesesDisponibles();
+        return reply.send(meses);
+    });
     // GET /api/reportes/entidades
     fastify.get('/api/reportes/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (request, reply) => {
         const parsed = mesAnioDateSchema.safeParse(request.query);

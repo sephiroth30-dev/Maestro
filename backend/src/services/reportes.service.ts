@@ -588,6 +588,22 @@ class ReportesService {
     if (!entidadId && diaSemana === undefined) await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
   }
+
+  /**
+   * Meses con datos, para el selector de Reportes.
+   *
+   * Se cachea como todo lo demás —y con el mismo prefijo de fuente— porque es
+   * un agrupado sobre la tabla entera y lo pide cada carga de la pantalla.
+   */
+  async getMesesDisponibles(): Promise<Array<{ anio: number; mes: number; total: number; atenciones: number }>> {
+    const cacheKey = 'meses-disponibles';
+    const cached = await cacheGet<Array<{ anio: number; mes: number; total: number; atenciones: number }>>(cacheKey);
+    if (cached) return cached;
+
+    const result = await repo.getMesesDisponibles();
+    await cacheSet(cacheKey, result, TTL_REPORTES);
+    return result;
+  }
 }
 
 export const reportesService = new ReportesService();

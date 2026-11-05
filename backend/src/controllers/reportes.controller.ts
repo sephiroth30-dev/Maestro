@@ -153,6 +153,23 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
     }
   );
 
+  /**
+   * GET /api/reportes/meses-disponibles
+   *
+   * Los meses que el selector de Reportes puede ofrecer. Antes esa lista se
+   * calculaba en el navegador como "los seis anteriores a hoy", sin mirar los
+   * datos: ofrecía meses vacíos y escondía el historial, que es justo lo que
+   * hace falta para comparar contra el mismo mes del año pasado.
+   */
+  fastify.get(
+    '/api/reportes/meses-disponibles',
+    { preHandler: [requireAuth, requireRole(...REPORTES_ROLES)] },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const meses = await reportesService.getMesesDisponibles();
+      return reply.send(meses);
+    }
+  );
+
   // GET /api/reportes/entidades
   fastify.get(
     '/api/reportes/entidades',

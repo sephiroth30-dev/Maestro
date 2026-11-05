@@ -106,6 +106,18 @@ declare class ReportesService {
         entidadId?: string;
         diaSemana?: number;
     }): Promise<ServiciosResult>;
+    /**
+     * Meses con datos, para el selector de Reportes.
+     *
+     * Se cachea como todo lo demás —y con el mismo prefijo de fuente— porque es
+     * un agrupado sobre la tabla entera y lo pide cada carga de la pantalla.
+     */
+    getMesesDisponibles(): Promise<Array<{
+        anio: number;
+        mes: number;
+        total: number;
+        atenciones: number;
+    }>>;
 }
 export declare const reportesService: ReportesService;
 export {};
