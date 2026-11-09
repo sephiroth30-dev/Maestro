@@ -203,6 +203,26 @@ export function useMesesDisponibles() {
   });
 }
 
+/**
+ * Los meses de UN año concreto con su facturación y presupuesto.
+ *
+ * `useTendencia(n)` solo trae «los n meses más recientes», así que con histórico
+ * cargado no sirve para ver un año antiguo. `enabled` permite pedir el año
+ * comparado únicamente cuando la comparación está activa.
+ */
+export function useTendenciaAnio(anio: number | null, enabled = true) {
+  return useQuery<TendenciaRow[]>({
+    queryKey: ['tendencia', 'anio', anio],
+    queryFn: async () => {
+      const response = await apiClient.get<TendenciaRow[]>(`/reportes/tendencia?anio=${anio}`);
+      return response.data;
+    },
+    enabled: enabled && anio !== null,
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
 export function useTendencia(meses = 6) {
   return useQuery<TendenciaRow[]>({
     queryKey: ['tendencia', meses],

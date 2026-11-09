@@ -94,6 +94,14 @@ const tendenciaQuerySchema = z.object({
     .optional()
     .transform((v) => (v ? parseInt(v, 10) : 6))
     .pipe(z.number().min(1).max(36)),
+  // Un año concreto (p. ej. 2025). Si viene, `meses` se ignora y se devuelven los
+  // meses de ESE año. Existe porque `meses` solo mira «los N más recientes» y
+  // con histórico cargado no alcanza para ver un año antiguo.
+  anio: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().int().min(2000).max(2100).optional()),
 });
 
 const patchEntidadBodySchema = z
@@ -264,7 +272,7 @@ export async function registerReportesController(fastify: FastifyInstance): Prom
         });
       }
 
-      const result = await reportesService.getTendencia({ meses: parsed.data.meses });
+      const result = await reportesService.getTendencia({ meses: parsed.data.meses, anio: parsed.data.anio });
       return reply.send(result);
     }
   );

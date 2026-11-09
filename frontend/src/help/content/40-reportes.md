@@ -17,13 +17,18 @@ Arriba a la derecha hay dos modos:
 
 - **Mes** — los meses **del año en curso** que tienen datos cargados, del más reciente al
   más antiguo.
-- **Rango** — fechas exactas, o los atajos *Hoy*, *Ayer*, *Esta semana*, *Sem. pasada*, *Año*.
+- **Año** — todos los **años que tienen datos cargados**, incluido el histórico. Al elegir
+  uno, las tarjetas suman el año completo y los gráficos muestran **meses completos**
+  (de enero a diciembre) en lugar de días o semanas. El año en curso se mide **a la fecha**
+  (de enero a hoy).
+- **Rango** — fechas exactas, o los atajos *Hoy*, *Ayer*, *Esta semana*, *Sem. pasada*.
 
 > La lista sale de los datos, no del calendario: un mes sin nada cargado no aparece. Si
 > falta un mes que debería estar, el problema está en la fuente, no en este selector.
 >
 > Los meses de años anteriores no se eligen como mes principal, pero **sí están disponibles
-> para comparar**. Para mirar un periodo antiguo por sí solo, usa **Rango**.
+> para comparar**. Para ver un año antiguo completo usa **Año**; para un tramo concreto,
+> **Rango**.
 
 ## Comparar contra otro mes
 
@@ -58,15 +63,20 @@ que algo que facturó el año pasado y este año no, no aparece.
 
 > Si no hay otros meses cargados, la casilla no aparece: no hay contra qué comparar.
 
-### Comparar el año completo
+### Comparar un año contra el anterior
 
-Con **Rango → Año** y **Comparar** activo, la ficha muestra lo facturado **en lo que va del
-año** contra **el mismo tramo del año anterior**: si hoy es 5 de noviembre, *Ene–Nov 2026*
-contra *Ene–Nov 2025* hasta ese mismo día. No se compara contra el año anterior completo,
-porque diez meses contra doce darían un crecimiento negativo que no existe.
+En la pestaña **Año**, la casilla **Comparar** enfrenta el año elegido con el anterior. Solo
+aparece si el año anterior tiene datos cargados.
 
-En este modo comparan las tarjetas, el bloque de totales, las tablas y *Facturado por día*.
-El gráfico de **Cumplimiento mensual** no se compara todavía.
+- **Año en curso**: lo que va del año contra **el mismo tramo del año anterior**. Si hoy es
+  5 de noviembre, *Ene–Nov 2026* contra *Ene–Nov 2025* hasta ese mismo día. No se compara
+  contra el año anterior completo, porque diez meses contra doce darían un crecimiento
+  negativo que no existe.
+- **Año pasado**: el año completo contra el año anterior completo.
+
+Comparan las tarjetas, el bloque de totales, las tablas y *Facturado por día*. El gráfico de
+**Cumplimiento mensual** dibuja los doce meses de cada año uno junto al otro; en él aparece
+el año anterior entero, aunque las cifras de arriba se midan solo hasta la fecha de hoy.
 
 ## Filtrar haciendo clic
 

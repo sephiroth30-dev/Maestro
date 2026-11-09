@@ -91,6 +91,7 @@ declare class ReportesService {
     }): Promise<DiaSemanaRow[]>;
     getTendencia(params: {
         meses: number;
+        anio?: number;
     }): Promise<Array<{
         mes: string;
         anio: number;
@@ -98,6 +99,16 @@ declare class ReportesService {
         total: number;
         presupuesto: number;
     }>>;
+    /**
+     * Los meses de un año concreto, con su facturación y su presupuesto.
+     *
+     * Incluye un mes si tiene datos **o** presupuesto: así el año en curso muestra
+     * también los meses futuros ya presupuestados, y un año histórico sin
+     * presupuesto cargado solo muestra los meses con actividad. Los meses sin nada
+     * de ninguno de los dos se omiten; el gráfico completa el eje de enero a
+     * diciembre por su cuenta.
+     */
+    private getTendenciaDeAnio;
     getServicios(params: {
         mesIdx: number;
         anio: number;

@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendencia, useServicios, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
+import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendenciaAnio, useServicios, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
@@ -15,6 +15,7 @@ import TablaEntidades, { claveEntidad } from '../components/widgets/TablaEntidad
 import TablaServicios from '../components/widgets/TablaServicios.js';
 import { tipoLabel } from '../components/widgets/tipoLabel.js';
 import ResumenComparativo from '../components/widgets/ResumenComparativo.js';
+import ChartCumplimientoMensual from '../components/widgets/ChartCumplimientoMensual.js';
 import { ExportButton } from '../export/index.js';
 import { HelpButton } from '../help/HelpButton.js';
 import { buildReportesDoc } from '../export/docs/reportesDoc.js';
@@ -79,8 +80,10 @@ function desplazarUnAnio(fecha: string): string {
 
 /** «Ene–Nov 2026» para un tramo dentro de un mismo año. */
 function etiquetaTramo(inicio: string, fin: string): string {
-  const [, mi] = inicio.split('-').map(Number) as [number, number];
-  const [yf, mf] = fin.split('-').map(Number) as [number, number];
+  const [, mi, di] = inicio.split('-').map(Number) as [number, number, number];
+  const [yf, mf, df] = fin.split('-').map(Number) as [number, number, number];
+  // Un año calendario completo se llama por su número.
+  if (mi === 1 && di === 1 && mf === 12 && df === 31) return String(yf);
   return mi === mf ? `${MESES_CORTO[mf]} ${yf}` : `${MESES_CORTO[mi]}–${MESES_CORTO[mf]} ${yf}`;
 }
 
@@ -102,7 +105,7 @@ function variacionPct(actual: number, base: number): number | null {
 
 // ─── Filter types & helpers ───────────────────────────────────────────────────
 
-type FilterMode = 'mes' | 'rango';
+type FilterMode = 'mes' | 'anio' | 'rango';
 
 
 // Use LOCAL calendar date — toISOString() converts to UTC and shifts the day
@@ -154,10 +157,6 @@ function getPreset(preset: string): { start: string; end: string } {
     case '30dias': {
       const start = new Date(today);
       start.setDate(today.getDate() - 29);
-      return { start: fmt(start), end: fmt(today) };
-    }
-    case 'anio': {
-      const start = new Date(today.getFullYear(), 0, 1);
       return { start: fmt(start), end: fmt(today) };
     }
     default:
@@ -313,51 +312,8 @@ function FacturadoPorMes({ rows }: FacturadoPorMesProps): React.ReactElement {
   );
 }
 
-// ─── Cumplimiento mensual chart (annual view) ─────────────────────────────────
-
-function ChartCumplimientoMensual({ rows }: { rows: TendenciaRow[] }): React.ReactElement {
-  const fmtShort = (n: number): string =>
-    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
-
-  const data = rows.map((r) => ({
-    mes: (r.mes.split(' ')[0] ?? r.mes),
-    venta: r.total,
-    estimado: r.presupuesto,
-    pct: r.presupuesto > 0 ? Math.round((r.total / r.presupuesto) * 1000) / 10 : 0,
-  }));
-
-  return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }} barCategoryGap="25%" barGap={2}>
-        <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-        <YAxis
-          tick={{ fontSize: 10, fill: '#94a3b8' }}
-          tickFormatter={fmtShort}
-          axisLine={false}
-          tickLine={false}
-          width={48}
-        />
-        <RechartTooltip
-          formatter={(val: number, name: string) => [
-            fmtShort(val),
-            name === 'venta' ? 'Facturado' : 'Presupuesto',
-          ]}
-          contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
-        />
-        <ReferenceLine y={0} stroke="#e2e8f0" />
-        <Bar dataKey="estimado" fill="#e2e8f0" radius={[2, 2, 0, 0]} name="estimado" />
-        <Bar dataKey="venta" radius={[2, 2, 0, 0]} name="venta">
-          {data.map((d, i) => (
-            <Cell
-              key={i}
-              fill={d.pct >= 100 ? '#16a34a' : d.pct >= 80 ? '#f59e0b' : '#3b82f6'}
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
+// El gráfico mensual del año vive en `components/widgets/ChartCumplimientoMensual`:
+// ahora dibuja siempre enero–diciembre y admite un segundo año para comparar.
 
 // ─── Cumplimiento diario (range mode) ────────────────────────────────────────
 
@@ -540,9 +496,22 @@ export default function Reportes(): React.ReactElement {
   const [filterMode, setFilterMode] = useState<FilterMode>('mes');
   const [rangeStart, setRangeStart] = useState<string>('');
   const [rangeEnd,   setRangeEnd]   = useState<string>('');
-  const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  const isAnioMode = activePreset === 'anio';
+  // ─── Filtro por año ─────────────────────────────────────────────────────────
+  //
+  // Los años salen de los datos cargados, no del calendario: con histórico de
+  // años anteriores aparecen solos. El año se guarda por su VALOR (no por su
+  // posición) por el mismo motivo que el mes: la lista llega del servidor.
+  const [anioElegido, setAnioElegido] = useState<number | null>(null);
+  const aniosDisponibles = useMemo(
+    () => [...new Set(mesesTodos.map((m) => m.anio))].sort((a, b) => b - a),
+    [mesesTodos],
+  );
+  const anioSel: number | null = useMemo(() => {
+    if (anioElegido !== null && aniosDisponibles.includes(anioElegido)) return anioElegido;
+    return aniosDisponibles[0] ?? null;
+  }, [anioElegido, aniosDisponibles]);
+  const isAnioMode = filterMode === 'anio';
 
   // Alert dismiss: key encodes the current period so it reappears on every filter change
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
@@ -561,8 +530,18 @@ export default function Reportes(): React.ReactElement {
   const [selectedEntidadName, setSelectedEntidadName] = useState<string | null>(null);
 
   // Full period dates (never overridden by day filter)
-  const periodStart = filterMode === 'rango' && rangeStart ? rangeStart : undefined;
-  const periodEnd   = filterMode === 'rango' && rangeEnd   ? rangeEnd   : undefined;
+  //
+  // Modo Año: 1 de enero → 31 de diciembre. En el año en curso el final es HOY:
+  // un año a medias no se mide contra el calendario entero, y es el mismo corte
+  // que usa la comparación contra el año anterior.
+  const hoyIso = fmt(new Date());
+  const anioEnCurso = new Date().getFullYear();
+  const periodStart = filterMode === 'rango' && rangeStart
+    ? rangeStart
+    : isAnioMode && anioSel !== null ? `${anioSel}-01-01` : undefined;
+  const periodEnd = filterMode === 'rango' && rangeEnd
+    ? rangeEnd
+    : isAnioMode && anioSel !== null ? (anioSel === anioEnCurso ? hoyIso : `${anioSel}-12-31`) : undefined;
 
   // dia_semana: MySQL DAYOFWEEK (2=Lun … 6=Vie), undefined when no day selected
   const diaSemana = selectedDia !== null ? toMysqlDow(selectedDia) : undefined;
@@ -573,7 +552,6 @@ export default function Reportes(): React.ReactElement {
   const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, periodStart, periodEnd);
   // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
-  const tendenciaQ  = useTendencia(12);
   const serviciosQ  = useServicios(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId, diaSemana ?? null);
 
   // ─── Consultas del mes comparado ────────────────────────────────────────────
@@ -597,16 +575,18 @@ export default function Reportes(): React.ReactElement {
     if (filterMode === 'mes') {
       return mesComparado ? { label: mesComparado.label, mes: mesComparado.mes, anio: mesComparado.anio } : null;
     }
-    if (isAnioMode && rangeStart && rangeEnd) {
-      const start = desplazarUnAnio(rangeStart);
-      const end = desplazarUnAnio(rangeEnd);
+    // Sin datos del año anterior no hay contra qué comparar: la casilla ni se
+    // ofrece (ver más abajo), y aquí tampoco se inventa un periodo vacío.
+    if (isAnioMode && periodStart && periodEnd && anioSel !== null && aniosDisponibles.includes(anioSel - 1)) {
+      const start = desplazarUnAnio(periodStart);
+      const end = desplazarUnAnio(periodEnd);
       return { label: etiquetaTramo(start, end), mes: selected.mes, anio: selected.anio, start, end };
     }
     return null;
-  }, [compararActivo, filterMode, mesComparado, isAnioMode, rangeStart, rangeEnd, selected.mes, selected.anio]);
+  }, [compararActivo, filterMode, mesComparado, isAnioMode, periodStart, periodEnd, anioSel, aniosDisponibles, selected.mes, selected.anio]);
 
   // Cómo se llama el periodo MOSTRADO, para rotular las dos series.
-  const labelActual = isAnioMode && rangeStart && rangeEnd ? etiquetaTramo(rangeStart, rangeEnd) : selected.label;
+  const labelActual = isAnioMode && periodStart && periodEnd ? etiquetaTramo(periodStart, periodEnd) : selected.label;
 
   const compMes  = periodoComp?.mes  ?? selected.mes;
   const compAnio = periodoComp?.anio ?? selected.anio;
@@ -627,13 +607,19 @@ export default function Reportes(): React.ReactElement {
   const compSemanas = periodoComp && filterMode === 'mes' && cumplCompQ.data
     ? { label: periodoComp.label, semanas: cumplCompQ.data.semanas } : null;
 
-  // Annual mode: filter tendencia to current year, ordered chronologically
-  const currentYear = new Date().getFullYear();
-  const tendenciaAnio = (tendenciaQ.data ?? [])
-    .filter((r) => r.anio === currentYear)
-    .slice()
-    .sort((a, b) => a.mesIdx - b.mesIdx); // Ene=1 → Dic=12
-  const mesesEnMeta = tendenciaAnio.filter((r) => r.presupuesto > 0 && r.total >= r.presupuesto).length;
+  // Modo Año: los meses del año elegido (cualquiera con datos, no solo los
+  // últimos) y, al comparar, los del año anterior para dibujar las dos series.
+  const tendenciaQ = useTendenciaAnio(anioSel, isAnioMode);
+  const tendenciaCompQ = useTendenciaAnio(anioSel !== null ? anioSel - 1 : null, isAnioMode && periodoComp !== null);
+  const tendenciaAnio = (tendenciaQ.data ?? []).slice().sort((a, b) => a.mesIdx - b.mesIdx); // Ene=1 → Dic=12
+  // El gráfico enfrenta AÑOS mes a mes y dibuja el anterior completo, así que se
+  // rotula con el año: «Ene–Nov 2025» prometería menos meses de los que muestra.
+  const compMensual = periodoComp && anioSel !== null && tendenciaCompQ.data
+    ? { label: String(anioSel - 1), rows: tendenciaCompQ.data } : null;
+  // «Meses en meta» se mide sobre los meses con actividad: contar contra meses
+  // futuros ya presupuestados haría imposible llegar al 100 % en el año en curso.
+  const mesesConDatos = tendenciaAnio.filter((r) => r.total > 0);
+  const mesesEnMeta = mesesConDatos.filter((r) => r.presupuesto > 0 && r.total >= r.presupuesto).length;
 
   // Variación de cada KPI contra el mes comparado. `undefined` cuando no hay
   // comparación activa o cuando la base es cero: KpiCard ya oculta el delta en
@@ -664,7 +650,7 @@ export default function Reportes(): React.ReactElement {
   const isLoading = kpisQ.isLoading || entidadesQ.isLoading;
   const hasError  = kpisQ.isError  || entidadesQ.isError;
 
-  const isRangoMode = filterMode === 'rango' && !isAnioMode;
+  const isRangoMode = filterMode === 'rango';
   const workingDays = isRangoMode && periodStart && periodEnd
     ? countWorkingDaysInRange(periodStart, periodEnd) : 0;
   const dailyTarget = workingDays > 0 ? (kpisQ.data?.presupuesto ?? 0) / workingDays : 0;
@@ -767,7 +753,6 @@ export default function Reportes(): React.ReactElement {
     setSelectedTipo(null);
     setSelectedEntidadId(null);
     setSelectedEntidadName(null);
-    setActivePreset(null);
     if (mode === 'rango' && !rangeStart && !rangeEnd) {
       const { start, end } = getCurrentMonthRange();
       setRangeStart(start);
@@ -781,7 +766,6 @@ export default function Reportes(): React.ReactElement {
     setRangeEnd(end);
     setFilterMode('rango');
     setSelectedDia(null);
-    setActivePreset(preset);
   }
 
   // ── Exportación ────────────────────────────────────────────────────────────
@@ -789,7 +773,7 @@ export default function Reportes(): React.ReactElement {
   const refMix          = useRef<HTMLDivElement>(null);
 
   const periodLabel = isAnioMode
-    ? `Año ${currentYear}`
+    ? `Año ${anioSel ?? ''}${anioSel === anioEnCurso ? ' (a la fecha)' : ''}`
     : filterMode === 'rango' && periodStart && periodEnd
       ? `${periodStart} a ${periodEnd}`
       : selected.label;
@@ -833,7 +817,7 @@ export default function Reportes(): React.ReactElement {
 
   const buildExportDoc = useMemo(() => () => {
     const filters: { label: string; value: string }[] = [
-      { label: 'Modo', value: filterMode === 'rango' ? 'Rango de fechas' : 'Mes' },
+      { label: 'Modo', value: filterMode === 'rango' ? 'Rango de fechas' : filterMode === 'anio' ? 'Año' : 'Mes' },
       { label: 'Periodo', value: periodLabel },
     ];
     if (diaLabel)            filters.push({ label: 'Dia', value: diaLabel });
@@ -883,6 +867,9 @@ export default function Reportes(): React.ReactElement {
                 <button type="button"
                   className={`filter-mode-tab${filterMode === 'mes' ? ' filter-mode-tab--active' : ''}`}
                   onClick={() => handleModeSwitch('mes')}>Mes</button>
+                <button type="button"
+                  className={`filter-mode-tab${filterMode === 'anio' ? ' filter-mode-tab--active' : ''}`}
+                  onClick={() => handleModeSwitch('anio')}>Año</button>
                 <button type="button"
                   className={`filter-mode-tab${filterMode === 'rango' ? ' filter-mode-tab--active' : ''}`}
                   onClick={() => handleModeSwitch('rango')}>Rango</button>
@@ -946,31 +933,35 @@ export default function Reportes(): React.ReactElement {
                 </div>
               )}
 
-              {filterMode === 'rango' && (
-                <div className="filter-bar">
-                  <div className="preset-btns">
-                    <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>Hoy</button>
-                    <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
-                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
-                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
-                    <button
-                      type="button"
-                      className={`preset-btn preset-btn--accent${activePreset === 'anio' ? ' preset-btn--active' : ''}`}
-                      onClick={() => applyPreset('anio')}
-                    >
-                      Año
-                    </button>
-                  </div>
-                  <div className="date-range-group">
-                    <input type="date" className="date-input" value={rangeStart}
-                      onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha inicio" />
-                    <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
-                    <input type="date" className="date-input" value={rangeEnd}
-                      onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); setActivePreset(null); }} aria-label="Fecha fin" />
-                  </div>
-                  {isAnioMode && rangeStart && rangeEnd && (
+              {/*
+                Filtro por año. Los años salen de los datos cargados, así que al
+                cargar histórico de años anteriores aparecen solos. Al elegir uno,
+                los gráficos pasan a meses completos.
+              */}
+              {filterMode === 'anio' && anioSel !== null && (
+                <>
+                  <select
+                    className="reportes-month-select"
+                    value={anioSel}
+                    onChange={(e) => { setAnioElegido(Number(e.target.value)); setSelectedDia(null); }}
+                    aria-label="Año"
+                  >
+                    {aniosDisponibles.map((a) => (
+                      <option key={a} value={a}>
+                        {a === anioEnCurso ? `${a} (a la fecha)` : a}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Sin datos del año anterior no hay contra qué comparar: la casilla no aparece. */}
+                  {aniosDisponibles.includes(anioSel - 1) && (
                     <div className="comparar-control">
-                      <label className="comparar-toggle" title="Compara lo que va del año con el mismo tramo del año anterior">
+                      <label
+                        className="comparar-toggle"
+                        title={anioSel === anioEnCurso
+                          ? 'Compara lo que va del año con el mismo tramo del año anterior'
+                          : 'Compara el año completo con el año anterior'}
+                      >
                         <input
                           type="checkbox"
                           checked={compararActivo}
@@ -983,6 +974,24 @@ export default function Reportes(): React.ReactElement {
                       )}
                     </div>
                   )}
+                </>
+              )}
+
+              {filterMode === 'rango' && (
+                <div className="filter-bar">
+                  <div className="preset-btns">
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('hoy')}>Hoy</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('ayer')}>Ayer</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana')}>Esta semana</button>
+                    <button type="button" className="preset-btn" onClick={() => applyPreset('semana_pasada')}>Sem. pasada</button>
+                  </div>
+                  <div className="date-range-group">
+                    <input type="date" className="date-input" value={rangeStart}
+                      onChange={(e) => { setRangeStart(e.target.value); setSelectedDia(null); }} aria-label="Fecha inicio" />
+                    <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>—</span>
+                    <input type="date" className="date-input" value={rangeEnd}
+                      onChange={(e) => { setRangeEnd(e.target.value); setSelectedDia(null); }} aria-label="Fecha fin" />
+                  </div>
                 </div>
               )}
             </>
@@ -1188,8 +1197,8 @@ export default function Reportes(): React.ReactElement {
                     titulo="Meses en Meta"
                     valor={mesesEnMeta}
                     formato="number"
-                    meta={tendenciaAnio.length}
-                    metaLabel={`de ${tendenciaAnio.length} mes.`}
+                    meta={mesesConDatos.length}
+                    metaLabel={`de ${mesesConDatos.length} mes.`}
                     icon={<Award size={14} />}
                     color="purple"
                   />
@@ -1234,7 +1243,7 @@ export default function Reportes(): React.ReactElement {
               {isAnioMode ? (
                 tendenciaQ.isLoading ? <ChartSkeleton /> :
                 tendenciaAnio.length > 0 ? (
-                  <ChartCumplimientoMensual rows={tendenciaAnio} />
+                  <ChartCumplimientoMensual rows={tendenciaAnio} label={anioSel !== null ? String(anioSel) : undefined} comparado={compMensual} />
                 ) : null
               ) : isRangoMode ? (
                 diasQ.isLoading ? <ChartSkeleton /> :

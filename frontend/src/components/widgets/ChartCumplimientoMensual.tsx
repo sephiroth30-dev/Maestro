@@ -1,95 +1,90 @@
 import React from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ReferenceLine, ResponsiveContainer, Cell,
 } from 'recharts';
 import type { TendenciaRow } from '../../api/reportes.js';
 
+const MESES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
 interface Props {
   rows: TendenciaRow[];
+  /** Cómo se llama el año mostrado, para la leyenda y el tooltip. */
+  label?: string;
+  /** Otro año para dibujar junto a cada mes. */
+  comparado?: { label: string; rows: TendenciaRow[] } | null;
 }
 
-function barColor(pct: number): string {
-  if (pct >= 100) return '#22c55e';
-  if (pct >= 80)  return '#f59e0b';
-  return '#ef4444';
-}
+const fmtShort = (n: number): string =>
+  n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
-function fmtMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n}`;
-}
+/**
+ * Cumplimiento por MES de un año, de enero a diciembre.
+ *
+ * El eje siempre tiene los doce meses, aunque el servidor devuelva solo los que
+ * tienen datos o presupuesto: así dos años se pueden poner uno al lado del otro
+ * mes a mes, y el año en curso muestra los meses que aún no llegan como vacíos
+ * en vez de comprimir el gráfico.
+ *
+ * Con `comparado` se dibuja el mismo mes del otro año junto a cada barra. En ese
+ * caso desaparece la barra de presupuesto: tres barras por mes serían ilegibles,
+ * y el color de la barra del año ya dice si se cumplió la meta.
+ */
+export default function ChartCumplimientoMensual({ rows, label, comparado }: Props): React.ReactElement {
+  const porMes = new Map(rows.map((r) => [r.mesIdx, r]));
+  const compPorMes = new Map((comparado?.rows ?? []).map((r) => [r.mesIdx, r]));
 
-interface DataPoint { nombre: string; pct: number; total: number; presupuesto: number }
-interface TooltipPayload { value: number; dataKey: string; payload: DataPoint }
-interface CustomTooltipProps { active?: boolean; payload?: TooltipPayload[]; label?: string }
-
-function CustomTooltip({ active, payload, label }: CustomTooltipProps): React.ReactElement | null {
-  if (!active || !payload?.length) return null;
-  const item = payload[0];
-  if (!item) return null;
-
-  const raw = item.payload;
-  return (
-    <div className="chart-tooltip">
-      <p className="chart-tooltip-label">{label}</p>
-      <p className="chart-tooltip-row" style={{ color: barColor(raw.pct), fontWeight: 700 }}>
-        {raw.pct.toFixed(1)}% cumplimiento
-      </p>
-      <p className="chart-tooltip-row" style={{ color: '#64748b' }}>Facturado: {fmtMoney(raw.total)}</p>
-      {raw.presupuesto > 0 && (
-        <p className="chart-tooltip-row" style={{ color: '#94a3b8' }}>Meta: {fmtMoney(raw.presupuesto)}</p>
-      )}
-    </div>
-  );
-}
-
-export default function ChartCumplimientoMensual({ rows }: Props): React.ReactElement {
-  const data = rows.map((r) => {
-    const pct = r.presupuesto > 0 ? (r.total / r.presupuesto) * 100 : 0;
+  const data = MESES_CORTO.map((nombre, i) => {
+    const r = porMes.get(i + 1);
+    const venta = r?.total ?? 0;
+    const presupuesto = r?.presupuesto ?? 0;
     return {
-      nombre:      r.mes.substring(0, 3),
-      pct:         Math.round(pct * 10) / 10,
-      total:       r.total,
-      presupuesto: r.presupuesto,
+      mes: nombre,
+      venta,
+      estimado: presupuesto,
+      comparado: compPorMes.get(i + 1)?.total ?? 0,
+      pct: presupuesto > 0 ? Math.round((venta / presupuesto) * 1000) / 10 : 0,
     };
   });
 
-  const maxPct = Math.max(...data.map((d) => d.pct), 100);
-  const yMax = Math.ceil(maxPct / 10) * 10 + 10;
+  const nombreSerie = (clave: string): string =>
+    clave === 'venta' ? (label ?? 'Facturado') : clave === 'comparado' ? (comparado?.label ?? 'Comparado') : 'Presupuesto';
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="nombre" tick={{ fontSize: 12, fill: '#64748b' }} />
+    <ResponsiveContainer width="100%" height={comparado ? 260 : 220}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }} barCategoryGap="25%" barGap={2}>
+        <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
         <YAxis
-          tickFormatter={(v: number) => `${v}%`}
-          domain={[0, yMax]}
-          tick={{ fontSize: 11, fill: '#64748b' }}
-          width={46}
+          tick={{ fontSize: 10, fill: '#94a3b8' }}
+          tickFormatter={fmtShort}
+          axisLine={false}
+          tickLine={false}
+          width={48}
         />
-        <ReferenceLine
-          y={100}
-          stroke="#6366f1"
-          strokeDasharray="6 3"
-          strokeWidth={2}
-          label={{ value: 'Meta 100%', position: 'insideTopRight', fontSize: 10, fill: '#6366f1', dy: -4 }}
+        <Tooltip
+          formatter={(val: number, name: string) => [fmtShort(val), nombreSerie(name)]}
+          contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
         />
-        <Tooltip content={<CustomTooltip />} />
-        <Bar dataKey="pct" maxBarSize={56} name="Cumplimiento">
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={barColor(entry.pct)} />
+        <ReferenceLine y={0} stroke="#e2e8f0" />
+        {comparado ? (
+          // El año anterior a la izquierda: se lee primero y el actual cierra el par.
+          <Bar dataKey="comparado" fill="#c7d2fe" radius={[2, 2, 0, 0]} name="comparado" />
+        ) : (
+          <Bar dataKey="estimado" fill="#e2e8f0" radius={[2, 2, 0, 0]} name="estimado" />
+        )}
+        <Bar dataKey="venta" fill="#3b82f6" radius={[2, 2, 0, 0]} name="venta">
+          {data.map((d, i) => (
+            <Cell
+              key={i}
+              fill={d.pct >= 100 ? '#16a34a' : d.pct >= 80 ? '#f59e0b' : '#3b82f6'}
+            />
           ))}
         </Bar>
+        {comparado && (
+          <Legend
+            formatter={(v: string) => nombreSerie(v)}
+            wrapperStyle={{ fontSize: 12, color: '#64748b' }}
+          />
+        )}
       </BarChart>
     </ResponsiveContainer>
   );

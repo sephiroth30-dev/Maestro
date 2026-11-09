@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.6] - 2026-11-09
+
+### Added
+- **Filtro por Año en Reportes**, como pestaña propia junto a Mes y Rango. Ofrece todos los años que tengan datos cargados —al subir histórico de años anteriores aparecen solos—, y al elegir uno las tarjetas suman el año completo y los gráficos pasan a **meses completos**: «Cumplimiento mensual» dibuja siempre de enero a diciembre, y los meses que aún no llegan (en el año en curso) quedan vacíos en lugar de comprimir el gráfico. El año en curso se mide **a la fecha** (de enero a hoy); un año pasado, de enero a diciembre.
+- **Comparar año contra año.** El año en curso se compara con el mismo tramo del año anterior; un año pasado, completo contra completo. La casilla solo aparece si el año anterior tiene datos. El gráfico mensual dibuja los doce meses de cada año uno junto al otro.
+- **`GET /api/reportes/tendencia?anio=YYYY`.** Devuelve los meses de un año concreto con su facturación y presupuesto. El parámetro `meses` solo daba «los N más recientes» (máximo 36), así que con varios años de histórico un año antiguo no se podía ver.
+
+### Changed
+- Se retiró el atajo **Año** del modo Rango, sustituido por la pestaña propia. En Rango quedan Hoy, Ayer, Esta semana y Sem. pasada.
+- «Meses en Meta» se mide sobre los meses con actividad: contarlo contra meses futuros ya presupuestados habría hecho imposible llegar al 100 % en el año en curso.
+
+### Fixed
+- Con **Rango → Año** el gráfico mostraba «Cumplimiento diario» y las tarjetas solo el mes de noviembre, no el año: el atajo dejaba marcado el botón pero el modo anual dependía de un estado que no siempre se activaba. Ahora el año es un modo explícito.
+
+---
+
 ## [1.9.5] - 2026-11-05
 
 ### Added

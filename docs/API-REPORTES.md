@@ -162,7 +162,13 @@ Totales mensuales históricos para gráfico de tendencia.
 
 | Param   | Tipo   | Default | Descripción              |
 |---------|--------|---------|--------------------------|
-| `meses` | number | 6       | Número de meses (1–36)   |
+| `meses` | number | 6       | Número de meses (1–36): los **más recientes** |
+| `anio`  | number | —       | Un año concreto (2000–2100). Si viene, `meses` se ignora |
+
+Con `meses`, el recorte es «los N más recientes» y con varios años de histórico un año
+antiguo no cabe. Con `anio` se devuelven los meses de **ese** año, sea cual sea: incluye un
+mes si tiene facturación **o** presupuesto, y omite los que no tienen ninguno (el gráfico
+completa el eje de enero a diciembre por su cuenta). Respeta la fuente activa.
 
 **Respuesta 200:**
 
@@ -229,6 +235,7 @@ Crea o actualiza un presupuesto mensual. **Solo ADMIN.**
 | `cumplimiento:{mesIdx}:{anio}`     | 30 minutos | Cumplimiento semanal               |
 | `diasemana:{mesIdx}:{anio}`        | 1 hora     | Promedios por día de semana        |
 | `tendencia:{meses}`                | 1 hora     | Tendencia mensual                  |
+| `tendencia-anio:{anio}`            | 1 hora     | Meses de un año concreto           |
 
 Si Redis no está disponible, los datos se calculan en vivo desde la base de datos (graceful fallback).
 
@@ -242,3 +249,4 @@ Si Redis no está disponible, los datos se calculan en vivo desde la base de dat
 | `anio`      | int    | kpis, entidades, cumplimiento, dias-semana | Año       |
 | `entidad_id`| string | kpis                          | UUID de la entidad      |
 | `meses`     | int    | tendencia                     | Número de meses 1–36    |
+| `anio`      | int    | tendencia                     | Un año concreto; ignora `meses` |

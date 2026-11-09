@@ -493,8 +493,10 @@ class ReportesService {
 
   async getTendencia(params: {
     meses: number;
+    anio?: number;
   }): Promise<Array<{ mes: string; anio: number; mesIdx: number; total: number; presupuesto: number }>> {
-    const { meses } = params;
+    const { meses, anio } = params;
+    if (anio !== undefined) return this.getTendenciaDeAnio(anio);
     const cacheKey = `tendencia:${meses}`;
 
     const cached = await cacheGet<
@@ -521,6 +523,39 @@ class ReportesService {
         };
       })
     );
+
+    await cacheSet(cacheKey, rows, TTL_REPORTES);
+    return rows;
+  }
+
+  /**
+   * Los meses de un año concreto, con su facturación y su presupuesto.
+   *
+   * Incluye un mes si tiene datos **o** presupuesto: así el año en curso muestra
+   * también los meses futuros ya presupuestados, y un año histórico sin
+   * presupuesto cargado solo muestra los meses con actividad. Los meses sin nada
+   * de ninguno de los dos se omiten; el gráfico completa el eje de enero a
+   * diciembre por su cuenta.
+   */
+  private async getTendenciaDeAnio(
+    anio: number,
+  ): Promise<Array<{ mes: string; anio: number; mesIdx: number; total: number; presupuesto: number }>> {
+    const cacheKey = `tendencia-anio:${anio}`;
+    const cached = await cacheGet<
+      Array<{ mes: string; anio: number; mesIdx: number; total: number; presupuesto: number }>
+    >(cacheKey);
+    if (cached) return cached;
+
+    const MESES_ES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const totales = new Map((await repo.getTotalesPorMesDeAnio(anio)).map((r) => [r.mes_idx, r.total]));
+
+    const rows: Array<{ mes: string; anio: number; mesIdx: number; total: number; presupuesto: number }> = [];
+    for (let m = 1; m <= 12; m++) {
+      const total = totales.get(m) ?? 0;
+      const presupuesto = await repo.getPresupuesto(anio, m);
+      if (total === 0 && presupuesto === 0) continue;
+      rows.push({ mes: `${MESES_ES[m]} ${anio}`, anio, mesIdx: m, total, presupuesto });
+    }
 
     await cacheSet(cacheKey, rows, TTL_REPORTES);
     return rows;

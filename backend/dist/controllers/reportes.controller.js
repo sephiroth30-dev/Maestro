@@ -103,6 +103,14 @@ const tendenciaQuerySchema = zod_1.z.object({
         .optional()
         .transform((v) => (v ? parseInt(v, 10) : 6))
         .pipe(zod_1.z.number().min(1).max(36)),
+    // Un año concreto (p. ej. 2025). Si viene, `meses` se ignora y se devuelven los
+    // meses de ESE año. Existe porque `meses` solo mira «los N más recientes» y
+    // con histórico cargado no alcanza para ver un año antiguo.
+    anio: zod_1.z
+        .string()
+        .optional()
+        .transform((v) => (v ? parseInt(v, 10) : undefined))
+        .pipe(zod_1.z.number().int().min(2000).max(2100).optional()),
 });
 const patchEntidadBodySchema = zod_1.z
     .object({
@@ -232,7 +240,7 @@ async function registerReportesController(fastify) {
                 statusCode: 400,
             });
         }
-        const result = await reportes_service_js_1.reportesService.getTendencia({ meses: parsed.data.meses });
+        const result = await reportes_service_js_1.reportesService.getTendencia({ meses: parsed.data.meses, anio: parsed.data.anio });
         return reply.send(result);
     });
     // GET /api/reportes/servicios

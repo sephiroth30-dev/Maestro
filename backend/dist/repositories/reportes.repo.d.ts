@@ -67,6 +67,17 @@ export declare function getTendenciaMeses(meses: number): Promise<Array<{
     mes_idx: number;
     total: number;
 }>>;
+/**
+ * Facturación por mes de UN año concreto, solo de los meses que tienen datos.
+ *
+ * Distinto de `getTendenciaMeses`, que devuelve «los N meses más recientes»:
+ * con varios años de histórico cargado, un año antiguo no cabe en ese recorte.
+ * Respeta la fuente activa, como el resto de consultas de reportes.
+ */
+export declare function getTotalesPorMesDeAnio(anio: number): Promise<Array<{
+    mes_idx: number;
+    total: number;
+}>>;
 export declare function getPresupuesto(anio: number, mes: number): Promise<number>;
 export declare function listPresupuestos(): Promise<Array<{
     id: string;

@@ -10,6 +10,7 @@ exports.getEntidadesAgg = getEntidadesAgg;
 exports.getDiariosDelMes = getDiariosDelMes;
 exports.getDiasSemanaAgg = getDiasSemanaAgg;
 exports.getTendenciaMeses = getTendenciaMeses;
+exports.getTotalesPorMesDeAnio = getTotalesPorMesDeAnio;
 exports.getPresupuesto = getPresupuesto;
 exports.listPresupuestos = listPresupuestos;
 exports.listEntidades = listEntidades;
@@ -183,6 +184,22 @@ async function getTendenciaMeses(meses) {
         mes_idx: Number(r.mes_idx),
         total: Number(r.total),
     }));
+}
+/**
+ * Facturación por mes de UN año concreto, solo de los meses que tienen datos.
+ *
+ * Distinto de `getTendenciaMeses`, que devuelve «los N meses más recientes»:
+ * con varios años de histórico cargado, un año antiguo no cabe en ese recorte.
+ * Respeta la fuente activa, como el resto de consultas de reportes.
+ */
+async function getTotalesPorMesDeAnio(anio) {
+    const [fuenteSql, fuenteParams] = (0, fuente_activa_service_js_1.sqlFiltroFuente)();
+    const [rows] = await prisma_js_1.pool.query(`SELECT mes_idx, SUM(valor_bruto) AS total
+       FROM atenciones
+      WHERE anio = ? AND mes_idx IS NOT NULL${fuenteSql}
+      GROUP BY mes_idx
+      ORDER BY mes_idx ASC`, [anio, ...fuenteParams]);
+    return rows.map((r) => ({ mes_idx: Number(r.mes_idx), total: Number(r.total ?? 0) }));
 }
 async function getPresupuesto(anio, mes) {
     const [rows] = await prisma_js_1.pool.query('SELECT monto FROM presupuestos_mensuales WHERE anio = ? AND mes = ? LIMIT 1', [anio, mes]);

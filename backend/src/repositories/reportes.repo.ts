@@ -271,6 +271,28 @@ export async function getTendenciaMeses(
   }));
 }
 
+/**
+ * Facturación por mes de UN año concreto, solo de los meses que tienen datos.
+ *
+ * Distinto de `getTendenciaMeses`, que devuelve «los N meses más recientes»:
+ * con varios años de histórico cargado, un año antiguo no cabe en ese recorte.
+ * Respeta la fuente activa, como el resto de consultas de reportes.
+ */
+export async function getTotalesPorMesDeAnio(
+  anio: number,
+): Promise<Array<{ mes_idx: number; total: number }>> {
+  const [fuenteSql, fuenteParams] = sqlFiltroFuente();
+  const [rows] = await pool.query<(RowDataPacket & { mes_idx: number; total: string | null })[]>(
+    `SELECT mes_idx, SUM(valor_bruto) AS total
+       FROM atenciones
+      WHERE anio = ? AND mes_idx IS NOT NULL${fuenteSql}
+      GROUP BY mes_idx
+      ORDER BY mes_idx ASC`,
+    [anio, ...fuenteParams],
+  );
+  return rows.map((r) => ({ mes_idx: Number(r.mes_idx), total: Number(r.total ?? 0) }));
+}
+
 export async function getPresupuesto(anio: number, mes: number): Promise<number> {
   const [rows] = await pool.query<(RowDataPacket & { monto: string | null })[]>(
     'SELECT monto FROM presupuestos_mensuales WHERE anio = ? AND mes = ? LIMIT 1',
