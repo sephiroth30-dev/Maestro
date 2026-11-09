@@ -6,6 +6,7 @@ const connector_service_js_1 = require("./connector.service.js");
 const redis_js_1 = require("../config/redis.js");
 const logger_js_1 = require("../config/logger.js");
 const sheet_atencion_mapper_js_1 = require("./sheet-atencion-mapper.js");
+const sync_lock_service_js_1 = require("./sync-lock.service.js");
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 const FRECUENCIA_TTL = {
     '30min': 30 * 60,
@@ -21,7 +22,42 @@ class SyncService {
         return `sync:${conectorId}:data`;
     }
     // ─── runSync ──────────────────────────────────────────────────────────────
+    /**
+     * Sincroniza un conector, garantizando que no haya DOS a la vez.
+     *
+     * Cada proceso del servidor programa el mismo cron y lanza un «catch-up» al
+     * arrancar, así que sin candado salían varias sincronizaciones simultáneas de
+     * la misma fuente: se invalidaban el token entre ellas (HTTP 401) o chocaban
+     * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
+     * no falla: se omite, porque ya hay otra haciendo el trabajo.
+     */
     async runSync(conectorId) {
+        const candado = await (0, sync_lock_service_js_1.adquirirCandadoSync)(conectorId);
+        if (!candado) {
+            logger_js_1.logger.info('Sync omitida: ya hay otra en curso para este conector', { conectorId });
+            return {
+                conectorId,
+                success: false,
+                skipped: true,
+                rowsRead: 0,
+                rowsNew: 0,
+                durationMs: 0,
+                error: 'Ya hay una sincronización en curso',
+            };
+        }
+        try {
+            // Con el candado en la mano, ninguna otra sincronización de este conector
+            // está viva: las que sigan «EN_PROCESO» quedaron huérfanas.
+            const huerfanas = await conectores_repo_js_1.conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
+            if (huerfanas > 0)
+                logger_js_1.logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
+            return await this.ejecutarSync(conectorId);
+        }
+        finally {
+            await candado.liberar();
+        }
+    }
+    async ejecutarSync(conectorId) {
         const start = Date.now();
         logger_js_1.logger.info('Starting sync', { conectorId });
         // Create a "in progress" record

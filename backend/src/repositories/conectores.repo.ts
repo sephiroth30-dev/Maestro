@@ -180,6 +180,29 @@ export class ConectoresRepository {
     return mapSincronizacion(rows[0]!);
   }
 
+  /**
+   * Cierra como FALLIDA las sincronizaciones de un conector que siguen
+   * `EN_PROCESO` sin que nadie las esté ejecutando.
+   *
+   * Solo se debe llamar teniendo el candado de sincronización de ese conector:
+   * si lo tienes, ninguna otra está corriendo, así que cualquier fila
+   * `EN_PROCESO` quedó huérfana (el proceso murió por un reinicio o un
+   * despliegue a mitad de la descarga). Sin esto se acumulaban para siempre en
+   * el historial y la tarjeta parecía estar sincronizando.
+   */
+  async cerrarSincronizacionesHuerfanas(conectorId: string): Promise<number> {
+    const [res] = await pool.execute<ResultSetHeader>(
+      `UPDATE sincronizaciones
+          SET estado = 'FALLIDA', finalizada_at = NOW(), errores = ?
+        WHERE conector_id = ? AND estado = 'EN_PROCESO'`,
+      [
+        JSON.stringify({ message: 'Interrumpida: el servidor se reinició o la sincronización se perdió antes de terminar' }),
+        conectorId,
+      ],
+    );
+    return res.affectedRows;
+  }
+
   async updateSincronizacion(
     id: string,
     data: Partial<{

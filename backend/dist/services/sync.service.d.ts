@@ -7,10 +7,22 @@ export interface SyncResult {
     rowsNew: number;
     durationMs: number;
     error?: string;
+    /** `true` si no se ejecutó porque ya había otra sincronización de ese conector en curso. */
+    skipped?: boolean;
 }
 export declare class SyncService {
     private cacheKey;
+    /**
+     * Sincroniza un conector, garantizando que no haya DOS a la vez.
+     *
+     * Cada proceso del servidor programa el mismo cron y lanza un «catch-up» al
+     * arrancar, así que sin candado salían varias sincronizaciones simultáneas de
+     * la misma fuente: se invalidaban el token entre ellas (HTTP 401) o chocaban
+     * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
+     * no falla: se omite, porque ya hay otra haciendo el trabajo.
+     */
     runSync(conectorId: string): Promise<SyncResult>;
+    private ejecutarSync;
     runAllSyncs(): Promise<SyncResult[]>;
     getHistory(conectorId: string, limit?: number): Promise<Sincronizacion[]>;
     private storeInCache;

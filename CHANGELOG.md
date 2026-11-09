@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.7] - 2026-11-09
+
+### Fixed
+- **La sincronización de Medifolios fallaba casi siempre.** Del historial salían tres síntomas con una sola causa: `HTTP 401 Unauthorized` a los pocos segundos, `Duplicate entry '…' for key 'atenciones_hash_fila_key'` tras ~25 minutos, y decenas de filas `EN PROCESO` con 0 filas. Nada impedía que una misma fuente se sincronizara varias veces a la vez: cada proceso del servidor programa el mismo cron y lanza además un «catch-up» al arrancar, así que a la hora en punto salían varias sincronizaciones simultáneas (hasta cuatro a las 2:00 p. m.). Se pisaban el token entre ellas, o dos terminaban a la vez e insertaban las mismas filas.
+- Ahora `runSync` toma un **candado de MySQL por conector** (`GET_LOCK`) visible para todos los procesos. Se suelta solo si el proceso muere —no hay marca que caduque ni que se quede colgada— y una conexión dedicada lo sostiene con un latido cada 60 s mientras dura la descarga. Quien no lo obtiene se omite sin registrar un fallo.
+- Las sincronizaciones que quedaron `EN PROCESO` por un reinicio o despliegue a mitad de la descarga se cierran como *Interrumpida* en la siguiente ronda, en lugar de acumularse para siempre y hacer que la tarjeta parezca estar sincronizando.
+
+### Added
+- `docs/MEDIFOLIOS.md`: guía para leer el historial de sincronizaciones (qué significa cada error), y la explicación de por qué una sincronización completa tarda ~25 minutos.
+
+---
+
 ## [1.9.6] - 2026-11-09
 
 ### Added

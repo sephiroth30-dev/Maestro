@@ -99,6 +99,25 @@ class ConectoresRepository {
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM sincronizaciones WHERE id = ? LIMIT 1', [id]);
         return mapSincronizacion(rows[0]);
     }
+    /**
+     * Cierra como FALLIDA las sincronizaciones de un conector que siguen
+     * `EN_PROCESO` sin que nadie las esté ejecutando.
+     *
+     * Solo se debe llamar teniendo el candado de sincronización de ese conector:
+     * si lo tienes, ninguna otra está corriendo, así que cualquier fila
+     * `EN_PROCESO` quedó huérfana (el proceso murió por un reinicio o un
+     * despliegue a mitad de la descarga). Sin esto se acumulaban para siempre en
+     * el historial y la tarjeta parecía estar sincronizando.
+     */
+    async cerrarSincronizacionesHuerfanas(conectorId) {
+        const [res] = await prisma_js_1.pool.execute(`UPDATE sincronizaciones
+          SET estado = 'FALLIDA', finalizada_at = NOW(), errores = ?
+        WHERE conector_id = ? AND estado = 'EN_PROCESO'`, [
+            JSON.stringify({ message: 'Interrumpida: el servidor se reinició o la sincronización se perdió antes de terminar' }),
+            conectorId,
+        ]);
+        return res.affectedRows;
+    }
     async updateSincronizacion(id, data) {
         const setClauses = [];
         const params = [];

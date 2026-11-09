@@ -36,7 +36,12 @@ function scheduleConnector(conectorId, nombre, cronExpression) {
         logger_js_1.logger.info('Cron sync triggered', { conectorId, nombre });
         try {
             const result = await sync_service_js_1.syncService.runSync(conectorId);
-            if (result.success) {
+            if (result.skipped) {
+                // Normal: cada proceso del servidor dispara el mismo cron y solo uno
+                // obtiene el candado. Los demás no fallan, se apartan.
+                logger_js_1.logger.info('Cron sync omitida: ya hay otra en curso', { conectorId });
+            }
+            else if (result.success) {
                 logger_js_1.logger.info('Cron sync succeeded', {
                     conectorId,
                     rowsRead: result.rowsRead,

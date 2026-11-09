@@ -5,6 +5,7 @@ import { getRedisClient, flushReportesCache } from '../config/redis.js';
 import { logger } from '../config/logger.js';
 import type { DataSet } from '../connectors/base.connector.js';
 import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
+import { adquirirCandadoSync } from './sync-lock.service.js';
 
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface SyncResult {
   rowsNew: number;
   durationMs: number;
   error?: string;
+  /** `true` si no se ejecutó porque ya había otra sincronización de ese conector en curso. */
+  skipped?: boolean;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -38,7 +41,43 @@ export class SyncService {
 
   // ─── runSync ──────────────────────────────────────────────────────────────
 
+  /**
+   * Sincroniza un conector, garantizando que no haya DOS a la vez.
+   *
+   * Cada proceso del servidor programa el mismo cron y lanza un «catch-up» al
+   * arrancar, así que sin candado salían varias sincronizaciones simultáneas de
+   * la misma fuente: se invalidaban el token entre ellas (HTTP 401) o chocaban
+   * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
+   * no falla: se omite, porque ya hay otra haciendo el trabajo.
+   */
   async runSync(conectorId: string): Promise<SyncResult> {
+    const candado = await adquirirCandadoSync(conectorId);
+    if (!candado) {
+      logger.info('Sync omitida: ya hay otra en curso para este conector', { conectorId });
+      return {
+        conectorId,
+        success: false,
+        skipped: true,
+        rowsRead: 0,
+        rowsNew: 0,
+        durationMs: 0,
+        error: 'Ya hay una sincronización en curso',
+      };
+    }
+
+    try {
+      // Con el candado en la mano, ninguna otra sincronización de este conector
+      // está viva: las que sigan «EN_PROCESO» quedaron huérfanas.
+      const huerfanas = await conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
+      if (huerfanas > 0) logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
+
+      return await this.ejecutarSync(conectorId);
+    } finally {
+      await candado.liberar();
+    }
+  }
+
+  private async ejecutarSync(conectorId: string): Promise<SyncResult> {
     const start = Date.now();
 
     logger.info('Starting sync', { conectorId });

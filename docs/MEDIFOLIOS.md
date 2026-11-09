@@ -145,6 +145,35 @@ Si no hay ninguna fuente marcada, **los reportes suman todas** y cualquier mes p
 dos fuentes aparece con la facturación duplicada. La pantalla muestra un aviso naranja
 cuando eso pasa.
 
+## Leer el historial de sincronizaciones
+
+Configuración → Fuentes → **Historial**. Lo que significa cada error, y qué hacer:
+
+| Lo que ves | Qué pasó | Qué hacer |
+|---|---|---|
+| `HTTP 401 Unauthorized` en 2–70 s | El token dejó de valer a mitad de la descarga. Con **dos sincronizaciones a la vez** se invalidaban el token entre sí (se sospecha que Medifolios emite un solo token vigente por usuario). | Desde la 1.9.7 no deberían solaparse. Si persiste **con una sola corriendo**, el usuario de la API se está usando en otro sitio a la vez: usar uno dedicado al dashboard. |
+| `Duplicate entry '…' for key 'atenciones_hash_fila_key'` tras ~25 min | Dos sincronizaciones terminaron casi a la vez e insertaron las mismas filas; la segunda chocó con la primera. No se pierde nada: el guardado es una transacción y se revierte. | Mismo arreglo: el candado de sincronización. |
+| Varias filas `EN PROCESO` con 0 filas | Sincronizaciones que quedaron colgadas porque el servidor se reinició o se desplegó a mitad de la descarga. | Se cierran solas como *Interrumpida* en la siguiente sincronización. |
+| Varias entradas a la misma hora (`1:00 p. m.` ×4) | Cada proceso del servidor dispara el mismo cron. | Normal desde la 1.9.7: una corre y las demás se omiten sin dejar registro. |
+
+### Una sola sincronización por fuente
+
+`SyncService.runSync` toma un candado de MySQL (`GET_LOCK`, nombre
+`maestro:sync:<id del conector>`) antes de empezar. Lo ven **todos los procesos** y se
+suelta solo si el proceso muere, así que no hace falta adivinar un plazo de caducidad. Una
+conexión dedicada lo sostiene mientras dura la descarga, con un latido cada 60 s para que
+el servidor no la cierre por inactividad. Quien no lo obtiene **no falla**: se omite, porque
+ya hay otra haciendo el trabajo. Código en `sync-lock.core.ts`.
+
+### Cuánto tarda y por qué importa
+
+Cada sincronización descarga **todo el histórico** (200 filas por página) y reemplaza todas
+las atenciones del conector: con varios años cargados son unos 25 minutos. Mientras tanto el
+dashboard sigue mostrando los datos anteriores —el reemplazo es una transacción—, pero
+sincronizar cada hora significa estar descargando casi la mitad del tiempo. La salida es una
+sincronización **incremental** (solo los últimos meses), que exige antes cambiar el `hash_fila`:
+hoy incluye la posición de la fila en la descarga, que solo es estable con reemplazo total.
+
 ## Referencias
 
 - Swagger: `https://balanceo-reportes.medifolios.net/API_DOCS/`
