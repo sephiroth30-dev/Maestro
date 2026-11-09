@@ -32,6 +32,8 @@ export declare class ConectoresRepository {
     update(id: string, data: UpdateConectorData): Promise<Conector>;
     softDelete(id: string): Promise<void>;
     createSincronizacion(data: CreateSincronizacionData): Promise<Sincronizacion>;
+    /** Cuántas atenciones tiene guardadas un conector. Decide si toca sincronización completa. */
+    contarAtenciones(conectorId: string): Promise<number>;
     /**
      * Cierra como FALLIDA las sincronizaciones de un conector que siguen
      * `EN_PROCESO` sin que nadie las esté ejecutando.

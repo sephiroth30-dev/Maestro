@@ -180,6 +180,15 @@ export class ConectoresRepository {
     return mapSincronizacion(rows[0]!);
   }
 
+  /** Cuántas atenciones tiene guardadas un conector. Decide si toca sincronización completa. */
+  async contarAtenciones(conectorId: string): Promise<number> {
+    const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
+      'SELECT COUNT(*) AS n FROM atenciones WHERE conector_id = ?',
+      [conectorId],
+    );
+    return Number(rows[0]?.n ?? 0);
+  }
+
   /**
    * Cierra como FALLIDA las sincronizaciones de un conector que siguen
    * `EN_PROCESO` sin que nadie las esté ejecutando.

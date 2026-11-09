@@ -153,8 +153,19 @@ async function testNewConnector(
   return res.data;
 }
 
-async function triggerSync(id: string): Promise<SyncStartedResult> {
-  const res = await apiClient.post<SyncStartedResult>(`/connectors/${id}/sync`);
+export type ModoSync = 'auto' | 'completa';
+
+/**
+ * `auto` deja que el servidor decida (incremental si el conector la tiene
+ * activada y ya hay datos). `completa` fuerza bajar todo el histórico.
+ */
+async function triggerSync(arg: string | { id: string; modo?: ModoSync }): Promise<SyncStartedResult> {
+  const { id, modo } = typeof arg === 'string' ? { id: arg, modo: undefined } : arg;
+  const res = await apiClient.post<SyncStartedResult>(
+    `/connectors/${id}/sync`,
+    undefined,
+    modo === 'completa' ? { params: { modo } } : undefined,
+  );
   return res.data;
 }
 
@@ -253,11 +264,12 @@ export function useTestNewConnector(): UseMutationResult<
   });
 }
 
-export function useTriggerSync(): UseMutationResult<SyncStartedResult, Error, string> {
+export function useTriggerSync(): UseMutationResult<SyncStartedResult, Error, string | { id: string; modo?: ModoSync }> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: triggerSync,
-    onSuccess: (_data, id) => {
+    onSuccess: (_data, arg) => {
+      const id = typeof arg === 'string' ? arg : arg.id;
       // Invalidate history so the card can poll it for completion
       void qc.invalidateQueries({ queryKey: connectorKeys.history(id) });
       void qc.invalidateQueries({ queryKey: connectorKeys.lists() });

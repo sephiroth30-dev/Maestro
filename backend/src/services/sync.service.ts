@@ -6,6 +6,10 @@ import { logger } from '../config/logger.js';
 import type { DataSet } from '../connectors/base.connector.js';
 import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
 import { adquirirCandadoSync } from './sync-lock.service.js';
+import {
+  decidirModo, ventanaDesde, VENTANA_MESES_POR_DEFECTO,
+  type ModoSolicitado, type ModoSync,
+} from './sync-incremental.js';
 
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 
@@ -30,6 +34,8 @@ export interface SyncResult {
   error?: string;
   /** `true` si no se ejecutó porque ya había otra sincronización de ese conector en curso. */
   skipped?: boolean;
+  /** Qué tipo de sincronización se ejecutó. */
+  modo?: ModoSync;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -50,7 +56,7 @@ export class SyncService {
    * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
    * no falla: se omite, porque ya hay otra haciendo el trabajo.
    */
-  async runSync(conectorId: string): Promise<SyncResult> {
+  async runSync(conectorId: string, modo: ModoSolicitado = 'auto'): Promise<SyncResult> {
     const candado = await adquirirCandadoSync(conectorId);
     if (!candado) {
       logger.info('Sync omitida: ya hay otra en curso para este conector', { conectorId });
@@ -71,13 +77,13 @@ export class SyncService {
       const huerfanas = await conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
       if (huerfanas > 0) logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
 
-      return await this.ejecutarSync(conectorId);
+      return await this.ejecutarSync(conectorId, modo);
     } finally {
       await candado.liberar();
     }
   }
 
-  private async ejecutarSync(conectorId: string): Promise<SyncResult> {
+  private async ejecutarSync(conectorId: string, pedido: ModoSolicitado): Promise<SyncResult> {
     const start = Date.now();
 
     logger.info('Starting sync', { conectorId });
@@ -92,9 +98,29 @@ export class SyncService {
       const conector = await connectorService.getById(conectorId);
       const instance = connectorService.instantiate(conector);
 
-      // La consulta va vacía a propósito: cada conector saca de su propia
-      // configuración la ruta y los parámetros que necesita.
-      const dataset = await instance.fetch({});
+      // ¿Completa o incremental? Ver `sync-incremental.ts`.
+      const inc = (conector.config as { incremental?: { activo?: boolean; ventanaMeses?: number; desdeParam?: string } }).incremental;
+      const incrementalActivo = inc?.activo === true;
+      const modo = decidirModo({
+        incrementalActivo,
+        pedido,
+        // Solo se cuenta si hace falta decidir: evita una consulta en cada
+        // sincronización de las fuentes que no son incrementales.
+        filasExistentes: incrementalActivo ? await conectoresRepo.contarAtenciones(conectorId) : 0,
+      });
+      const desde = modo === 'incremental'
+        ? ventanaDesde(new Date(), inc?.ventanaMeses ?? VENTANA_MESES_POR_DEFECTO)
+        : undefined;
+
+      logger.info('Modo de sincronización', { conectorId, modo, desde: desde ?? null, pedido });
+
+      // En una incremental, la fecha de inicio viaja como parámetro de la API
+      // (pisa a la que haya fija en `params`). En una completa la consulta va
+      // vacía a propósito: cada conector saca de su propia configuración la ruta
+      // y los parámetros que necesita.
+      const dataset = await instance.fetch(
+        desde ? { params: { [inc?.desdeParam ?? 'fechaDesde']: desde } } : {},
+      );
       const durationMs = Date.now() - start;
 
       // Store in Redis cache
@@ -109,7 +135,7 @@ export class SyncService {
       // conector de Sheets como el REST producen esa misma forma.
       let filasNuevas = 0;
       if (dataset.rows.length > 0) {
-        const mapResult = await mapRowsToAtenciones(dataset.rows, conectorId);
+        const mapResult = await mapRowsToAtenciones(dataset.rows, conectorId, { desde });
         filasNuevas = mapResult.created;
         logger.info('Rows mapped to atenciones', { tipo: conector.tipo, ...mapResult });
         flushReportesCache();
@@ -143,6 +169,7 @@ export class SyncService {
         rowsRead: dataset.totalRows,
         rowsNew: filasNuevas,
         durationMs,
+        modo,
       };
 
       logger.info('Sync completed', result);

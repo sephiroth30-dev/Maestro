@@ -86,6 +86,11 @@ Además de hojas de cálculo, una fuente puede ser una **API**. El formulario pi
   más veces deja una configuración correcta devolviendo *token inválido*.
 - **Paginación** — si la API entrega los registros por páginas, los nombres de esos
   parámetros. Sin esto solo entraría la primera página.
+- **Sincronización incremental** — en vez de bajar todo el histórico cada vez (con varios
+  años cargados, unos 25 minutos), pide solo los últimos meses y reemplaza solo esas fechas.
+  *Meses a refrescar* = 2 es el mes actual y el anterior. Cada noche, a las 3 a. m., se hace
+  además una sincronización **completa** que corrige lo que haya cambiado fuera de esa
+  ventana. En la tarjeta aparece entonces un botón **Completa** para lanzarla a mano.
 - **Correspondencia de campos** — cómo se llama cada dato en la respuesta. Admite **rutas
   con punto** (`eps.nomEps`) para cuando el dato viene dentro de otro objeto.
 

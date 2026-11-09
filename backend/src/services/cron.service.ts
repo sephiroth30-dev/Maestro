@@ -19,17 +19,26 @@ type FrecuenciaSync = keyof typeof CRON_SCHEDULES;
 
 const scheduledTasks = new Map<string, ScheduledTask>();
 
+/**
+ * Cuándo corre la sincronización COMPLETA de un conector incremental: a las
+ * 3 a. m., hora de Colombia, cuando nadie mira el dashboard.
+ *
+ * La incremental solo refresca los últimos meses; esta repara lo que cambie
+ * fuera de esa ventana (un consumo anulado o corregido tiempo después) y el
+ * conjunto vuelve a coincidir con la fuente cada día.
+ */
+export const CRON_COMPLETA = '0 3 * * *';
+
+const claveCompleta = (conectorId: string): string => `${conectorId}:completa`;
+
 export function scheduleConnector(
   conectorId: string,
   nombre: string,
-  cronExpression: string
+  cronExpression: string,
+  opciones: { incremental?: boolean } = {},
 ): void {
-  // Cancel existing task for this connector
-  const existing = scheduledTasks.get(conectorId);
-  if (existing) {
-    existing.stop();
-    scheduledTasks.delete(conectorId);
-  }
+  // Cancel existing task for this connector (la normal y la completa nocturna)
+  unscheduleConnector(conectorId);
 
   if (!cron.validate(cronExpression)) {
     logger.warn('Invalid cron expression', { conectorId, cronExpression });
@@ -70,19 +79,45 @@ export function scheduleConnector(
 
   scheduledTasks.set(conectorId, task);
 
+  if (opciones.incremental) {
+    const completa = cron.schedule(
+      CRON_COMPLETA,
+      async () => {
+        logger.info('Cron sync COMPLETA nocturna', { conectorId, nombre });
+        try {
+          const result = await syncService.runSync(conectorId, 'completa');
+          if (result.skipped) {
+            logger.info('Sync completa nocturna omitida: ya hay otra en curso', { conectorId });
+          } else if (!result.success) {
+            logger.warn('Sync completa nocturna falló', { conectorId, error: result.error });
+          }
+        } catch (err) {
+          logger.error('Sync completa nocturna lanzó una excepción', {
+            conectorId,
+            error: err instanceof Error ? err.message : 'unknown',
+          });
+        }
+      },
+      { timezone: 'America/Bogota' },
+    );
+    scheduledTasks.set(claveCompleta(conectorId), completa);
+  }
+
   logger.info('Connector scheduled', {
     conectorId,
     nombre,
     cronExpression,
+    incremental: opciones.incremental === true,
   });
 }
 
 export function unscheduleConnector(conectorId: string): void {
-  const task = scheduledTasks.get(conectorId);
-  if (task) {
-    task.stop();
-    scheduledTasks.delete(conectorId);
-    logger.info('Connector unscheduled', { conectorId });
+  for (const clave of [conectorId, claveCompleta(conectorId)]) {
+    const task = scheduledTasks.get(clave);
+    if (task) {
+      task.stop();
+      scheduledTasks.delete(clave);
+    }
   }
 }
 
@@ -92,6 +127,12 @@ const CATCH_UP_INTERVAL_MS: Partial<Record<string, number>> = {
   '4h':    4 * 60 * 60 * 1000,
   'daily': 24 * 60 * 60 * 1000,
 };
+
+/** ¿Tiene el conector activada la sincronización incremental? */
+export function esIncremental(conector: { config: unknown }): boolean {
+  const inc = (conector.config as { incremental?: { activo?: boolean } } | null)?.incremental;
+  return inc?.activo === true;
+}
 
 async function catchUpSyncs(activos: Conector[]): Promise<void> {
   const now = Date.now();
@@ -131,7 +172,7 @@ export async function initCron(): Promise<void> {
         logger.warn('Unknown frecuenciaSync, skipping cron', { id: conector.id, frecuenciaSync: conector.frecuenciaSync });
         continue;
       }
-      scheduleConnector(conector.id, conector.nombre, cronExpr);
+      scheduleConnector(conector.id, conector.nombre, cronExpr, { incremental: esIncremental(conector) });
     }
     logger.info('Cron jobs scheduled', { count: scheduledTasks.size });
     await catchUpSyncs(activos);

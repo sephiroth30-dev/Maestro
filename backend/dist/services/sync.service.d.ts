@@ -1,5 +1,6 @@
 import type { Sincronizacion } from '@prisma/client';
 import type { DataSet } from '../connectors/base.connector.js';
+import { type ModoSolicitado, type ModoSync } from './sync-incremental.js';
 export interface SyncResult {
     conectorId: string;
     success: boolean;
@@ -9,6 +10,8 @@ export interface SyncResult {
     error?: string;
     /** `true` si no se ejecutó porque ya había otra sincronización de ese conector en curso. */
     skipped?: boolean;
+    /** Qué tipo de sincronización se ejecutó. */
+    modo?: ModoSync;
 }
 export declare class SyncService {
     private cacheKey;
@@ -21,7 +24,7 @@ export declare class SyncService {
      * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
      * no falla: se omite, porque ya hay otra haciendo el trabajo.
      */
-    runSync(conectorId: string): Promise<SyncResult>;
+    runSync(conectorId: string, modo?: ModoSolicitado): Promise<SyncResult>;
     private ejecutarSync;
     runAllSyncs(): Promise<SyncResult[]>;
     getHistory(conectorId: string, limit?: number): Promise<Sincronizacion[]>;

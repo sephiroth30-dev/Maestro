@@ -20,7 +20,7 @@ function applyConnectorCron(conector) {
         return;
     const expr = cron_service_js_1.CRON_SCHEDULES[conector.frecuenciaSync];
     if (expr) {
-        (0, cron_service_js_1.scheduleConnector)(conector.id, conector.nombre, expr);
+        (0, cron_service_js_1.scheduleConnector)(conector.id, conector.nombre, expr, { incremental: (0, cron_service_js_1.esIncremental)({ config: conector.config }) });
     }
     else {
         logger_js_1.logger.warn('applyConnectorCron: unknown frecuenciaSync', {
@@ -78,6 +78,9 @@ async function connectorRoutes(fastify) {
             nombre: conector.nombre,
             activo: conector.activo,
             frecuenciaSync: conector.frecuenciaSync,
+            // Sin la config, activar la incremental desde el formulario no
+            // programaría la completa nocturna hasta el siguiente reinicio.
+            config: conector.config,
         });
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_CREADO, entidadTipo: 'conector', entidadId: conector.id, ip: req.ip, detalle: { nombre: parsed.data.nombre, tipo: parsed.data.tipo } }).catch(() => { });
         await reply.status(201).send(conector);
@@ -127,6 +130,9 @@ async function connectorRoutes(fastify) {
             nombre: conector.nombre,
             activo: conector.activo,
             frecuenciaSync: conector.frecuenciaSync,
+            // Sin la config, activar la incremental desde el formulario no
+            // programaría la completa nocturna hasta el siguiente reinicio.
+            config: conector.config,
         });
         void auditoria_repo_js_1.auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: auditoria_repo_js_1.ACCION.CONECTOR_ACTUALIZADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => { });
         await reply.send(conector);
@@ -179,9 +185,13 @@ async function connectorRoutes(fastify) {
     // POST /api/connectors/:id/sync  (manual trigger — async, returns 202 immediately)
     fastify.post('/connectors/:id/sync', { preHandler: [...adminOrBilling] }, async (req, reply) => {
         const { id } = req.params;
+        // `?modo=completa` fuerza bajar todo el histórico; sin él, `auto` decide
+        // (incremental si el conector la tiene activada y ya hay datos).
+        const modoPedido = req.query.modo;
+        const modo = modoPedido === 'completa' || modoPedido === 'incremental' ? modoPedido : 'auto';
         // Fire-and-forget: sync can take 60-120s; Hostinger proxy times out at ~30s.
         // Return 202 immediately and let the client poll the history endpoint.
-        void sync_service_js_1.syncService.runSync(id).catch((err) => {
+        void sync_service_js_1.syncService.runSync(id, modo).catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
             logger_js_1.logger.error('Background sync failed', { conectorId: id, error: msg });
         });

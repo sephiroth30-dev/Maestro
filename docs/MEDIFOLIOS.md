@@ -165,14 +165,47 @@ conexión dedicada lo sostiene mientras dura la descarga, con un latido cada 60 
 el servidor no la cierre por inactividad. Quien no lo obtiene **no falla**: se omite, porque
 ya hay otra haciendo el trabajo. Código en `sync-lock.core.ts`.
 
-### Cuánto tarda y por qué importa
+### Sincronización incremental
 
-Cada sincronización descarga **todo el histórico** (200 filas por página) y reemplaza todas
-las atenciones del conector: con varios años cargados son unos 25 minutos. Mientras tanto el
-dashboard sigue mostrando los datos anteriores —el reemplazo es una transacción—, pero
-sincronizar cada hora significa estar descargando casi la mitad del tiempo. La salida es una
-sincronización **incremental** (solo los últimos meses), que exige antes cambiar el `hash_fila`:
-hoy incluye la posición de la fila en la descarga, que solo es estable con reemplazo total.
+Una sincronización **completa** descarga todo el histórico (200 filas por página, que es el
+máximo que admite la API) y reemplaza todas las atenciones del conector: con varios años
+cargados son unos 25 minutos. Hacerlo cada hora es estar descargando casi la mitad del tiempo
+para refrescar lo que casi nunca cambia.
+
+La **incremental** pide solo desde el inicio de una ventana (`fechaDesde`) y reemplaza solo
+las atenciones del conector con `fecha_dia >= desde`. El resto del histórico no se toca.
+
+**Cómo activarla:** Configuración → Fuentes → editar Medifolios → marcar *Sincronización
+incremental* → *Meses a refrescar* = 2 y *Parámetro de fecha de inicio* = `fechaDesde`.
+
+| | Completa | Incremental |
+|---|---|---|
+| Qué pide | todo el histórico | desde el día 1 del mes (actual − N + 1) |
+| Qué reemplaza | todas las atenciones del conector | solo las de esa ventana |
+| Cuándo corre | cada noche a las 3 a. m. (hora de Colombia), al pulsar **Completa**, y automáticamente si el conector está vacío | con la frecuencia normal (cada hora) |
+
+**La ventana por omisión son dos meses** (el actual y el anterior): un consumo puede
+corregirse hasta que se cierra el mes, y con uno solo los ajustes del mes que acaba de
+terminar no se refrescarían.
+
+**Por qué es seguro con el `hash_fila` actual.** El hash es único a nivel global e incluye la
+posición de la fila en la descarga, lo que hacía pensar que una descarga parcial chocaría con
+las filas existentes. No es así: **el hash también incluye la fecha**, de modo que las filas
+de la ventana y las anteriores a ella nunca tienen el mismo hash. Eso solo se sostiene si
+las filas que entran se filtran a la ventana, y el mapeador lo hace (`fechaEnVentana`): una
+fila anterior a `desde` se descarta aunque la API la devuelva.
+
+**Lo que NO atrapa la incremental**, y por qué hay completa nocturna: un consumo anulado,
+borrado o con la fecha cambiada a una anterior a la ventana. La completa de las 3 a. m. hace
+que el conjunto vuelva a coincidir con Medifolios cada día.
+
+Un conector **vacío** siempre hace completa, aunque se pida incremental: una incremental sobre
+un conector sin datos cargaría solo dos meses y dejaría el resto del histórico sin traer, sin
+ningún aviso.
+
+> **Tope de páginas.** Una completa de ~25 minutos son unas 500 páginas, que es justo el tope
+> por omisión (`maxPaginas`). Si el histórico sigue creciendo, esa completa fallará con un
+> aviso claro en vez de guardar a medias; entonces hay que subir el tope en el formulario.
 
 ## Referencias
 

@@ -7,6 +7,7 @@ const redis_js_1 = require("../config/redis.js");
 const logger_js_1 = require("../config/logger.js");
 const sheet_atencion_mapper_js_1 = require("./sheet-atencion-mapper.js");
 const sync_lock_service_js_1 = require("./sync-lock.service.js");
+const sync_incremental_js_1 = require("./sync-incremental.js");
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 const FRECUENCIA_TTL = {
     '30min': 30 * 60,
@@ -31,7 +32,7 @@ class SyncService {
      * al insertar las mismas filas (Duplicate entry). Quien no obtiene el candado
      * no falla: se omite, porque ya hay otra haciendo el trabajo.
      */
-    async runSync(conectorId) {
+    async runSync(conectorId, modo = 'auto') {
         const candado = await (0, sync_lock_service_js_1.adquirirCandadoSync)(conectorId);
         if (!candado) {
             logger_js_1.logger.info('Sync omitida: ya hay otra en curso para este conector', { conectorId });
@@ -51,13 +52,13 @@ class SyncService {
             const huerfanas = await conectores_repo_js_1.conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
             if (huerfanas > 0)
                 logger_js_1.logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
-            return await this.ejecutarSync(conectorId);
+            return await this.ejecutarSync(conectorId, modo);
         }
         finally {
             await candado.liberar();
         }
     }
-    async ejecutarSync(conectorId) {
+    async ejecutarSync(conectorId, pedido) {
         const start = Date.now();
         logger_js_1.logger.info('Starting sync', { conectorId });
         // Create a "in progress" record
@@ -68,9 +69,25 @@ class SyncService {
         try {
             const conector = await connector_service_js_1.connectorService.getById(conectorId);
             const instance = connector_service_js_1.connectorService.instantiate(conector);
-            // La consulta va vacía a propósito: cada conector saca de su propia
-            // configuración la ruta y los parámetros que necesita.
-            const dataset = await instance.fetch({});
+            // ¿Completa o incremental? Ver `sync-incremental.ts`.
+            const inc = conector.config.incremental;
+            const incrementalActivo = inc?.activo === true;
+            const modo = (0, sync_incremental_js_1.decidirModo)({
+                incrementalActivo,
+                pedido,
+                // Solo se cuenta si hace falta decidir: evita una consulta en cada
+                // sincronización de las fuentes que no son incrementales.
+                filasExistentes: incrementalActivo ? await conectores_repo_js_1.conectoresRepo.contarAtenciones(conectorId) : 0,
+            });
+            const desde = modo === 'incremental'
+                ? (0, sync_incremental_js_1.ventanaDesde)(new Date(), inc?.ventanaMeses ?? sync_incremental_js_1.VENTANA_MESES_POR_DEFECTO)
+                : undefined;
+            logger_js_1.logger.info('Modo de sincronización', { conectorId, modo, desde: desde ?? null, pedido });
+            // En una incremental, la fecha de inicio viaja como parámetro de la API
+            // (pisa a la que haya fija en `params`). En una completa la consulta va
+            // vacía a propósito: cada conector saca de su propia configuración la ruta
+            // y los parámetros que necesita.
+            const dataset = await instance.fetch(desde ? { params: { [inc?.desdeParam ?? 'fechaDesde']: desde } } : {});
             const durationMs = Date.now() - start;
             // Store in Redis cache
             const ttl = FRECUENCIA_TTL[conector.frecuenciaSync] ?? DEFAULT_TTL;
@@ -83,7 +100,7 @@ class SyncService {
             // conector de Sheets como el REST producen esa misma forma.
             let filasNuevas = 0;
             if (dataset.rows.length > 0) {
-                const mapResult = await (0, sheet_atencion_mapper_js_1.mapRowsToAtenciones)(dataset.rows, conectorId);
+                const mapResult = await (0, sheet_atencion_mapper_js_1.mapRowsToAtenciones)(dataset.rows, conectorId, { desde });
                 filasNuevas = mapResult.created;
                 logger_js_1.logger.info('Rows mapped to atenciones', { tipo: conector.tipo, ...mapResult });
                 (0, redis_js_1.flushReportesCache)();
@@ -111,6 +128,7 @@ class SyncService {
                 rowsRead: dataset.totalRows,
                 rowsNew: filasNuevas,
                 durationMs,
+                modo,
             };
             logger_js_1.logger.info('Sync completed', result);
             return result;

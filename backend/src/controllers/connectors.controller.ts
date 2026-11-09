@@ -4,7 +4,7 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { connectorService, FrecuenciaSyncSchema } from '../services/connector.service.js';
 import { syncService } from '../services/sync.service.js';
-import { scheduleConnector, unscheduleConnector, CRON_SCHEDULES } from '../services/cron.service.js';
+import { scheduleConnector, unscheduleConnector, CRON_SCHEDULES, esIncremental } from '../services/cron.service.js';
 import { logger } from '../config/logger.js';
 import { pool } from '../config/prisma.js';
 import { flushReportesCache } from '../config/redis.js';
@@ -20,12 +20,13 @@ function applyConnectorCron(conector: {
   nombre: string;
   activo: boolean;
   frecuenciaSync: string;
+  config?: unknown;
 }): void {
   unscheduleConnector(conector.id);
   if (!conector.activo || conector.frecuenciaSync === 'manual') return;
   const expr = CRON_SCHEDULES[conector.frecuenciaSync as keyof typeof CRON_SCHEDULES];
   if (expr) {
-    scheduleConnector(conector.id, conector.nombre, expr);
+    scheduleConnector(conector.id, conector.nombre, expr, { incremental: esIncremental({ config: conector.config }) });
   } else {
     logger.warn('applyConnectorCron: unknown frecuenciaSync', {
       id: conector.id,
@@ -98,6 +99,9 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
         nombre: conector.nombre,
         activo: conector.activo,
         frecuenciaSync: conector.frecuenciaSync,
+        // Sin la config, activar la incremental desde el formulario no
+        // programaría la completa nocturna hasta el siguiente reinicio.
+        config: conector.config,
       });
       void auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: ACCION.CONECTOR_CREADO, entidadTipo: 'conector', entidadId: conector.id as string, ip: req.ip, detalle: { nombre: parsed.data.nombre, tipo: parsed.data.tipo } }).catch(() => {});
       await reply.status(201).send(conector);
@@ -165,6 +169,9 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
         nombre: conector.nombre,
         activo: conector.activo,
         frecuenciaSync: conector.frecuenciaSync,
+        // Sin la config, activar la incremental desde el formulario no
+        // programaría la completa nocturna hasta el siguiente reinicio.
+        config: conector.config,
       });
       void auditoriaRepo.insert({ usuarioId: req.authenticatedUser.id, accion: ACCION.CONECTOR_ACTUALIZADO, entidadTipo: 'conector', entidadId: id, ip: req.ip }).catch(() => {});
       await reply.send(conector);
@@ -242,9 +249,13 @@ export async function connectorRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [...adminOrBilling] },
     async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const { id } = req.params as { id: string };
+      // `?modo=completa` fuerza bajar todo el histórico; sin él, `auto` decide
+      // (incremental si el conector la tiene activada y ya hay datos).
+      const modoPedido = (req.query as { modo?: string }).modo;
+      const modo = modoPedido === 'completa' || modoPedido === 'incremental' ? modoPedido : 'auto';
       // Fire-and-forget: sync can take 60-120s; Hostinger proxy times out at ~30s.
       // Return 202 immediately and let the client poll the history endpoint.
-      void syncService.runSync(id).catch((err: unknown) => {
+      void syncService.runSync(id, modo).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error('Background sync failed', { conectorId: id, error: msg });
       });

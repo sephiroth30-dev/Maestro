@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { pool } from '../config/prisma.js';
 import { normalizeDescripcion } from './normalizacion.service.js';
+import { fechaEnVentana } from './sync-incremental.js';
 import { logger } from '../config/logger.js';
 import type { DataRow } from '../connectors/base.connector.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -312,10 +313,21 @@ function getColMapForRow(
   return cache.get(sig)!;
 }
 
+export interface OpcionesMapeo {
+  /**
+   * `YYYY-MM-DD`. Si viene, es una sincronización INCREMENTAL: solo entran las
+   * filas con fecha desde ese día, y el reemplazo borra únicamente las
+   * atenciones del conector desde esa fecha, no todas.
+   */
+  desde?: string;
+}
+
 export async function mapRowsToAtenciones(
   rows: DataRow[],
-  conectorId: string
+  conectorId: string,
+  opciones: OpcionesMapeo = {},
 ): Promise<MapperResult> {
+  const { desde } = opciones;
   if (rows.length === 0) return { created: 0, skipped: 0, errors: 0 };
 
   // Verify at least the first row has usable columns
@@ -379,6 +391,15 @@ export async function mapRowsToAtenciones(
 
       const fechaDia = parseSheetDate(rawFecha);
       if (!fechaDia) {
+        skipped++;
+        continue;
+      }
+
+      // En una sincronización incremental, una fila ANTERIOR a la ventana no se
+      // inserta aunque la API la devuelva. No es solo por limpieza: el reemplazo
+      // solo borra desde `desde`, así que esa fila ya existe en la base con su
+      // hash, y volver a insertarla chocaría con `atenciones_hash_fila_key`.
+      if (desde && !fechaEnVentana(fechaDia, desde)) {
         skipped++;
         continue;
       }
@@ -476,7 +497,13 @@ export async function mapRowsToAtenciones(
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
+        // Completa: se borra todo lo del conector. Incremental: solo la ventana
+        // que se acaba de volver a descargar; el resto del histórico no se toca.
+        if (desde) {
+          await conn.execute('DELETE FROM atenciones WHERE conector_id = ? AND fecha_dia >= ?', [conectorId, desde]);
+        } else {
+          await conn.execute('DELETE FROM atenciones WHERE conector_id = ?', [conectorId]);
+        }
         const [res] = await conn.query<ResultSetHeader>(
           'INSERT INTO atenciones (id, descripcion_raw, descripcion_norm, fecha_dia, mes_idx, anio, valor_bruto, numero_autorizacion, es_telemetria, hash_fila, entidad_id, profesional_id, profesional_nombre_raw, servicio_id, conector_id, entidad_nombre_raw, paciente_nombre, paciente_documento) VALUES ?',
           [values]

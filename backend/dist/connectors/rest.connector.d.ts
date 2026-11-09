@@ -17,6 +17,27 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
     headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
     /**
+     * Sincronización incremental: en lugar de bajar todo el histórico cada vez,
+     * pide solo desde el inicio de la ventana y reemplaza solo esas fechas. Lo
+     * consume `SyncService`, no este conector: aquí solo se declara para que la
+     * configuración la valide y la conserve. Ver `sync-incremental.ts`.
+     */
+    incremental: z.ZodOptional<z.ZodObject<{
+        activo: z.ZodDefault<z.ZodBoolean>;
+        /** 2 = el mes actual y el anterior. */
+        ventanaMeses: z.ZodDefault<z.ZodNumber>;
+        /** Nombre del parámetro de la API que recibe la fecha de inicio. */
+        desdeParam: z.ZodDefault<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        activo: boolean;
+        ventanaMeses: number;
+        desdeParam: string;
+    }, {
+        activo?: boolean | undefined;
+        ventanaMeses?: number | undefined;
+        desdeParam?: string | undefined;
+    }>>;
+    /**
      * - `apiKeyHeader`: cabecera propia con un valor fijo.
      * - `login`: la API no acepta un token fijo, hay que pedirlo con usuario y
      *   contraseña y reenviarlo después. Es el caso de Medifolios.
@@ -92,6 +113,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo: boolean;
+        ventanaMeses: number;
+        desdeParam: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -121,6 +147,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo?: boolean | undefined;
+        ventanaMeses?: number | undefined;
+        desdeParam?: string | undefined;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -150,6 +181,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo: boolean;
+        ventanaMeses: number;
+        desdeParam: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -179,6 +215,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo?: boolean | undefined;
+        ventanaMeses?: number | undefined;
+        desdeParam?: string | undefined;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -208,6 +249,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo: boolean;
+        ventanaMeses: number;
+        desdeParam: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -237,6 +283,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     headers?: Record<string, string> | undefined;
     password?: string | undefined;
     endpoint?: string | undefined;
+    incremental?: {
+        activo?: boolean | undefined;
+        ventanaMeses?: number | undefined;
+        desdeParam?: string | undefined;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;

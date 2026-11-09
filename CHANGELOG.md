@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.8] - 2026-11-09
+
+### Added
+- **Sincronización incremental.** En lugar de bajar todo el histórico en cada vuelta (200 filas por página, el máximo de la API: unos 25 minutos con varios años cargados), el conector puede pedir solo desde el inicio de una ventana y reemplazar **solo** las atenciones de esas fechas. Por omisión la ventana son dos meses (el actual y el anterior), porque un consumo puede corregirse hasta que se cierra el mes. Se activa por conector en el formulario (*Sincronización incremental*, *Meses a refrescar*, *Parámetro de fecha de inicio*).
+- **Sincronización completa nocturna** (3 a. m., hora de Colombia) para los conectores incrementales, que corrige lo que la ventana no ve: un consumo anulado, borrado o con la fecha cambiada a una anterior. También hay un botón **Completa** en la tarjeta, y `POST /api/connectors/:id/sync?modo=completa`.
+- Un conector **sin datos** siempre hace completa, aunque se pida incremental: una incremental sobre un conector vacío cargaría solo dos meses y dejaría el resto del histórico sin traer, sin ningún aviso.
+
+### Corrección a lo dicho en 1.9.7
+- Se afirmó que la incremental «exige antes cambiar el `hash_fila`». **No es cierto:** el hash incluye la fecha de la fila, así que las filas de la ventana y las anteriores nunca pueden tener el mismo hash. Basta con filtrar las filas entrantes a la ventana, que es lo que hace el mapeador (`fechaEnVentana`); una fila anterior a la ventana se descarta aunque la API la devuelva, porque ya existe en la base y volver a insertarla chocaría con `atenciones_hash_fila_key`. Sin cambios de esquema ni de hash.
+
+---
+
 ## [1.9.7] - 2026-11-09
 
 ### Fixed

@@ -26,6 +26,14 @@ export interface MapperResult {
     skipped: number;
     errors: number;
 }
-export declare function mapRowsToAtenciones(rows: DataRow[], conectorId: string): Promise<MapperResult>;
+export interface OpcionesMapeo {
+    /**
+     * `YYYY-MM-DD`. Si viene, es una sincronización INCREMENTAL: solo entran las
+     * filas con fecha desde ese día, y el reemplazo borra únicamente las
+     * atenciones del conector desde esa fecha, no todas.
+     */
+    desde?: string;
+}
+export declare function mapRowsToAtenciones(rows: DataRow[], conectorId: string, opciones?: OpcionesMapeo): Promise<MapperResult>;
 export {};
 //# sourceMappingURL=sheet-atencion-mapper.d.ts.map

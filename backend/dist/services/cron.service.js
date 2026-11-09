@@ -3,9 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CRON_SCHEDULES = void 0;
+exports.CRON_COMPLETA = exports.CRON_SCHEDULES = void 0;
 exports.scheduleConnector = scheduleConnector;
 exports.unscheduleConnector = unscheduleConnector;
+exports.esIncremental = esIncremental;
 exports.initCron = initCron;
 exports.stopCron = stopCron;
 const node_cron_1 = __importDefault(require("node-cron"));
@@ -21,13 +22,19 @@ exports.CRON_SCHEDULES = {
 };
 // ─── CronService ─────────────────────────────────────────────────────────────
 const scheduledTasks = new Map();
-function scheduleConnector(conectorId, nombre, cronExpression) {
-    // Cancel existing task for this connector
-    const existing = scheduledTasks.get(conectorId);
-    if (existing) {
-        existing.stop();
-        scheduledTasks.delete(conectorId);
-    }
+/**
+ * Cuándo corre la sincronización COMPLETA de un conector incremental: a las
+ * 3 a. m., hora de Colombia, cuando nadie mira el dashboard.
+ *
+ * La incremental solo refresca los últimos meses; esta repara lo que cambie
+ * fuera de esa ventana (un consumo anulado o corregido tiempo después) y el
+ * conjunto vuelve a coincidir con la fuente cada día.
+ */
+exports.CRON_COMPLETA = '0 3 * * *';
+const claveCompleta = (conectorId) => `${conectorId}:completa`;
+function scheduleConnector(conectorId, nombre, cronExpression, opciones = {}) {
+    // Cancel existing task for this connector (la normal y la completa nocturna)
+    unscheduleConnector(conectorId);
     if (!node_cron_1.default.validate(cronExpression)) {
         logger_js_1.logger.warn('Invalid cron expression', { conectorId, cronExpression });
         return;
@@ -63,18 +70,41 @@ function scheduleConnector(conectorId, nombre, cronExpression) {
         }
     }, { timezone: 'America/Bogota' });
     scheduledTasks.set(conectorId, task);
+    if (opciones.incremental) {
+        const completa = node_cron_1.default.schedule(exports.CRON_COMPLETA, async () => {
+            logger_js_1.logger.info('Cron sync COMPLETA nocturna', { conectorId, nombre });
+            try {
+                const result = await sync_service_js_1.syncService.runSync(conectorId, 'completa');
+                if (result.skipped) {
+                    logger_js_1.logger.info('Sync completa nocturna omitida: ya hay otra en curso', { conectorId });
+                }
+                else if (!result.success) {
+                    logger_js_1.logger.warn('Sync completa nocturna falló', { conectorId, error: result.error });
+                }
+            }
+            catch (err) {
+                logger_js_1.logger.error('Sync completa nocturna lanzó una excepción', {
+                    conectorId,
+                    error: err instanceof Error ? err.message : 'unknown',
+                });
+            }
+        }, { timezone: 'America/Bogota' });
+        scheduledTasks.set(claveCompleta(conectorId), completa);
+    }
     logger_js_1.logger.info('Connector scheduled', {
         conectorId,
         nombre,
         cronExpression,
+        incremental: opciones.incremental === true,
     });
 }
 function unscheduleConnector(conectorId) {
-    const task = scheduledTasks.get(conectorId);
-    if (task) {
-        task.stop();
-        scheduledTasks.delete(conectorId);
-        logger_js_1.logger.info('Connector unscheduled', { conectorId });
+    for (const clave of [conectorId, claveCompleta(conectorId)]) {
+        const task = scheduledTasks.get(clave);
+        if (task) {
+            task.stop();
+            scheduledTasks.delete(clave);
+        }
     }
 }
 const CATCH_UP_INTERVAL_MS = {
@@ -83,6 +113,11 @@ const CATCH_UP_INTERVAL_MS = {
     '4h': 4 * 60 * 60 * 1000,
     'daily': 24 * 60 * 60 * 1000,
 };
+/** ¿Tiene el conector activada la sincronización incremental? */
+function esIncremental(conector) {
+    const inc = conector.config?.incremental;
+    return inc?.activo === true;
+}
 async function catchUpSyncs(activos) {
     const now = Date.now();
     for (const conector of activos) {
@@ -121,7 +156,7 @@ async function initCron() {
                 logger_js_1.logger.warn('Unknown frecuenciaSync, skipping cron', { id: conector.id, frecuenciaSync: conector.frecuenciaSync });
                 continue;
             }
-            scheduleConnector(conector.id, conector.nombre, cronExpr);
+            scheduleConnector(conector.id, conector.nombre, cronExpr, { incremental: esIncremental(conector) });
         }
         logger_js_1.logger.info('Cron jobs scheduled', { count: scheduledTasks.size });
         await catchUpSyncs(activos);

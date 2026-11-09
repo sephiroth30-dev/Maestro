@@ -263,6 +263,19 @@ el servidor lo rechaza — no en cada petición.
 > `loginRetryStatuses`, un 401 a mitad del histórico reautentica y reintenta esa página en
 > vez de abandonar el cargue entero.
 
+### Sincronización incremental
+
+| Campo | Para qué |
+|---|---|
+| `incremental.activo` | Activa la sincronización incremental |
+| `incremental.ventanaMeses` | Meses a refrescar. 2 = el actual y el anterior |
+| `incremental.desdeParam` | Nombre del parámetro de la API que recibe la fecha de inicio. P. ej. `fechaDesde` |
+
+Con ella activa, la sincronización normal pide solo desde el inicio de la ventana y
+reemplaza solo esas fechas; cada noche a las 3 a. m. (hora de Colombia) corre además una
+completa. `POST /api/connectors/:id/sync?modo=completa` fuerza una completa. Ver
+`docs/MEDIFOLIOS.md` para el detalle y las garantías.
+
 ### Paginación
 
 | Campo | Para qué |

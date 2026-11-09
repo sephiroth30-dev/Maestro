@@ -223,6 +223,22 @@ function ConnectorCard({
     }
   };
 
+  // Solo tiene sentido en un conector incremental: en los demás, «Sincronizar» ya
+  // es completa.
+  const esIncremental = (conector.config as { incremental?: { activo?: boolean } } | undefined)?.incremental?.activo === true;
+
+  const handleSyncCompleta = async (): Promise<void> => {
+    if (!window.confirm(
+      `Sincronización completa de "${conector.nombre}"\n\nBaja TODO el histórico y reemplaza las atenciones de esta fuente. Con varios años cargados tarda unos 25 minutos. Mientras tanto el dashboard sigue mostrando los datos anteriores.\n\n¿Continuar?`
+    )) return;
+    try {
+      await syncMutation.mutateAsync({ id: conector.id, modo: 'completa' });
+      setSyncPolling(true);
+    } catch {
+      // error handled by mutation state
+    }
+  };
+
   const handleWipe = async (): Promise<void> => {
     if (!window.confirm(
       `¿Eliminar TODOS los datos de atenciones del conector "${conector.nombre}"?\n\nEsta acción no se puede deshacer. Debes re-sincronizar para recuperar los datos.`
@@ -511,6 +527,19 @@ function ConnectorCard({
           {syncPolling ? 'Sincronizando...' : 'Sincronizar'}
         </button>
 
+        {esIncremental && (
+          <button
+            type="button"
+            className="btn btn--sm btn--ghost"
+            onClick={() => { void handleSyncCompleta(); }}
+            disabled={syncMutation.isPending || syncPolling || !conector.activo}
+            title="Baja todo el histórico y lo reemplaza (unos 25 minutos). «Sincronizar» solo refresca los últimos meses."
+          >
+            <Database size={13} />
+            Completa
+          </button>
+        )}
+
         <button
           type="button"
           className="btn btn--sm btn--ghost"
@@ -752,6 +781,10 @@ interface ConnectorFormState {
   limite: string;
   totalPaginasPath: string;
   maxPaginas: string;
+  // Sincronización incremental
+  incremental: boolean;
+  incrementalMeses: string;
+  incrementalParam: string;
   headers: Array<{ key: string; value: string }>;
   /** Ruta al arreglo dentro del JSON, p. ej. 'data.items'. */
   dataPath: string;
@@ -808,6 +841,9 @@ const DEFAULT_FORM: ConnectorFormState = {
   limite: '',
   totalPaginasPath: '',
   maxPaginas: '',
+  incremental: false,
+  incrementalMeses: '',
+  incrementalParam: '',
   headers: [],
   dataPath: '',
   timeoutSec: '',
@@ -865,6 +901,9 @@ function ConnectorModal({
       limite: '',
       totalPaginasPath: '',
       maxPaginas: '',
+      incremental: false,
+      incrementalMeses: '',
+      incrementalParam: '',
       headers: [],
       dataPath: '',
       timeoutSec: '',
@@ -903,6 +942,10 @@ function ConnectorModal({
       base.limite = cfg['limite'] ? String(cfg['limite']) : '';
       base.totalPaginasPath = (cfg['totalPaginasPath'] as string) ?? '';
       base.maxPaginas = cfg['maxPaginas'] ? String(cfg['maxPaginas']) : '';
+      const inc = cfg['incremental'] as { activo?: boolean; ventanaMeses?: number; desdeParam?: string } | undefined;
+      base.incremental = inc?.activo === true;
+      base.incrementalMeses = inc?.ventanaMeses ? String(inc.ventanaMeses) : '';
+      base.incrementalParam = inc?.desdeParam ?? '';
       const extra = cfg['loginBodyExtra'] as Record<string, string> | undefined;
       if (extra) {
         base.loginBodyExtra = Object.entries(extra).map(([key, value]) => ({ key, value }));
@@ -996,6 +1039,13 @@ function ConnectorModal({
           ...(form.limite.trim() && { limite: Number(form.limite) }),
           ...(form.totalPaginasPath.trim() && { totalPaginasPath: form.totalPaginasPath.trim() }),
           ...(form.maxPaginas.trim() && { maxPaginas: Number(form.maxPaginas) }),
+        }),
+        ...(form.incremental && {
+          incremental: {
+            activo: true,
+            ventanaMeses: Number(form.incrementalMeses) || 2,
+            desdeParam: form.incrementalParam.trim() || 'fechaDesde',
+          },
         }),
         ...(form.dataPath.trim() && { dataPath: form.dataPath.trim() }),
         ...(form.timeoutSec.trim() && { timeoutSec: Number(form.timeoutSec) }),
@@ -1837,6 +1887,69 @@ function ConnectorModal({
                         <span className="form-hint">
                           Red de seguridad. Si se alcanza, la sincronización falla con un aviso
                           claro en vez de guardar un histórico a medias.
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Sincronización incremental ─────────────────────── */}
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.incremental}
+                        onChange={(e) => setField('incremental', e.target.checked)}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      Sincronización incremental
+                    </label>
+                    <span className="form-hint">
+                      En lugar de bajar <strong>todo el histórico</strong> cada vez (con varios
+                      años son unos 25 minutos), pide solo los últimos meses y reemplaza solo
+                      esas fechas. Cada noche, a las 3 a. m., se hace además una sincronización
+                      completa que corrige lo que haya cambiado fuera de esa ventana. Requiere
+                      que la API acepte un filtro de fecha de inicio.
+                    </span>
+                  </div>
+
+                  {form.incremental && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-inc-meses">
+                          Meses a refrescar
+                        </label>
+                        <input
+                          id="conn-inc-meses"
+                          type="number"
+                          className="form-input"
+                          value={form.incrementalMeses}
+                          onChange={(e) => setField('incrementalMeses', e.target.value)}
+                          placeholder="2"
+                          min={1}
+                          max={12}
+                        />
+                        <span className="form-hint">
+                          2 = el mes actual y el anterior. Un consumo puede corregirse hasta que
+                          se cierra el mes, así que con 1 los ajustes del mes que acaba de
+                          terminar no se refrescarían.
+                        </span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-inc-param">
+                          Parámetro de fecha de inicio
+                        </label>
+                        <input
+                          id="conn-inc-param"
+                          type="text"
+                          className="form-input"
+                          value={form.incrementalParam}
+                          onChange={(e) => setField('incrementalParam', e.target.value)}
+                          placeholder="fechaDesde"
+                        />
+                        <span className="form-hint">
+                          Cómo se llama en la API el filtro «desde esta fecha». En Medifolios es
+                          <code> fechaDesde</code>.
                         </span>
                       </div>
                     </>

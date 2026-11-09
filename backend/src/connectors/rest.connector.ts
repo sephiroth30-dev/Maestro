@@ -28,6 +28,21 @@ export const RestConfigSchema = z
     params: z.record(z.string()).optional(),
     headers: z.record(z.string()).optional(),
     /**
+     * Sincronización incremental: en lugar de bajar todo el histórico cada vez,
+     * pide solo desde el inicio de la ventana y reemplaza solo esas fechas. Lo
+     * consume `SyncService`, no este conector: aquí solo se declara para que la
+     * configuración la valide y la conserve. Ver `sync-incremental.ts`.
+     */
+    incremental: z
+      .object({
+        activo: z.boolean().default(false),
+        /** 2 = el mes actual y el anterior. */
+        ventanaMeses: z.number().int().min(1).max(12).default(2),
+        /** Nombre del parámetro de la API que recibe la fecha de inicio. */
+        desdeParam: z.string().min(1).default('fechaDesde'),
+      })
+      .optional(),
+    /**
      * - `apiKeyHeader`: cabecera propia con un valor fijo.
      * - `login`: la API no acepta un token fijo, hay que pedirlo con usuario y
      *   contraseña y reenviarlo después. Es el caso de Medifolios.
