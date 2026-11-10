@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.9] - 2026-11-10
+
+### Added
+- **Proyección por agenda — parte visual, desplegada APAGADA.** Lo atendido más lo agendado (citas pendientes de Medifolios) por mes, semana o día según el filtro aplicado: ficha de Facturación con *Atendido + Agendado = Proyectado*, cumplimiento «con lo agendado», columnas *Agendado*, *Proyectado* y *vs prom. 3 meses* en la tabla por EPS, lo agendado apilado en trama en los gráficos semanal y diario, y «Atendido + agendado» junto a «Por ritmo» en el Inicio. Ver `docs/PROYECCION-AGENDA.md`.
+- **No hay topes ni calificaciones que cargar.** El personal administrativo decide; el dashboard solo da la información. «vs prom. 3 meses» compara cada EPS con su propio promedio de los últimos 3 meses cerrados, con colores neutros, sin definir qué es «pasarse».
+- Interruptor de compilación `VITE_PROYECCION_AGENDA` (apagado por omisión; ver `docs/ENV.md`).
+
+### Estado
+- **El backend NO existe todavía** (`GET /api/reportes/agenda`, sincronización de citas, valoración): el cliente consume un contrato definido en `frontend/src/api/reportes.ts`. Por eso se despliega **apagado**: en producción no cambia nada ni se hace una sola petición a `/agenda`. Verificado comparando el HTML real de seis pantallas contra el último commit desplegado.
+- La precisión de la valoración **no se conoce todavía**: depende de una prueba retrospectiva con datos reales (fase 1).
+
+### Fixed
+- La tabla *Facturación por Entidad* recortaba a 10 filas **antes** de ordenar: ordenar por una columna daba las 10 primeras por facturación reordenadas, no el top 10 real. Ahora ordena todo y recorta después.
+- Un orden por una columna que desaparece al cambiar de filtro dejaba la tabla sin orden ni flecha; ahora vuelve a «Valor Bruto».
+- En «Facturado por día», el realce del mejor día se decidía contra el máximo de la comparación; ahora solo contra lo facturado.
+
+---
+
 ## [1.9.8] - 2026-11-09
 
 ### Added

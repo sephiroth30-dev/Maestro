@@ -5,9 +5,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendenciaAnio, useServicios, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
+import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendenciaAnio, useServicios, useAgenda, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
 import { useQueryClient } from '@tanstack/react-query';
-import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow } from '../api/reportes.js';
+import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow, AgendaEntidad } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
@@ -15,6 +15,8 @@ import TablaEntidades, { claveEntidad } from '../components/widgets/TablaEntidad
 import TablaServicios from '../components/widgets/TablaServicios.js';
 import { tipoLabel } from '../components/widgets/tipoLabel.js';
 import ResumenComparativo from '../components/widgets/ResumenComparativo.js';
+import { periodoConAgenda, agendaPorDiaSemana, completarDiasConAgenda } from '../components/widgets/agenda.js';
+import { PROYECCION_AGENDA } from '../config/features.js';
 import ChartCumplimientoMensual from '../components/widgets/ChartCumplimientoMensual.js';
 import { ExportButton } from '../export/index.js';
 import { HelpButton } from '../help/HelpButton.js';
@@ -186,6 +188,8 @@ function countWorkingDaysInRange(start: string, end: string): number {
 // ─── Días de semana mini card ─────────────────────────────────────────────────
 
 interface DiasSemanaMiniProps {
+  /** Valor agendado por día de la semana (1 = lunes). Se apila sobre lo facturado. */
+  agenda?: Map<number, number>;
   /** Periodo con el que comparar; se dibuja como segunda barra de cada día. */
   comparado?: { label: string; rows: DiaSemanaRow[] } | null;
   label?: string;
@@ -194,12 +198,18 @@ interface DiasSemanaMiniProps {
   onDayClick: (diaNum: number) => void;
 }
 
-function DiasSemanaMini({ rows, selectedDia, onDayClick, comparado, label }: DiasSemanaMiniProps): React.ReactElement {
+function DiasSemanaMini({ rows: filasServidor, selectedDia, onDayClick, comparado, label, agenda }: DiasSemanaMiniProps): React.ReactElement {
+  // Los días que solo tienen agenda (nada facturado aún) se añaden: el servidor
+  // solo devuelve días con facturación.
+  const rows = agenda ? completarDiasConAgenda(filasServidor, agenda) : filasServidor;
   // El comparado se casa por día de la semana (lunes con lunes). Se funde en las
   // mismas filas para que el gráfico tenga un solo conjunto de datos.
   const compPorDia = new Map((comparado?.rows ?? []).map((r) => [r.dia_num, r.total]));
-  const datos = rows.map((r) => ({ ...r, comparado: compPorDia.get(r.dia_num) ?? 0 }));
-  const maxVal = Math.max(...rows.map((r) => r.total), ...(comparado?.rows ?? []).map((r) => r.total), 1);
+  const datos = rows.map((r) => ({ ...r, comparado: compPorDia.get(r.dia_num) ?? 0, agendado: agenda?.get(r.dia_num) ?? 0 }));
+  const maxVal = Math.max(...rows.map((r) => r.total + (agenda?.get(r.dia_num) ?? 0)), ...(comparado?.rows ?? []).map((r) => r.total), 1);
+  // El realce del «mejor día» se decide por lo FACTURADO: con la agenda sumada,
+  // el día más alto sería el de más citas por atender y ninguno quedaría resaltado.
+  const maxFact = Math.max(...rows.map((r) => r.total), 1);
   const fmtShort = (n: number): string =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
@@ -207,7 +217,7 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick, comparado, label }: Dia
     if (selectedDia !== null) {
       return r.dia_num === selectedDia ? '#1d4ed8' : '#bfdbfe';
     }
-    const isMax = r.total === maxVal;
+    const isMax = r.total === maxFact;
     return isMax ? '#2563eb' : '#93c5fd';
   }
 
@@ -242,6 +252,15 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick, comparado, label }: Dia
             tickLine={false}
           />
           <YAxis hide domain={[0, maxVal * 1.15]} />
+          {/* Trama: lo agendado aún no se atendió, así que no puede verse sólido ni parecerse a lo facturado. */}
+          {agenda && (
+            <defs>
+              <pattern id="trama-agendado-mini" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="6" height="6" fill="#e0e7ff" />
+                <line x1="0" y1="0" x2="0" y2="6" stroke="#818cf8" strokeWidth="2.5" />
+              </pattern>
+            </defs>
+          )}
           <RechartTooltip
             formatter={(val: number, name: string) => [fmtShort(val), name]}
             contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
@@ -250,11 +269,14 @@ function DiasSemanaMini({ rows, selectedDia, onDayClick, comparado, label }: Dia
           {comparado && (
             <Bar dataKey="comparado" name={comparado.label} fill="#c7d2fe" radius={[3, 3, 0, 0]} />
           )}
-          <Bar dataKey="total" name={label ?? 'Total'} radius={[3, 3, 0, 0]}>
+          <Bar dataKey="total" stackId={agenda ? 'actual' : undefined} name={label ?? 'Total'} radius={agenda ? [0, 0, 0, 0] : [3, 3, 0, 0]}>
             {rows.map((r) => (
               <Cell key={r.dia_num} fill={getBarColor(r)} />
             ))}
           </Bar>
+          {agenda && (
+            <Bar dataKey="agendado" stackId="actual" name="Agendado" fill="url(#trama-agendado-mini)" stroke="#818cf8" strokeWidth={1} radius={[3, 3, 0, 0]} />
+          )}
         </BarChart>
       </ResponsiveContainer>
       <p style={{ fontSize: '0.62rem', color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>
@@ -320,12 +342,16 @@ function FacturadoPorMes({ rows }: FacturadoPorMesProps): React.ReactElement {
 interface DiaCumpData { dia: string; total: number; pct: number }
 
 function ChartCumplimientoDiario({
-  rows,
+  rows: filasServidor,
   dailyTarget,
+  agenda,
 }: {
   rows: DiaSemanaRow[];
   dailyTarget: number;
+  /** Valor agendado por día de la semana (1 = lunes). Se apila sobre lo facturado. */
+  agenda?: Map<number, number>;
 }): React.ReactElement {
+  const rows = agenda ? completarDiasConAgenda(filasServidor, agenda) : filasServidor;
   const fmtMoney = (n: number): string =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
@@ -333,6 +359,7 @@ function ChartCumplimientoDiario({
     dia:   r.dia.substring(0, 3),
     total: r.total,
     pct:   dailyTarget > 0 ? Math.round((r.total / dailyTarget) * 1000) / 10 : 0,
+    agendado: agenda?.get(r.dia_num) ?? 0,
   }));
 
   function barColor(pct: number): string {
@@ -345,6 +372,14 @@ function ChartCumplimientoDiario({
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 16, right: 24, left: 8, bottom: 0 }}>
+        {agenda && (
+          <defs>
+            <pattern id="trama-agendado-dia" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="7" height="7" fill="#e0e7ff" />
+              <line x1="0" y1="0" x2="0" y2="7" stroke="#818cf8" strokeWidth="3" />
+            </pattern>
+          </defs>
+        )}
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="dia" tick={{ fontSize: 12, fill: '#64748b' }} />
         <YAxis
@@ -363,7 +398,7 @@ function ChartCumplimientoDiario({
           />
         )}
         <RechartTooltip
-          formatter={(val: number) => [fmtMoney(val), 'Facturado']}
+          formatter={(val: number, name: string) => [fmtMoney(val), name === 'agendado' ? 'Agendado' : 'Facturado']}
           labelFormatter={(label: string) => {
             const row = data.find((d) => d.dia === label);
             return row && dailyTarget > 0
@@ -372,11 +407,14 @@ function ChartCumplimientoDiario({
           }}
           contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0' }}
         />
-        <Bar dataKey="total" maxBarSize={64} name="Facturado">
+        <Bar dataKey="total" stackId={agenda ? 'actual' : undefined} maxBarSize={64} name="Facturado">
           {data.map((entry, i) => (
             <Cell key={`cell-${i}`} fill={barColor(entry.pct)} />
           ))}
         </Bar>
+        {agenda && (
+          <Bar dataKey="agendado" stackId="actual" maxBarSize={64} name="agendado" fill="url(#trama-agendado-dia)" stroke="#818cf8" strokeWidth={1} radius={[3, 3, 0, 0]} />
+        )}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -549,6 +587,56 @@ export default function Reportes(): React.ReactElement {
   // Period dates are never changed — dia_semana is an additive filter on the same period
   const kpisQ         = useKpis(selected.mes, selected.anio, selectedEntidadId ?? undefined, periodStart, periodEnd, diaSemana);
   const entidadesQ    = useEntidades(selected.mes, selected.anio, periodStart, periodEnd, diaSemana);
+
+  // ─── Proyección por agenda ──────────────────────────────────────────────────
+  //
+  // Proyectado = lo ya atendido (facturado) + lo agendado (citas pendientes del
+  // periodo). Sigue EXACTAMENTE el filtro aplicado —mes, año, rango, atajos,
+  // semana, día, entidad—: se pide con los mismos parámetros que los KPIs.
+  //
+  // Un periodo que ya terminó no tiene agenda pendiente: no se pide.
+  const agendaAplica = PROYECCION_AGENDA && periodoConAgenda(filterMode, { mes: selected.mes, anio: selected.anio }, periodEnd, hoyIso);
+  const agendaQ = useAgenda(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId ?? undefined, diaSemana, agendaAplica);
+  const agendaDatos = agendaAplica ? agendaQ.data : undefined;
+  // ¿La agenda llega hasta el final del periodo? Si no, el proyectado puede
+  // quedar corto y hay que decirlo; si sí, no hace falta (en un día sería ruido).
+  const finPeriodo = filterMode === 'mes'
+    ? `${selected.anio}-${String(selected.mes).padStart(2, '0')}-${String(new Date(selected.anio, selected.mes, 0).getDate()).padStart(2, '0')}`
+    : periodEnd;
+  const agendaIncompleta = Boolean(agendaDatos?.horizonte && finPeriodo && agendaDatos.horizonte < finPeriodo);
+  // Defensa: una cita PENDIENTE no puede estar en el pasado. Si el servidor
+  // devolviera alguna (una no asistida sin cerrar), apilarla sobre una semana ya
+  // cerrada mostraría «agenda» donde no puede haberla.
+  const agendaPorDiaFuturo = useMemo(
+    () => (agendaDatos ? agendaDatos.por_dia.filter((d) => d.fecha >= hoyIso) : []),
+    [agendaDatos, hoyIso],
+  );
+  const agendaDiaSemana = useMemo(
+    () => (agendaDatos && agendaDatos.total.citas > 0 ? agendaPorDiaSemana(agendaPorDiaFuturo) : undefined),
+    [agendaDatos, agendaPorDiaFuturo],
+  );
+
+  // Que la agenda falle, no se haya sincronizado o esté vieja NO puede verse
+  // igual que «no hay citas»: el proyectado saldría bajo sin que nadie lo notara.
+  const horasDesdeSync = agendaDatos?.actualizado_en
+    ? (Date.now() - Date.parse(agendaDatos.actualizado_en)) / 3_600_000
+    : null;
+  const agendaAviso: string | undefined = !agendaAplica ? undefined
+    : agendaQ.isError ? 'No se pudo cargar la agenda: el proyectado no está disponible.'
+    : agendaDatos && agendaDatos.actualizado_en === null ? 'La agenda aún no se ha sincronizado.'
+    : agendaDatos && agendaDatos.horizonte === null ? 'No hay citas cargadas en la agenda.'
+    : agendaDatos && horasDesdeSync !== null && horasDesdeSync > 6
+      ? `La agenda se sincronizó hace ${Math.round(horasDesdeSync)} h: puede estar desactualizada.`
+    : undefined;
+
+  // Referencia para el crecimiento del proyectado: el mes anterior, ya cerrado.
+  // Solo tiene sentido al mirar un mes.
+  const mesPrev = selected.mes === 1 ? { mes: 12, anio: selected.anio - 1 } : { mes: selected.mes - 1, anio: selected.anio };
+  // El mes anterior se pide SIN filtros, así que solo es comparable cuando el mes
+  // mostrado tampoco los lleva: con un día o una EPS filtrados sería comparar
+  // manzanas con peras (y una petición inútil).
+  const sinFiltrosFinos = selectedDia === null && selectedEntidadId === null;
+  const kpisPrevQ = useKpis(mesPrev.mes, mesPrev.anio, undefined, undefined, undefined, undefined, agendaAplica && filterMode === 'mes' && sinFiltrosFinos);
   const cumplimientoQ = useCumplimientoSemanal(selected.mes, selected.anio, periodStart, periodEnd);
   // diasQ always uses full period so bars stay stable while filtering
   const diasQ = useDiasSemana(selected.mes, selected.anio, periodStart, periodEnd);
@@ -665,6 +753,19 @@ export default function Reportes(): React.ReactElement {
     .reduce((s, r) => s + r.valor_bruto, 0);
   const flujoPct: number | null = totalPeriodo > 0 ? (flujoTotal / totalPeriodo) * 100 : null;
   const alertPeriodKey = [filterMode, selected.mes, selected.anio, periodStart ?? '', periodEnd ?? ''].join('-');
+  // Lo que recibe la ficha de Facturación, en el diseño normal y en el compacto.
+  // La referencia del mes anterior solo va cuando no hay filtros finos (ver arriba).
+  const agendaFicha = agendaDatos ? {
+    valor: agendaDatos.total.valor,
+    citas: agendaDatos.total.citas,
+    sinValor: agendaDatos.total.citas_sin_valor,
+    horizonte: agendaIncompleta ? agendaDatos.horizonte : null,
+    atendidoLabel: periodStart && periodStart === periodEnd && periodStart === hoyIso ? 'Atendido hoy' : 'Atendido a la fecha',
+    referencia: filterMode === 'mes' && sinFiltrosFinos && kpisPrevQ.data && kpisPrevQ.data.facturacion_bruta > 0
+      ? { label: MESES_ES[mesPrev.mes] ?? '', valor: kpisPrevQ.data.facturacion_bruta }
+      : undefined,
+  } : undefined;
+
   const alertaVisible  = flujoPct !== null && !entidadesQ.isLoading && dismissedKey !== alertPeriodKey;
   const alertaSeverity = (flujoPct ?? 0) >= FLUJO_CAJA_TARGET ? 'green' : (flujoPct ?? 0) < 10 ? 'red' : 'amber';
 
@@ -674,7 +775,61 @@ export default function Reportes(): React.ReactElement {
   const isCompactMode  = isDayFilter || isEntityFilter;
 
   // Filtered rows for entity table — tipo, group and entity filters are client-side
-  const allRows = entidadesQ.data?.rows ?? [];
+  const filasFacturadas = useMemo(() => entidadesQ.data?.rows ?? [], [entidadesQ.data]);
+
+  // La agenda por EPS, cruzada por la misma clave que la tabla. Si el servidor
+  // devolviera varias filas de una misma EPS (p. ej. una por tipo de servicio),
+  // se SUMAN: con un Map ingenuo la última pisaba a las demás y el «Agendado» de
+  // la tabla quedaba por debajo del total de la ficha.
+  const agendaPorClave = useMemo(() => {
+    if (!agendaDatos) return null;
+    const m = new Map<string, AgendaEntidad>();
+    for (const a of agendaDatos.por_entidad) {
+      const k = claveEntidad({ id: a.entidad_id, entidad: a.entidad });
+      const prev = m.get(k);
+      m.set(k, prev
+        ? { ...prev, citas: prev.citas + a.citas, valor: prev.valor + a.valor,
+            citas_sin_valor: prev.citas_sin_valor + a.citas_sin_valor, promedio_3m: prev.promedio_3m ?? a.promedio_3m }
+        : a);
+    }
+    return m;
+  }, [agendaDatos]);
+
+  // Una EPS puede tener citas agendadas y NADA facturado todavía en el periodo
+  // (un convenio que arranca, o la primera semana del mes). Sin estas filas
+  // quedaría fuera de la tabla justo cuando más importa verla.
+  const filasSoloAgenda = useMemo((): EntidadRow[] => {
+    if (!agendaPorClave) return [];
+    const facturadas = new Set(filasFacturadas.map(claveEntidad));
+    return [...agendaPorClave.entries()]
+      .filter(([k]) => !facturadas.has(k))
+      .map(([, a]) => ({
+        id: a.entidad_id, entidad: a.entidad, tipo: a.tipo, es_grupo: false,
+        cantidad: 0, valor_bruto: 0, participacion_pct: 0,
+      }));
+  }, [agendaPorClave, filasFacturadas]);
+
+  // Sin filas sintéticas devuelve la MISMA referencia que antes (la de la
+  // consulta): con el interruptor apagado nada se recalcula de más.
+  const allRows = useMemo(
+    () => (filasSoloAgenda.length === 0 ? filasFacturadas : [...filasFacturadas, ...filasSoloAgenda]),
+    [filasFacturadas, filasSoloAgenda],
+  );
+  const clavesSoloAgenda = useMemo(() => new Set(filasSoloAgenda.map(claveEntidad)), [filasSoloAgenda]);
+
+  const agendaEntidades = useMemo(
+    () => agendaPorClave
+      ? {
+          porClave: agendaPorClave,
+          // El promedio es MENSUAL: solo se compara cuando lo mostrado es un mes
+          // completo. Con un filtro de día de la semana (el filtro sigue siendo
+          // «mes»), lo proyectado serían solo esos martes frente a un mes entero
+          // y todas las EPS saldrían −75 %.
+          conPromedio: filterMode === 'mes' && diaSemana === undefined,
+        }
+      : null,
+    [agendaPorClave, filterMode, diaSemana],
+  );
   const tableRows: EntidadRow[] = selectedTipo
     ? allRows.filter((r) => {
         if (selectedTipo.endsWith('__CAJA')) {
@@ -834,8 +989,11 @@ export default function Reportes(): React.ReactElement {
       dias: diasQ.data ?? [],
       semanas: cumplimientoQ.data?.semanas ?? [],
       tendenciaAnio,
-      entidades: tableRows,
-      entidadesAll: allRows,
+      // Las filas que solo existen por la agenda (valor facturado 0) no son
+      // facturación: exportarlas mostraría EPS con 0 atenciones y $0, e inflaría
+      // el «Se exportan N filas». El documento no tiene columnas de agenda.
+      entidades: tableRows.filter((r) => !clavesSoloAgenda.has(claveEntidad(r))),
+      entidadesAll: filasFacturadas,
       servicios: serviciosQ.data,
       isAnioMode,
       isRangoMode,
@@ -845,7 +1003,7 @@ export default function Reportes(): React.ReactElement {
   }, [
     filterMode, periodLabel, diaLabel, groupLabel, selectedTipo, selectedEntidadName,
     kpisQ.data, flujoPct, diasQ.data, cumplimientoQ.data, tendenciaAnio,
-    tableRows, allRows, serviciosQ.data, isAnioMode, isRangoMode,
+    tableRows, filasFacturadas, clavesSoloAgenda, serviciosQ.data, isAnioMode, isRangoMode,
   ]);
 
   return (
@@ -1108,7 +1266,8 @@ export default function Reportes(): React.ReactElement {
             ) : kpisQ.data ? (
               <>
                 <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
-                  icon={<DollarSign size={16} />} color="blue" />
+                  icon={<DollarSign size={16} />} color="blue"
+                  agenda={agendaFicha} avisoAgenda={agendaAviso} />
                 <KpiCard titulo="Atenciones" valor={kpisQ.data.atenciones} formato="number"
                   icon={<Users size={16} />} color="purple" />
                 <KpiCard titulo="Ticket Promedio" valor={kpisQ.data.ticket_promedio} formato="currency"
@@ -1119,8 +1278,8 @@ export default function Reportes(): React.ReactElement {
 
           {/* Bar chart + Mix Pagador lado a lado */}
           <div className="charts-row charts-row--dias-entidades" style={{ marginBottom: 'var(--space-6)' }}>
-            {diasQ.data && diasQ.data.length > 0 && (
-              <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick} />
+            {((diasQ.data && diasQ.data.length > 0) || agendaDiaSemana) && (
+              <DiasSemanaMini rows={diasQ.data ?? []} selectedDia={selectedDia} onDayClick={handleDayClick} agenda={agendaDiaSemana} />
             )}
             <div className="chart-card" style={{ flex: 2 }}>
               <h2 className="chart-title">
@@ -1155,6 +1314,8 @@ export default function Reportes(): React.ReactElement {
                 {/* Sin barra de meta: el % de cumplimiento ya lo da la tarjeta de al lado. */}
                 <KpiCard titulo="Facturación Bruta" valor={kpisQ.data.facturacion_bruta} formato="currency"
                   icon={<DollarSign size={16} />} color="blue"
+                  agenda={agendaFicha}
+                  avisoAgenda={agendaAviso}
                   comparacion={periodoComp && comp ? {
                     labelActual: labelActual,
                     label: periodoComp.label,
@@ -1163,6 +1324,9 @@ export default function Reportes(): React.ReactElement {
                   } : undefined} />
                 <KpiCard titulo="Cumplimiento" valor={kpisQ.data.cumplimiento_pct} formato="percent"
                   meta={100} metaLabel="Objetivo" icon={<Target size={16} />}
+                  proyeccionPct={agendaDatos && agendaDatos.total.citas > 0 && kpisQ.data.presupuesto > 0
+                    ? ((kpisQ.data.facturacion_bruta + agendaDatos.total.valor) / kpisQ.data.presupuesto) * 100
+                    : undefined}
                   delta={deltaDe(kpisQ.data.cumplimiento_pct, comp?.cumplimiento_pct)} deltaLabel={deltaLabel}
                   color={kpisQ.data.cumplimiento_pct >= 100 ? 'green' : kpisQ.data.cumplimiento_pct >= 80 ? 'amber' : 'rose'} />
                 <KpiCard titulo="Atenciones" valor={kpisQ.data.atenciones} formato="number"
@@ -1209,9 +1373,9 @@ export default function Reportes(): React.ReactElement {
                 <><KpiSkeleton /><KpiSkeleton /></>
               ) : (
                 <>
-                  {diasQ.data && diasQ.data.length > 0 ? (
-                    <DiasSemanaMini rows={diasQ.data} selectedDia={selectedDia} onDayClick={handleDayClick}
-                      comparado={compDias} label={labelActual} />
+                  {(diasQ.data && diasQ.data.length > 0) || agendaDiaSemana ? (
+                    <DiasSemanaMini rows={diasQ.data ?? []} selectedDia={selectedDia} onDayClick={handleDayClick}
+                      comparado={compDias} label={labelActual} agenda={agendaDiaSemana} />
                   ) : <div />}
                   {isRangoMode ? (
                     <KpiCard
@@ -1247,8 +1411,8 @@ export default function Reportes(): React.ReactElement {
                 ) : null
               ) : isRangoMode ? (
                 diasQ.isLoading ? <ChartSkeleton /> :
-                diasQ.data && diasQ.data.length > 0 ? (
-                  <ChartCumplimientoDiario rows={diasQ.data} dailyTarget={dailyTarget} />
+                (diasQ.data && diasQ.data.length > 0) || agendaDiaSemana ? (
+                  <ChartCumplimientoDiario rows={diasQ.data ?? []} dailyTarget={dailyTarget} agenda={agendaDiaSemana} />
                 ) : <p style={{ color: '#94a3b8', fontSize: '0.875rem', textAlign: 'center', padding: '2rem 0' }}>Sin datos para el período</p>
               ) : (
                 cumplimientoQ.isLoading ? <ChartSkeleton /> :
@@ -1259,6 +1423,7 @@ export default function Reportes(): React.ReactElement {
                     onWeekClick={handleWeekClick}
                     comparado={compSemanas}
                     label={compSemanas ? selected.label : undefined}
+                    agendaPorDia={agendaDatos ? agendaPorDiaFuturo : undefined}
                   />
                 ) : null
               )}
@@ -1298,6 +1463,7 @@ export default function Reportes(): React.ReactElement {
              onEntityClick={handleEntityClick}
              selectedEntidadId={selectedEntidadId}
              comparacion={compEntidades}
+             agenda={agendaEntidades}
            />
          ) : null}
       </div>

@@ -151,6 +151,16 @@ VITE_API_BASE_URL="https://api.neurofic.com"
 
 Browser tab title.
 
+### VITE_PROYECCION_AGENDA
+
+**Optional** | Type: `"true"` | Default: unset (**off**)
+
+Enciende la proyección por agenda (lo atendido + las citas pendientes) en Reportes y en el
+Inicio. **Es una variable de compilación**: Vite la fija al construir el frontend, no se lee al
+arrancar. **Déjala sin definir hasta que el backend de la agenda exista** (`GET /api/reportes/agenda`
+y la sincronización de citas); encendida antes, cada carga de Reportes y del Inicio pediría un
+endpoint inexistente. Ver `docs/PROYECCION-AGENDA.md`.
+
 ---
 
 ## How to generate JWT_SECRET for production

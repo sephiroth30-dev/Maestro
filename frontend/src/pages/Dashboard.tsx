@@ -2,8 +2,9 @@ import React, { useMemo, useRef } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { Activity, ArrowRight, TrendingUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
-import { useKpis, useEntidades, useTendencia } from '../api/reportes.js';
-import type { KpisResult } from '../api/reportes.js';
+import { useKpis, useEntidades, useTendencia, useAgenda } from '../api/reportes.js';
+import type { KpisResult, AgendaResult } from '../api/reportes.js';
+import { PROYECCION_AGENDA } from '../config/features.js';
 import { formatNumber } from '../components/widgets/KpiCard.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
 import ChartTendencia from '../components/widgets/ChartTendencia.js';
@@ -91,13 +92,35 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
 
 // ─── Hero card ────────────────────────────────────────────────────────────────
 
-function HeroCard({ data, mesIdx, anio }: { data: KpisResult; mesIdx: number; anio: number }): React.ReactElement {
+function HeroCard({ data, mesIdx, anio, agenda }: { data: KpisResult; mesIdx: number; anio: number; agenda?: AgendaResult }): React.ReactElement {
   const pct     = data.cumplimiento_pct;
   const accent  = accentColor(pct);
   const status  = statusInfo(pct);
   const fillPct = Math.min(pct, 100);
 
-  const projPct = data.proyeccion_cumplimiento_pct;
+  // Hay DOS cifras y conviene verlas juntas:
+  //  · por ritmo: supone que los días que faltan se parecerán a los pasados;
+  //  · atendido + agendado: suma lo que realmente está agendado.
+  // Si difieren mucho, esa diferencia ya es información.
+  //
+  // «Atendido + agendado» es un PISO, no una proyección: solo cuenta lo que ya
+  // está en la agenda. Si la agenda no llega a fin de mes, o hay citas sin precio
+  // de referencia, queda por debajo de lo que realmente se facturará; por eso
+  // (a) se avisa, y (b) en esos casos NO manda sobre la barra, que sigue usando
+  // la proyección por ritmo. Un administrativo que lee «vamos a 45 %» el día 5
+  // solo porque la agenda llega hasta el 12 tomaría una decisión equivocada.
+  const hayAgenda = agenda !== undefined && agenda.total.citas > 0;
+  const proyAgenda = hayAgenda ? data.facturacion_bruta + agenda.total.valor : 0;
+  const projPctAgenda = hayAgenda && data.presupuesto > 0 ? (proyAgenda / data.presupuesto) * 100 : null;
+  const finDeMes = `${anio}-${String(mesIdx).padStart(2, '0')}-${String(new Date(anio, mesIdx, 0).getDate()).padStart(2, '0')}`;
+  const agendaCompleta = hayAgenda && agenda.horizonte !== null && agenda.horizonte >= finDeMes && agenda.total.citas_sin_valor === 0;
+  const projPct = agendaCompleta && projPctAgenda !== null ? projPctAgenda : data.proyeccion_cumplimiento_pct;
+  const avisoAgenda = !hayAgenda || agendaCompleta ? null
+    : agenda.total.citas_sin_valor > 0
+      ? `${agenda.total.citas_sin_valor.toLocaleString('es-CO')} citas sin precio de referencia`
+      : agenda.horizonte
+        ? `agenda cargada solo hasta el ${agenda.horizonte.slice(8, 10)}/${agenda.horizonte.slice(5, 7)}`
+        : null;
 
   return (
     <div className="db-hero" style={{ borderTopColor: accent }}>
@@ -141,11 +164,34 @@ function HeroCard({ data, mesIdx, anio }: { data: KpisResult; mesIdx: number; an
         </div>
         <div className="db-hero-progress-meta">
           <span>de {fmtShort(data.presupuesto)} meta</span>
-          {data.dias_restantes > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <TrendingUp size={12} style={{ color: projPct >= 100 ? '#22c55e' : '#94a3b8' }} />
-              Proyección cierre: {fmtShort(data.proyeccion_cierre)} ({projPct.toFixed(1)}%)
+          {hayAgenda ? (
+            // Con agenda. La línea de la agenda va SIEMPRE (también el último día
+            // hábil, cuando ya no quedan «días restantes» pero sí citas de hoy).
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+              <span
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: '#4338ca' }}
+                title={`Atendido más ${agenda.total.citas.toLocaleString('es-CO')} citas pendientes valoradas con lo facturado antes a cada EPS. Es lo que ya está agendado, no una proyección completa.`}
+              >
+                <TrendingUp size={12} />
+                Atendido + agendado: {fmtShort(proyAgenda)}{projPctAgenda !== null && ` (${projPctAgenda.toFixed(1)}%)`}
+              </span>
+              {avisoAgenda && (
+                <span style={{ fontSize: '0.7rem', color: '#b45309' }}>⚠ {avisoAgenda}</span>
+              )}
+              {data.dias_restantes > 0 && (
+                <span style={{ opacity: 0.75 }} title="Supone que los días que faltan se parecerán a los ya transcurridos">
+                  Por ritmo: {fmtShort(data.proyeccion_cierre)} ({data.proyeccion_cumplimiento_pct.toFixed(1)}%)
+                </span>
+              )}
             </span>
+          ) : (
+            // Sin agenda: exactamente lo de siempre.
+            data.dias_restantes > 0 && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <TrendingUp size={12} style={{ color: projPct >= 100 ? '#22c55e' : '#94a3b8' }} />
+                Proyección cierre: {fmtShort(data.proyeccion_cierre)} ({projPct.toFixed(1)}%)
+              </span>
+            )
           )}
         </div>
       </div>
@@ -197,6 +243,8 @@ export default function Dashboard(): React.ReactElement {
   const endDate   = `${anioActual}-${String(mesActual).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
   const kpisQ        = useKpis(mesActual, anioActual);
+  // Apagada hasta que exista el endpoint: ver `config/features.ts`.
+  const agendaQ      = useAgenda(mesActual, anioActual, undefined, undefined, undefined, undefined, PROYECCION_AGENDA);
   const entidadesAnioQ = useEntidades(mesActual, anioActual, startDate, endDate);
   const tendenciaQ   = useTendencia(12);
 
@@ -249,7 +297,7 @@ export default function Dashboard(): React.ReactElement {
               <ErrorState onRetry={() => void kpisQ.refetch()} />
             </div>
           ) : kpisQ.data ? (
-            <HeroCard data={kpisQ.data} mesIdx={mesActual} anio={anioActual} />
+            <HeroCard data={kpisQ.data} mesIdx={mesActual} anio={anioActual} agenda={agendaQ.data} />
           ) : null}
 
           {/* ── Charts row 1: Tendencia + Mix Pagador ── */}

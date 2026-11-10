@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -6,8 +6,9 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
+  type ColumnDef,
 } from '@tanstack/react-table';
-import type { EntidadRow } from '../../api/reportes.js';
+import type { EntidadRow, AgendaEntidad } from '../../api/reportes.js';
 import { formatCOP, formatNumber } from './KpiCard.js';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -25,6 +26,54 @@ interface TablaEntidadesProps {
    * leer la comparación.
    */
   comparacion?: ComparacionEntidades | null;
+  /**
+   * Citas pendientes por EPS. Con ella la tabla gana tres columnas: lo
+   * **agendado**, lo **proyectado** (atendido + agendado) y cómo queda frente al
+   * promedio de los últimos 3 meses de esa EPS.
+   */
+  agenda?: ProyeccionEntidades | null;
+}
+
+export interface ProyeccionEntidades {
+  /** Por la misma clave que usa la comparación (`claveEntidad`). */
+  porClave: Map<string, AgendaEntidad>;
+  /**
+   * Si se muestra la columna «vs prom. 3 meses». SOLO tiene sentido al mirar un
+   * mes completo: el promedio es mensual, y compararlo con lo proyectado de una
+   * semana o de un día daría −70 % para todas las EPS y no diría nada.
+   */
+  conPromedio?: boolean;
+}
+
+/**
+ * Proyectado de una EPS frente a su promedio mensual de 3 meses, en %.
+ * `null` si no hay historial: sin base no se inventa una comparación.
+ *
+ * No es un tope. Es la referencia que permite ver «esta EPS va por encima de lo
+ * habitual» sin que nadie tenga que definir qué es pasarse: eso lo decide quien
+ * administra la agenda.
+ */
+export function vsPromedio(proyectado: number, promedio3m: number | null | undefined): number | null {
+  return promedio3m && promedio3m > 0 ? ((proyectado - promedio3m) / promedio3m) * 100 : null;
+}
+
+function CeldaVsPromedio({ pct }: { pct: number | null }): React.ReactElement {
+  if (pct === null) {
+    return <span className="tabla-comp-nuevo" title="Sin historial de 3 meses cerrados para comparar">—</span>;
+  }
+  const igual = Math.abs(pct) < 0.5;
+  // Colores NEUTROS a propósito: estar por encima no es «malo» ni por debajo
+  // «bueno»; depende de la EPS y del momento. Solo se muestra el sentido.
+  const clase = igual ? 'igual' : pct > 0 ? 'arriba' : 'abajo';
+  const flecha = igual ? '=' : pct > 0 ? '▲' : '▼';
+  return (
+    <span
+      className={`tabla-vs-prom tabla-vs-prom--${clase}`}
+      title="Lo proyectado de esta EPS frente a su facturación mensual promedio de los últimos 3 meses cerrados"
+    >
+      {flecha} {pct > 0 && !igual ? '+' : ''}{Math.round(pct)} %
+    </span>
+  );
 }
 
 export interface ComparacionEntidades {
@@ -92,7 +141,12 @@ function TipoBadge({ tipo }: { tipo: string }): React.ReactElement {
 
 const colHelper = createColumnHelper<EntidadRow>();
 
-const columnasBase = [
+// TanStack tipa cada columna por el valor que lee; una lista que mezcla texto,
+// números y celdas calculadas solo admite el tipo general.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ColumnaEntidad = ColumnDef<EntidadRow, any>;
+
+const columnasBase: ColumnaEntidad[] = [
   colHelper.accessor('entidad', {
     header: 'Entidad',
     cell: (info) => (
@@ -132,36 +186,94 @@ const columnasBase = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId, comparacion }: TablaEntidadesProps): React.ReactElement {
+export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId, comparacion, agenda }: TablaEntidadesProps): React.ReactElement {
   // Las columnas se arman dentro del componente porque la de comparación
   // depende del mes elegido; antes eran una constante de módulo.
-  const columns = useMemo(() => {
-    if (!comparacion) return columnasBase;
-    const colComp = colHelper.display({
-      id: 'comparacion',
-      header: comparacion.label,
-      cell: (info) => (
-        <CeldaComparacion
-          actual={info.row.original.valor_bruto}
-          base={comparacion.porClave.get(claveEntidad(info.row.original))}
-        />
-      ),
-    });
-    // Va justo después de "Valor Bruto", que es la cifra con la que se compara.
+  const columns = useMemo((): ColumnaEntidad[] => {
+    if (!comparacion && !agenda) return columnasBase;
+
+    // Todo lo que se añade va justo después de "Valor Bruto", que es la cifra
+    // con la que se compara y a la que se suma lo agendado.
+    const extra: ColumnaEntidad[] = [];
+
+    if (comparacion) {
+      extra.push(colHelper.display({
+        id: 'comparacion',
+        header: comparacion.label,
+        cell: (info) => (
+          <CeldaComparacion
+            actual={info.row.original.valor_bruto}
+            base={comparacion.porClave.get(claveEntidad(info.row.original))}
+          />
+        ),
+      }));
+    }
+
+    if (agenda) {
+      const delaFila = (r: EntidadRow): AgendaEntidad | undefined => agenda.porClave.get(claveEntidad(r));
+      extra.push(
+        colHelper.accessor((r) => delaFila(r)?.valor ?? 0, {
+          id: 'agendado',
+          header: 'Agendado',
+          cell: (info) => {
+            const a = delaFila(info.row.original);
+            if (!a || (a.valor === 0 && a.citas === 0)) return <span className="tabla-comp-nuevo">—</span>;
+            return (
+              <span className="tabla-agendado">
+                <span className="tabla-agendado-valor">{formatCOP(a.valor)}</span>
+                <span className="tabla-agendado-citas">
+                  {formatNumber(a.citas)} {a.citas === 1 ? 'cita' : 'citas'}
+                  {a.citas_sin_valor > 0 && (
+                    <span title={`${a.citas_sin_valor} sin precio de referencia: no se cuentan en el valor`}> · ⚠ {a.citas_sin_valor}</span>
+                  )}
+                </span>
+              </span>
+            );
+          },
+        }),
+        colHelper.accessor((r) => r.valor_bruto + (delaFila(r)?.valor ?? 0), {
+          id: 'proyectado',
+          header: 'Proyectado',
+          cell: (info) => <strong className="tabla-proyectado">{formatCOP(info.getValue())}</strong>,
+        }),
+      );
+      if (agenda.conPromedio) {
+        extra.push(
+          colHelper.accessor((r) => vsPromedio(r.valor_bruto + (delaFila(r)?.valor ?? 0), delaFila(r)?.promedio_3m) ?? -1e9, {
+            id: 'vsPromedio',
+            header: 'vs prom. 3 meses',
+            cell: (info) => {
+              const r = info.row.original;
+              return <CeldaVsPromedio pct={vsPromedio(r.valor_bruto + (delaFila(r)?.valor ?? 0), delaFila(r)?.promedio_3m)} />;
+            },
+          }),
+        );
+      }
+    }
+
     const i = columnasBase.findIndex((c) => 'accessorKey' in c && c.accessorKey === 'valor_bruto');
     const corte = i >= 0 ? i + 1 : columnasBase.length;
-    return [...columnasBase.slice(0, corte), colComp, ...columnasBase.slice(corte)];
-  }, [comparacion]);
+    return [...columnasBase.slice(0, corte), ...extra, ...columnasBase.slice(corte)];
+  }, [comparacion, agenda]);
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'valor_bruto', desc: true },
   ]);
   const [showAll, setShowAll] = useState(false);
 
-  const data = useMemo(
-    () => (showAll ? rows : rows.slice(0, 10)),
-    [rows, showAll]
-  );
+  // El orden se aplica a TODAS las filas y el recorte a 10 va después, sobre el
+  // resultado ya ordenado. Recortar antes ordenaba solo las 10 primeras por
+  // facturación, y ordenar por «Agendado» o «Proyectado» no daba el top 10
+  // real: una EPS con mucha agenda y poca facturación quedaba escondida.
+  const data = rows;
+
+  // Si cambia el conjunto de columnas (p. ej. al pasar a un filtro de día, donde
+  // desaparece «vs prom.»), un orden que apunte a una columna que ya no existe
+  // dejaría la tabla sin orden y sin flecha.
+  useEffect(() => {
+    const ids = new Set(columns.map((c) => ('id' in c && c.id) || ('accessorKey' in c && String(c.accessorKey)) || ''));
+    setSorting((s) => (s.every((x) => ids.has(x.id)) ? s : [{ id: 'valor_bruto', desc: true }]));
+  }, [columns]);
 
   const table = useReactTable({
     data,
@@ -194,7 +306,7 @@ export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId,
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => {
+            {table.getRowModel().rows.slice(0, showAll ? undefined : 10).map((row) => {
               const pct = row.original.participacion_pct;
               const isHighConcentration = pct > 40;
               const isSelected = selectedEntidadId != null && row.original.id === selectedEntidadId;

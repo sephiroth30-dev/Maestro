@@ -177,6 +177,89 @@ export function useDiasSemana(mesIdx: number, anio: number, startDate?: string, 
   });
 }
 
+// ─── Agenda (citas pendientes) ────────────────────────────────────────────────
+//
+// Lo AGENDADO: citas pendientes de atender dentro del periodo, valoradas con lo
+// que se ha facturado antes a esa EPS por ese tipo de servicio. La pantalla lo
+// suma a lo ya facturado para obtener el PROYECTADO.
+//
+// Devuelve solo la parte agendada a propósito: lo facturado ya lo tiene la
+// pantalla (kpis, entidades), y así no se calcula dos veces.
+
+export interface AgendaEntidad {
+  entidad_id: string | null;
+  entidad: string;
+  tipo: string;
+  /** Citas pendientes de esa EPS dentro del periodo. */
+  citas: number;
+  /** Valor estimado de esas citas. */
+  valor: number;
+  /** Citas sin precio de referencia (no se cuentan como cero: se avisan). */
+  citas_sin_valor: number;
+  /**
+   * Facturación mensual media de los últimos 3 meses cerrados. `null` si no hay
+   * historial. No es un tope: es la referencia con la que se compara lo
+   * proyectado para saber si la EPS va por encima o por debajo de lo normal.
+   */
+  promedio_3m: number | null;
+}
+
+export interface AgendaDia {
+  /** YYYY-MM-DD */
+  fecha: string;
+  citas: number;
+  valor: number;
+}
+
+export interface AgendaResult {
+  /** Cuándo se sincronizaron las citas por última vez. */
+  actualizado_en: string | null;
+  /** Fecha de la última cita cargada (YYYY-MM-DD): hasta dónde llega la agenda. */
+  horizonte: string | null;
+  total: { citas: number; valor: number; citas_sin_valor: number };
+  por_entidad: AgendaEntidad[];
+  por_dia: AgendaDia[];
+}
+
+/**
+ * Citas pendientes del periodo. Mismos parámetros que `useKpis`: mes o rango,
+ * entidad y día de la semana, para que la proyección siga el filtro aplicado.
+ *
+ * `enabled` se apaga en periodos ya pasados: no queda agenda pendiente y pedirlo
+ * sería una consulta para saber que es cero.
+ */
+export function useAgenda(
+  mesIdx: number,
+  anio: number,
+  startDate?: string,
+  endDate?: string,
+  entidadId?: string,
+  diaSemana?: number,
+  enabled = true,
+) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
+  if (entidadId) params.set('entidad_id', entidadId);
+  if (diaSemana !== undefined) params.set('dia_semana', String(diaSemana));
+
+  return useQuery<AgendaResult>({
+    queryKey: ['agenda', mesIdx, anio, startDate, endDate, entidadId, diaSemana],
+    queryFn: async () => {
+      const response = await apiClient.get<AgendaResult>(`/reportes/agenda?${params}`);
+      return response.data;
+    },
+    enabled,
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
 export interface MesDisponible {
   anio: number;
   mes: number;
@@ -431,6 +514,8 @@ export const CLAVES_REPORTES = [
   'kpis', 'entidades', 'cumplimiento-semanal', 'dias-semana', 'tendencia',
   'servicios', 'pacientes', 'utilizacion', 'liquidaciones', 'honorarios',
   'contribucion', 'diagnostico',
+  // La agenda cambia con cada sincronización de citas y de consumos.
+  'agenda',
   // Un cargue puede estrenar un mes que antes no existía; sin esto el selector
   // seguiría sin ofrecerlo hasta recargar la página.
   'meses-disponibles',

@@ -1996,6 +1996,101 @@ body,
   white-space: nowrap;
 }
 
+/* Proyección por agenda dentro de la ficha de Facturación. */
+.kpi-card-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(15, 23, 42, 0.1);
+}
+
+.kpi-card-agenda-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.kpi-card-agenda-mas {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.kpi-card-agenda-valor {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #6366f1;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card-agenda-sub {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  margin-top: -0.2rem;
+}
+
+.kpi-card-proyectado {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+}
+
+.kpi-card-proyectado-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #4338ca;
+}
+
+.kpi-card-proyectado-valor {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #312e81;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card-agenda-aviso {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: #b45309;
+}
+
+/* Cumplimiento proyectado, en la tarjeta de Cumplimiento. */
+.kpi-card-proy-pct {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.65rem;
+  background: #eef2ff;
+}
+
+.kpi-card-proy-pct-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4338ca;
+}
+
+.kpi-card-proy-pct-valor {
+  font-size: 1.05rem;
+  color: #312e81;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Periodo comparado dentro de la ficha (p. ej. «Octubre 2025  $152.342.876»). */
 .kpi-card-comp {
   display: flex;
@@ -2489,6 +2584,45 @@ body,
   background: #eef2ff;
   color: #3730a3;
 }
+
+/* Proyección por agenda en la tabla de entidades. */
+.tabla-agendado {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.tabla-agendado-valor {
+  color: #6366f1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-agendado-citas {
+  font-size: 0.7rem;
+  color: var(--color-gray-400);
+}
+
+.tabla-proyectado {
+  color: #312e81;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colores neutros a propósito: estar por encima del promedio no es «malo». */
+.tabla-vs-prom {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.tabla-vs-prom--arriba { color: #b45309; background: #fef3c7; }
+.tabla-vs-prom--abajo  { color: #1d4ed8; background: #dbeafe; }
+.tabla-vs-prom--igual  { color: var(--color-gray-500); background: var(--color-gray-100); }
 
 /* Celda de comparación en las tablas de entidades. */
 .tabla-comp {
