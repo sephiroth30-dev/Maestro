@@ -1,10 +1,11 @@
 # Proyección por agenda: lo atendido + lo agendado
 
 > **Estado (v1.9.10): parte visual + backend completos y ENCENDIDOS por omisión.**
-> Falta lo único que este entorno no podía comprobar: **correrlo contra el Medifolios real**. El mapeo se
-> escribió contra la especificación y las consultas SQL nunca se ejecutaron en el entorno de desarrollo (no
-> hay MySQL). La verdadera prueba es el primer día en producción: **Configuración → Diagnóstico → Proyección
-> por agenda** dice si funcionó (ver «Puesta en marcha»).
+> **Ya corrió contra el Medifolios real** (10-nov-2026): permisos correctos, 1.011 citas cargadas, 99,4 % con precio,
+> 0 convenios sin EPS y un backtest de octubre con cobertura ≈ 90 % (ver «Primeros resultados en producción»).
+> **Limitación principal conocida:** la parte agendada **no descuenta la inasistencia (≈ 23 %)**: hoy es un techo,
+> no una cifra esperada. El ajuste está propuesto y pendiente de aprobación.
+> Las consultas SQL no se pudieron ejecutar en el entorno de desarrollo (no hay MySQL); en producción funcionaron.
 >
 > Para apagarla: compilar el frontend con `VITE_PROYECCION_AGENDA=false` (ver `docs/ENV.md`).
 
@@ -206,7 +207,8 @@ conocida y pequeña; por eso la cadencia es corta. No se intenta «descontar» a
 | 0 | Parte visual, con cifras de ejemplo | **Hecha** (v1.9.9) |
 | 1 | Tablas `citas_agendadas`, `agenda_sync`, `convenios_eps`, `agenda_backtest`; sincronización de citas, valoración, backtest y Diagnóstico | **Hecha** (v1.9.10). **Falta correrla contra Medifolios real** |
 | 2 | Endpoint `GET /api/reportes/agenda`; encendida por omisión | **Hecha** (v1.9.10) |
-| 3 | Opcional: ajuste por inasistencia (`I/(C+I)`), cupos libres (`L`), ver el mes siguiente en el selector | Si se pide |
+| 3a | **Ajuste por inasistencia** (`I/(C+I)` por EPS): mostrar *Agendado* (techo) y *Esperado* (descontando inasistencia) | **Propuesto, pendiente de aprobación.** Los datos reales muestran ≈ 23 %, así que deja de ser opcional |
+| 3b | Opcional: no contar citas de hoy cuya hora ya pasó y siguen pendientes; cupos libres (`L`); ver el mes siguiente en el selector | Si se pide |
 | 4 | Opcional: si Medifolios expone un tope por contrato (`valorControlContrato` / `controlValor` en convenios, **sin confirmar**), mostrarlo junto al proyectado. Hoy no se usa: el usuario dijo que no hay topes formales | Solo si el usuario lo pide |
 
 ### El backtest (cómo se sabe si sirve)
@@ -237,6 +239,70 @@ mapeo se escribe contra la especificación. Lo que solo los datos reales confirm
 Para anclarlo sin dar credenciales: 3–5 registros reales de `GET /citas/listar` (estado P, **sin nombres ni
 documentos de pacientes**) y de `GET /catalogos/convenios`, tomados del Swagger.
 
+## Primeros resultados en producción (10 de noviembre de 2026, v1.9.10)
+
+Es la primera vez que el mapeo corrió contra el Medifolios real. Lo que se observó en **Diagnóstico → Proyección por
+agenda**:
+
+| Comprobación | Resultado |
+|---|---|
+| Permiso 01010202 (citas) y 01041504 (convenios) | **Ambos funcionan** |
+| Citas cargadas / hasta qué fecha / duración | **1.011** citas pendientes, hasta el **29-dic-2026**, en **7 s** |
+| Citas con precio de referencia | **1.005** (99,4 %) |
+| Citas sin precio | **6**, todas «AGUJA MONOPOLAR» de Comfenalco: parecen insumos, no consultas |
+| Convenios sin EPS vinculada | **0** |
+
+Esto confirma, con datos reales, lo que el entorno de desarrollo no podía: que el formato de `fechaInicioCita`, los
+campos anidados (`convenio.nomConvenio`, `referencia.nomReferencia`…) y la vinculación convenio → EPS funcionan.
+
+### Backtest: octubre 2026
+
+Se valoraron las citas cumplidas de octubre con el historial **anterior** a octubre y se compararon con lo realmente
+facturado. En las 8 EPS de mayor valor revisadas (no se alcanzó a ver la fila TOTAL ni las EPS más pequeñas):
+
+- **Cobertura global ≈ 90 %** (estimado $238,8 M contra $266,3 M facturados). Es lo esperado: algo por debajo de 100 %
+  es normal, porque lo facturado incluye atenciones que no nacieron de una cita.
+- **Por EPS, de 71 % a 119 %.** Cinco están entre 90 % y 105 % (Nueva EPS 90 %, SOS 103 %, Sanitas 105 %, Regional de
+  Aseguramiento 100 %, y Suramericana en 71 % como excepción). Las que se desvían:
+
+  | EPS | Cobertura | Lectura probable |
+  |---|---|---|
+  | Unidad Salud Ocupacional | 119 % | **Sobreestima.** Casi no tiene incumplidas; probablemente cobra por paquete o a otro precio que la mediana |
+  | EPS Suramericana | 71 % | Subestima: más líneas por visita o mayor precio que el habitual |
+  | Clínica de Occidente | 73 % | Subestima (muestra pequeña: 27 citas) |
+  | Comfenalco | 76 % | Subestima, en parte por 8 citas sin precio |
+
+  Son **hipótesis**, no comprobadas: no se ha mirado el detalle de esas EPS.
+
+### Hallazgo: la inasistencia es grande (≈ 23 %)
+
+En esas mismas 8 EPS, **411 de 1.792 citas (≈ 23 %) quedaron «incumplidas»** (por EPS entre 23 % y 30 %: SOS 29 %,
+Suramericana 27 %, Nueva EPS 23 %, Sanitas 30 %, Comfenalco 26 %).
+
+Hoy la parte **agendada suma el valor de TODAS las citas pendientes, como si todas se atendieran**. Con una
+inasistencia de esa magnitud, **la parte agendada sale sobreestimada en torno a una cuarta parte**. Ejemplo con las
+cifras de una pantalla real (9–15 nov): agendado $55,9 M → ≈ $43 M descontando el 23 %; proyectado $85,7 M → ≈ $72,8 M.
+
+**Esto es lo principal que falta.** Propuesta (**pendiente de aprobación**, no implementada): mostrar **dos cifras**
+sin tocar la actual — *Agendado* (si llegan todos, el techo) y *Esperado* (agendado × (1 − inasistencia histórica de
+la EPS), con la tasa general cuando la EPS tenga muy pocas citas históricas). Así quien decide ve el máximo posible y
+lo realista. Hasta que se haga, **la proyección debe leerse como un techo, no como una cifra esperada**.
+
+### Citas de hoy que siguen «pendientes»
+
+Una cita de hoy cuya hora ya pasó **sigue contando como agendada hasta que Medifolios la pase a cumplida o
+incumplida**. A las 10:44 p. m. se vio todavía una franja de agenda en la barra de hoy. Es esperable (un paciente que
+no llegó, o una cita sin marcar), pero infla el día. Opción (**pendiente de decidir**): no contar las citas de hoy
+cuya hora ya pasó. Contra: si fueron atendidas y su consumo aún no está cargado, el proyectado de hoy quedaría corto.
+
+### Cómo leer la tabla del Diagnóstico de datos (no es de la agenda)
+
+La tabla de calidad de datos del mismo tab **lista cada fuente por separado** (p. ej. «Año 2026» y «Medifolios API») para
+poder compararlas, y su fila **TOTAL las suma**: esa suma **no es la cifra del dashboard**. Los reportes usan solo la
+fuente marcada con *Usar como fuente*; si no hay ninguna marcada, suman todas y salen dobles (Fuentes lo avisa en
+naranja). Aprovechando la comparación: las dos fuentes coinciden con 1–2 % de diferencia (nov. 90,8 M contra 90,0 M;
+oct. 350,3 M contra 346,0 M; sep. 371,5 M contra 363,5 M), lo que respalda lo que trae Medifolios.
+
 ## Cómo se revisó
 
 El prototipo lo revisó un subagente independiente, solo de lectura, con una lista de invariantes. Encontró
@@ -258,6 +324,30 @@ escenario que los provoca:
 (mes, mes con filtro de día, esta semana, hoy, año e inicio) contra el último commit desplegado. Dos de esas
 pantallas difieren de sí mismas entre capturas por la animación de recharts, así que se compararon por
 emparejamiento: cada pantalla tiene al menos un par idéntico.
+
+### Segunda revisión independiente (sobre el backend)
+
+Un segundo subagente, solo de lectura, revisó el backend con las invariantes del diseño. Encontró defectos reales,
+**todos corregidos, con prueba, antes de subir** (hay 154 pruebas):
+
+| Hallazgo | Corrección |
+|---|---|
+| **Alta:** el cron de la agenda se cancelaba solo al programar los consumos con cualquier frecuencia distinta de «manual» | `scheduleConnector` ya no toca la tarea de la agenda; la prueba falla si se reintroduce |
+| **Alta:** agenda y consumos caían en el mismo segundo y el primero en registrarse ganaba siempre el candado (los consumos no se habrían sincronizado en horario de trabajo) | La agenda corre en los minutos 7, 22, 37 y 52; una prueba exige que nunca coincidan |
+| Promesas sin captura (`void …`) que podían terminar el proceso ante una falla de base de datos | `sincronizarCitasConCandado` e `iniciarBacktest` nunca lanzan |
+| Backtest «corriendo» para siempre si el servidor se reiniciaba a mitad | Más de 30 min en ese estado se muestra como interrumpido |
+| Con el candado ocupado, el backtest borraba el último resultado bueno | Responde 409 y no toca lo guardado; igual el botón de sincronizar |
+| Un campo anidado mal mapeado guardaba un JSON como nombre y rompía el INSERT (congelaba la agenda) | Un nombre que parece JSON se trata como vacío, si todos faltan falla con aviso, y los textos se recortan al ancho de columna |
+| Un fallo del **login** con 403 se mostraba como «sin permiso 01010202» | El fallo de login no cuenta como permiso |
+| Catálogo de convenios duplicado (rompía la llave) o vacío (borraba el anterior) | Se deduplica por código; vacío = fallo y se conserva el anterior |
+| Fechas con zona horaria (`Z`, `-05:00`) leídas sin convertir; una hora imposible se movía a las 00:00 | Se convierten a la hora de la clínica; la hora imposible descarta la cita |
+| Con «Agenda de citas» desactivada se seguían sirviendo las citas viejas | El endpoint responde agenda vacía |
+| Un fallo persistente se reintentaba en cada vuelta | Espera de 30 min tras un error (el botón la salta) |
+
+**No corregido (riesgos menores, conocidos):** si Medifolios crea una cita por cada estudio de una misma visita, se
+valora cada una como visita completa y se sobreestima; la conexión del candado no se vigila a mitad de una
+sincronización; `total` y `por_dia` redondean por separado y pueden diferir unos pesos; los gráficos por día de la
+semana no muestran el sábado.
 
 ## Supuestos
 

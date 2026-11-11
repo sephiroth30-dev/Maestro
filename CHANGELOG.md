@@ -24,7 +24,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `flushReportesCache` no borraba **nada** cuando había una fuente activa marcada (las claves llevan el prefijo `f:<id>:`): tras una sincronización los reportes seguían mostrando datos cacheados.
 
 ### Estado
-- **Falta correrlo contra el Medifolios real.** El mapeo se escribió contra la especificación y las consultas SQL no pudieron ejecutarse en el entorno de desarrollo (sin MySQL). Se verificó la lógica con 141 pruebas, el código de producción contra un Medifolios simulado (paginación, parámetros, 403, sin re-login, sin datos de pacientes) y el navegador con API simulada. La **precisión de la valoración se desconoce** hasta correr el backtest con datos reales.
+- **Primera corrida en producción (10-nov-2026):** permisos 01010202 y 01041504 correctos; 1.011 citas pendientes cargadas hasta el 29-dic en 7 s; 1.005 con precio (las 6 sin precio son insumos «AGUJA MONOPOLAR»); 0 convenios sin EPS. Backtest de octubre: **cobertura ≈ 90 %** (por EPS de 71 % a 119 %). Antes de subir se verificó con 154 pruebas, el código de producción contra un Medifolios simulado y el navegador con API simulada.
+- **Limitación principal:** la parte agendada **no descuenta la inasistencia (≈ 23 % de las citas quedan incumplidas)**, así que hoy es un techo y no una cifra esperada. El ajuste (mostrar *Agendado* y *Esperado*) está propuesto y pendiente de aprobación. Las citas de hoy cuya hora ya pasó y siguen «pendientes» también cuentan hasta que Medifolios las marque.
 - Ventana conocida: una cita atendida desde la última sincronización puede contarse como agendada hasta 15 min. Ver `docs/PROYECCION-AGENDA.md`.
 
 ---

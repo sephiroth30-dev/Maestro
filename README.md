@@ -109,7 +109,7 @@ Maestro/
 | | |
 |---|---|
 | **Usar** | [Manual de usuario](docs/MANUAL_USUARIO.md) · [Manual extenso v2.2](docs/Manual_Neurofic_Dashboard_v2_2.md) |
-| **Desarrollar** | [Arquitectura](docs/ARCHITECTURE.md) · [Modelo de datos](docs/MODELO-DATOS.md) · [Referencia de la API](docs/API-REFERENCE.md) · [Autenticación](docs/API-AUTH.md) · [Reportes](docs/API-REPORTES.md) · [Conectores](docs/CONNECTORS.md) · [Exportación](docs/EXPORTACION.md) |
+| **Desarrollar** | [Arquitectura](docs/ARCHITECTURE.md) · [Modelo de datos](docs/MODELO-DATOS.md) · [Referencia de la API](docs/API-REFERENCE.md) · [Autenticación](docs/API-AUTH.md) · [Reportes](docs/API-REPORTES.md) · [Conectores](docs/CONNECTORS.md) · [Proyección por agenda](docs/PROYECCION-AGENDA.md) · [Exportación](docs/EXPORTACION.md) |
 | **Operar** | [Despliegue](docs/DEPLOY.md) · [Variables de entorno](docs/ENV.md) |
 
 > Dos trampas conocidas: `backend/dist` está versionado y hay que recompilarlo tras
