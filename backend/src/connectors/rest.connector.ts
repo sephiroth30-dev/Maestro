@@ -20,6 +20,16 @@ import {
  * Derivando el tipo del esquema con `z.infer`, un campo nuevo no puede quedarse
  * fuera de uno de los dos.
  */
+/** Mensaje de error del cuerpo de una respuesta fallida, o `''` si no hay. */
+async function leerMensajeDeError(response: Response): Promise<string> {
+  try {
+    const j = (await response.json()) as { message?: unknown } | null;
+    return typeof j?.message === 'string' ? j.message.trim().slice(0, 240) : '';
+  } catch {
+    return '';
+  }
+}
+
 export const RestConfigSchema = z
   .object({
     baseUrl: z.string().url('baseUrl debe ser una URL válida'),
@@ -40,6 +50,22 @@ export const RestConfigSchema = z
         ventanaMeses: z.number().int().min(1).max(12).default(2),
         /** Nombre del parámetro de la API que recibe la fecha de inicio. */
         desdeParam: z.string().min(1).default('fechaDesde'),
+      })
+      .optional(),
+    /**
+     * Agenda de citas: además de los consumos, lee las citas PENDIENTES del mismo
+     * sistema para proyectar lo que se va a facturar. Usa la misma credencial y el
+     * mismo token (y el mismo candado) que este conector. Lo consume
+     * `citas-sync.service.ts`, no este conector: aquí solo se declara para que la
+     * configuración la valide y la conserve.
+     */
+    agenda: z
+      .object({
+        activo: z.boolean().default(false),
+        /** Requiere el permiso 01010202 en el usuario de la API. */
+        endpointCitas: z.string().min(1).default('citas/listar'),
+        /** Requiere el permiso 01041504. Si falta, se vincula la EPS por nombre. */
+        endpointConvenios: z.string().min(1).default('catalogos/convenios'),
       })
       .optional(),
     /**
@@ -623,8 +649,12 @@ export class RestConnector extends BaseConnector {
     }
 
     if (!response.ok) {
+      // El mensaje de la propia API dice QUÉ falló («Usuario no tiene permiso de
+      // consulta de agenda de citas (01010202)»): sin él, un 403 es un callejón sin
+      // salida. Se lee con cuidado: el cuerpo puede no ser JSON.
+      const detalle = await leerMensajeDeError(response);
       throw new Error(
-        `REST API error: HTTP ${response.status} ${response.statusText}`
+        `REST API error: HTTP ${response.status} ${response.statusText}${detalle ? ` — ${detalle}` : ''}`
       );
     }
 

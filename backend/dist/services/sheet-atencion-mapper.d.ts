@@ -21,6 +21,41 @@ export declare function hashFila(fields: {
     fecha: string;
     rowIndex: number;
 }): string;
+export interface ResolverCache {
+    entidades: Array<{
+        id: string;
+        nombres: string[];
+    }>;
+    profesionales: Array<{
+        id: string;
+        nombres: string[];
+        especialidad: string | null;
+    }>;
+    servicios: Array<{
+        id: string;
+        nombre: string;
+        palabrasClave: string[];
+    }>;
+    specialtyUpgrade: Map<string, {
+        NEUROLOGIA: string | null;
+        FISIATRIA: string | null;
+        PEDIATRIA: string | null;
+    }>;
+}
+export declare function buildCache(): Promise<ResolverCache>;
+export declare function resolveServicioId(descripcionNorm: string, catalog: Array<{
+    id: string;
+    nombre: string;
+    palabrasClave: string[];
+}>, profesionalEspecialidad: string | null, specialtyUpgrade: Map<string, {
+    NEUROLOGIA: string | null;
+    FISIATRIA: string | null;
+    PEDIATRIA: string | null;
+}>): string | null;
+export declare function resolveId(rawName: string | null | undefined, catalog: Array<{
+    id: string;
+    nombres: string[];
+}>): string | null;
 export interface MapperResult {
     created: number;
     skipped: number;

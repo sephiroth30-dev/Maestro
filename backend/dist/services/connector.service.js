@@ -221,6 +221,21 @@ class ConnectorService {
         }
         throw new Error(`Tipo de conector no soportado: ${conector.tipo}`);
     }
+    /**
+     * Un conector REST con la MISMA credencial y el MISMO token que el original,
+     * pero apuntando a otro endpoint (citas, convenios).
+     *
+     * Comparte el almacén de token a propósito: Medifolios emite un solo token
+     * vigente por usuario, así que dos sesiones con la misma credencial se
+     * invalidarían entre sí (es lo que causó los 401 de la sincronización). Quien lo
+     * use debe además tomar el candado de sincronización del conector.
+     */
+    instantiateRestConCambios(conector, cambios) {
+        if (conector.tipo !== 'REST_API')
+            throw new Error(`El conector «${conector.nombre}» no es REST`);
+        const parsed = rest_connector_js_1.RestConfigSchema.parse(conector.config);
+        return new rest_connector_js_1.RestConnector({ ...parsed, ...cambios, name: conector.nombre }, makeSessionStore(conector.id));
+    }
     // ─── Test connection ──────────────────────────────────────────────────────
     async testConnection(conectorOrDto) {
         let instance;

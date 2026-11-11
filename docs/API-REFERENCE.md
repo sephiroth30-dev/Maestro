@@ -129,6 +129,9 @@ Tres advertencias que conviene respetar en cualquier cliente:
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/reportes/diagnostico` | Calidad de datos por conector y mes. |
+| GET | `/api/diagnostico/agenda` | Estado de la proyección por agenda: sincronización, permisos (01010202 / 01041504), citas cargadas, convenios sin EPS, citas sin precio y último backtest. |
+| POST | `/api/diagnostico/agenda/sincronizar` | Sincroniza las citas ahora (202; segundo plano, ~1 min, con el candado del conector). |
+| POST | `/api/diagnostico/agenda/backtest` | Evalúa la precisión de la valoración con el último mes cerrado (202; segundo plano). |
 | GET | `/api/reportes/servicios/diagnostico` | Servicios sin clasificar. |
 | GET | `/api/diagnostico/sin-servicio` | Descripciones del origen sin servicio asignado. |
 | GET | `/api/diagnostico/sin-profesional` | Registros sin profesional. |

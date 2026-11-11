@@ -4,7 +4,8 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { connectorService, FrecuenciaSyncSchema } from '../services/connector.service.js';
 import { syncService } from '../services/sync.service.js';
-import { scheduleConnector, unscheduleConnector, CRON_SCHEDULES, esIncremental } from '../services/cron.service.js';
+import { scheduleConnector, unscheduleConnector, scheduleAgenda, CRON_SCHEDULES, esIncremental } from '../services/cron.service.js';
+import { agendaActiva } from '../services/citas-sync.service.js';
 import { logger } from '../config/logger.js';
 import { pool } from '../config/prisma.js';
 import { flushReportesCache } from '../config/redis.js';
@@ -23,6 +24,8 @@ function applyConnectorCron(conector: {
   config?: unknown;
 }): void {
   unscheduleConnector(conector.id);
+  // La agenda va ANTES de los `return`: es independiente de la frecuencia del conector.
+  if (conector.activo && agendaActiva({ config: conector.config })) scheduleAgenda(conector.id, conector.nombre);
   if (!conector.activo || conector.frecuenciaSync === 'manual') return;
   const expr = CRON_SCHEDULES[conector.frecuenciaSync as keyof typeof CRON_SCHEDULES];
   if (expr) {

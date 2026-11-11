@@ -7,6 +7,7 @@ const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const connector_service_js_1 = require("../services/connector.service.js");
 const sync_service_js_1 = require("../services/sync.service.js");
 const cron_service_js_1 = require("../services/cron.service.js");
+const citas_sync_service_js_1 = require("../services/citas-sync.service.js");
 const logger_js_1 = require("../config/logger.js");
 const prisma_js_1 = require("../config/prisma.js");
 const redis_js_1 = require("../config/redis.js");
@@ -16,6 +17,9 @@ const fuente_activa_service_js_1 = require("../services/fuente-activa.service.js
 // ─── Cron helper ──────────────────────────────────────────────────────────────
 function applyConnectorCron(conector) {
     (0, cron_service_js_1.unscheduleConnector)(conector.id);
+    // La agenda va ANTES de los `return`: es independiente de la frecuencia del conector.
+    if (conector.activo && (0, citas_sync_service_js_1.agendaActiva)({ config: conector.config }))
+        (0, cron_service_js_1.scheduleAgenda)(conector.id, conector.nombre);
     if (!conector.activo || conector.frecuenciaSync === 'manual')
         return;
     const expr = cron_service_js_1.CRON_SCHEDULES[conector.frecuenciaSync];

@@ -162,6 +162,87 @@ const MIGRATIONS = [
           SET c.es_fuente_activa = 1
           WHERE chk.activas = 0`,
     },
+    // ─── Proyección por agenda (citas pendientes) ─────────────────────────────
+    //
+    // Copia local de las citas PENDIENTES de Medifolios: el dashboard nunca llama a
+    // la API al abrirse, lee de aquí. Se reemplaza completa en cada sincronización.
+    //
+    // NO guarda datos de pacientes: para proyectar no hacen falta, y es una tabla
+    // menos con información sensible.
+    //
+    // `valor_estimado` es NULL cuando no hay precio de referencia: se cuenta y se
+    // AVISA, nunca se trata como 0.
+    {
+        id: 'm21_citas_agendadas',
+        sql: `CREATE TABLE IF NOT EXISTS citas_agendadas (
+      cod_asignacion BIGINT NOT NULL,
+      conector_id VARCHAR(36) NOT NULL,
+      fecha_cita DATETIME NOT NULL,
+      fecha_dia DATE NOT NULL,
+      convenio_cod INT NULL,
+      convenio_nombre VARCHAR(200) NOT NULL DEFAULT '',
+      entidad_id VARCHAR(36) NULL,
+      referencia_nombre VARCHAR(255) NOT NULL DEFAULT '',
+      cups VARCHAR(20) NULL,
+      grupo VARCHAR(40) NULL,
+      valor_estimado DECIMAL(15,2) NULL,
+      origen_valor VARCHAR(20) NOT NULL DEFAULT 'sin_precio',
+      PRIMARY KEY (cod_asignacion, conector_id),
+      KEY idx_citas_fecha_dia (fecha_dia),
+      KEY idx_citas_entidad (entidad_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    // Estado de la última sincronización de citas, una fila por conector. Alimenta
+    // `actualizado_en` del endpoint (para avisar si la agenda está vieja) y la
+    // pantalla de Diagnóstico: un 403 por falta de permiso debe VERSE, no vaciar la
+    // tabla ni quedar como «no hay citas».
+    {
+        id: 'm22_agenda_sync',
+        sql: `CREATE TABLE IF NOT EXISTS agenda_sync (
+      conector_id VARCHAR(36) NOT NULL,
+      ultimo_intento DATETIME NULL,
+      ultima_ok DATETIME NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'nunca',
+      error TEXT NULL,
+      http_status INT NULL,
+      citas_leidas INT NOT NULL DEFAULT 0,
+      citas_guardadas INT NOT NULL DEFAULT 0,
+      citas_sin_precio INT NOT NULL DEFAULT 0,
+      horizonte DATE NULL,
+      duracion_ms INT NULL,
+      convenios_estado VARCHAR(20) NULL,
+      convenios_error TEXT NULL,
+      convenios_actualizado DATETIME NULL,
+      PRIMARY KEY (conector_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    // Convenio (lista de precios) → EPS, del catálogo de Medifolios. Una cita trae
+    // el convenio, no la EPS; el catálogo trae `eps.nomEps`, el mismo nombre que
+    // usan los consumos. Si el usuario de la API no tiene permiso para el
+    // catálogo, la tabla queda vacía y la EPS se vincula por nombre.
+    {
+        id: 'm24_agenda_backtest',
+        sql: `CREATE TABLE IF NOT EXISTS agenda_backtest (
+      conector_id VARCHAR(36) NOT NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'nunca',
+      iniciado DATETIME NULL,
+      terminado DATETIME NULL,
+      error TEXT NULL,
+      resultado LONGTEXT NULL,
+      PRIMARY KEY (conector_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    {
+        id: 'm23_convenios_eps',
+        sql: `CREATE TABLE IF NOT EXISTS convenios_eps (
+      cod_convenio INT NOT NULL,
+      conector_id VARCHAR(36) NOT NULL,
+      nombre VARCHAR(200) NOT NULL DEFAULT '',
+      eps_nombre VARCHAR(200) NULL,
+      entidad_id VARCHAR(36) NULL,
+      PRIMARY KEY (cod_convenio, conector_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
 ];
 async function columnaExiste(tabla, columna) {
     const [rows] = await prisma_js_1.pool.query(`SELECT 1 FROM information_schema.COLUMNS

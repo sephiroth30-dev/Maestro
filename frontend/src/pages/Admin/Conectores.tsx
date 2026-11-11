@@ -785,6 +785,10 @@ interface ConnectorFormState {
   incremental: boolean;
   incrementalMeses: string;
   incrementalParam: string;
+  // Agenda de citas (proyección)
+  agenda: boolean;
+  agendaCitas: string;
+  agendaConvenios: string;
   headers: Array<{ key: string; value: string }>;
   /** Ruta al arreglo dentro del JSON, p. ej. 'data.items'. */
   dataPath: string;
@@ -844,6 +848,9 @@ const DEFAULT_FORM: ConnectorFormState = {
   incremental: false,
   incrementalMeses: '',
   incrementalParam: '',
+  agenda: false,
+  agendaCitas: '',
+  agendaConvenios: '',
   headers: [],
   dataPath: '',
   timeoutSec: '',
@@ -904,6 +911,9 @@ function ConnectorModal({
       incremental: false,
       incrementalMeses: '',
       incrementalParam: '',
+      agenda: false,
+      agendaCitas: '',
+      agendaConvenios: '',
       headers: [],
       dataPath: '',
       timeoutSec: '',
@@ -946,6 +956,10 @@ function ConnectorModal({
       base.incremental = inc?.activo === true;
       base.incrementalMeses = inc?.ventanaMeses ? String(inc.ventanaMeses) : '';
       base.incrementalParam = inc?.desdeParam ?? '';
+      const ag = cfg['agenda'] as { activo?: boolean; endpointCitas?: string; endpointConvenios?: string } | undefined;
+      base.agenda = ag?.activo === true;
+      base.agendaCitas = ag?.endpointCitas ?? '';
+      base.agendaConvenios = ag?.endpointConvenios ?? '';
       const extra = cfg['loginBodyExtra'] as Record<string, string> | undefined;
       if (extra) {
         base.loginBodyExtra = Object.entries(extra).map(([key, value]) => ({ key, value }));
@@ -1045,6 +1059,13 @@ function ConnectorModal({
             activo: true,
             ventanaMeses: Number(form.incrementalMeses) || 2,
             desdeParam: form.incrementalParam.trim() || 'fechaDesde',
+          },
+        }),
+        ...(form.agenda && {
+          agenda: {
+            activo: true,
+            endpointCitas: form.agendaCitas.trim() || 'citas/listar',
+            endpointConvenios: form.agendaConvenios.trim() || 'catalogos/convenios',
           },
         }),
         ...(form.dataPath.trim() && { dataPath: form.dataPath.trim() }),
@@ -1951,6 +1972,54 @@ function ConnectorModal({
                           Cómo se llama en la API el filtro «desde esta fecha». En Medifolios es
                           <code> fechaDesde</code>.
                         </span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Agenda de citas (proyección) ───────────────────── */}
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.agenda}
+                        onChange={(e) => setField('agenda', e.target.checked)}
+                        style={{ width: 'auto', margin: 0 }}
+                      />
+                      Agenda de citas (proyección de facturación)
+                    </label>
+                    <span className="form-hint">
+                      Además de los consumos, lee las citas <strong>pendientes</strong> con la misma
+                      credencial para proyectar lo que se va a facturar (atendido + agendado). Se
+                      sincroniza cada 15 minutos en horario de trabajo, nunca a la vez que los
+                      consumos. El usuario de la API necesita el permiso <code>01010202</code>
+                      (citas) y, opcionalmente, <code>01041504</code> (convenios); sin el segundo, la
+                      EPS se vincula por nombre. El resultado se revisa en Diagnóstico.
+                    </span>
+                  </div>
+
+                  {form.agenda && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-agenda-citas">Endpoint de citas</label>
+                        <input
+                          id="conn-agenda-citas"
+                          type="text"
+                          className="form-input"
+                          value={form.agendaCitas}
+                          onChange={(e) => setField('agendaCitas', e.target.value)}
+                          placeholder="citas/listar"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="conn-agenda-convenios">Endpoint de convenios</label>
+                        <input
+                          id="conn-agenda-convenios"
+                          type="text"
+                          className="form-input"
+                          value={form.agendaConvenios}
+                          onChange={(e) => setField('agendaConvenios', e.target.value)}
+                          placeholder="catalogos/convenios"
+                        />
                       </div>
                     </>
                   )}

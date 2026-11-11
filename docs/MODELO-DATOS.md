@@ -21,6 +21,10 @@ antes de escribir una consulta o prometer un reporte.
 | `capacidad_instalada` | Capacidad mensual por grupo de servicio, y contra qué cifra se compara (`base_conteo`). |
 | `usuarios`, `refresh_tokens` | Cuentas y sesiones. |
 | `conectores`, `sincronizaciones` | Orígenes de datos y su historial. |
+| `citas_agendadas` | Citas **pendientes** de Medifolios (agenda), con su valor estimado. **Sin datos de pacientes.** Se reemplaza por completo en cada sincronización de citas. `valor_estimado` NULL = sin precio de referencia (nunca 0). |
+| `agenda_sync` | Una fila por conector: última sincronización de citas (correcta e intento), estado, error, citas leídas/guardadas/sin precio, horizonte y estado del catálogo de convenios. |
+| `convenios_eps` | Catálogo `codConvenio → EPS` de Medifolios (`GET /catalogos/convenios`), con la entidad vinculada si casa. |
+| `agenda_backtest` | Último backtest de la valoración (estado y resultado JSON por EPS). |
 | `audit_log` | Registro de acciones. |
 | `dashboards`, `widgets` | Reservadas; sin uso activo. |
 

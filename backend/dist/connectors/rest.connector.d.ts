@@ -1,15 +1,5 @@
 import { z } from 'zod';
 import { BaseConnector, type ConnectorQuery, type DataSet, type ConnectionTestResult } from './base.connector.js';
-/**
- * Esquema y tipo viven juntos a propósito.
- *
- * Antes el tipo estaba aquí y el esquema de validación en `connector.service.ts`:
- * dos definiciones de la misma forma, que divergieron sin que nadie lo notara.
- * El resultado fue que `instantiate()` dejó de pasar la mitad de los campos al
- * conector — se guardaban en la base y no llegaban nunca a la sincronización.
- * Derivando el tipo del esquema con `z.infer`, un campo nuevo no puede quedarse
- * fuera de uno de los dos.
- */
 export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     baseUrl: z.ZodString;
     /** Ruta relativa a baseUrl. Sin ella se pide la raíz, que rara vez sirve. */
@@ -36,6 +26,28 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         activo?: boolean | undefined;
         ventanaMeses?: number | undefined;
         desdeParam?: string | undefined;
+    }>>;
+    /**
+     * Agenda de citas: además de los consumos, lee las citas PENDIENTES del mismo
+     * sistema para proyectar lo que se va a facturar. Usa la misma credencial y el
+     * mismo token (y el mismo candado) que este conector. Lo consume
+     * `citas-sync.service.ts`, no este conector: aquí solo se declara para que la
+     * configuración la valide y la conserve.
+     */
+    agenda: z.ZodOptional<z.ZodObject<{
+        activo: z.ZodDefault<z.ZodBoolean>;
+        /** Requiere el permiso 01010202 en el usuario de la API. */
+        endpointCitas: z.ZodDefault<z.ZodString>;
+        /** Requiere el permiso 01041504. Si falta, se vincula la EPS por nombre. */
+        endpointConvenios: z.ZodDefault<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        activo: boolean;
+        endpointCitas: string;
+        endpointConvenios: string;
+    }, {
+        activo?: boolean | undefined;
+        endpointCitas?: string | undefined;
+        endpointConvenios?: string | undefined;
     }>>;
     /**
      * - `apiKeyHeader`: cabecera propia con un valor fijo.
@@ -118,6 +130,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         ventanaMeses: number;
         desdeParam: string;
     } | undefined;
+    agenda?: {
+        activo: boolean;
+        endpointCitas: string;
+        endpointConvenios: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -151,6 +168,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         activo?: boolean | undefined;
         ventanaMeses?: number | undefined;
         desdeParam?: string | undefined;
+    } | undefined;
+    agenda?: {
+        activo?: boolean | undefined;
+        endpointCitas?: string | undefined;
+        endpointConvenios?: string | undefined;
     } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
@@ -186,6 +208,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         ventanaMeses: number;
         desdeParam: string;
     } | undefined;
+    agenda?: {
+        activo: boolean;
+        endpointCitas: string;
+        endpointConvenios: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -219,6 +246,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         activo?: boolean | undefined;
         ventanaMeses?: number | undefined;
         desdeParam?: string | undefined;
+    } | undefined;
+    agenda?: {
+        activo?: boolean | undefined;
+        endpointCitas?: string | undefined;
+        endpointConvenios?: string | undefined;
     } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
@@ -254,6 +286,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         ventanaMeses: number;
         desdeParam: string;
     } | undefined;
+    agenda?: {
+        activo: boolean;
+        endpointCitas: string;
+        endpointConvenios: string;
+    } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;
     authHeaderName?: string | undefined;
@@ -287,6 +324,11 @@ export declare const RestConfigSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
         activo?: boolean | undefined;
         ventanaMeses?: number | undefined;
         desdeParam?: string | undefined;
+    } | undefined;
+    agenda?: {
+        activo?: boolean | undefined;
+        endpointCitas?: string | undefined;
+        endpointConvenios?: string | undefined;
     } | undefined;
     authType?: "none" | "bearer" | "basic" | "apiKeyHeader" | "login" | undefined;
     authValue?: string | undefined;

@@ -3,7 +3,7 @@ import type { Conector, TipoConector } from '@prisma/client';
 import { conectoresRepo } from '../repositories/conectores.repo.js';
 import { BaseConnector, type ConnectionTestResult } from '../connectors/base.connector.js';
 import { SheetsConnector } from '../connectors/sheets.connector.js';
-import { RestConnector, RestConfigSchema, type TokenSessionStore } from '../connectors/rest.connector.js';
+import { RestConnector, RestConfigSchema, type RestConnectorConfig, type TokenSessionStore } from '../connectors/rest.connector.js';
 import { logger } from '../config/logger.js';
 
 // ─── Tokens de sesión de los conectores con login ─────────────────────────────
@@ -298,6 +298,21 @@ export class ConnectorService {
     }
 
     throw new Error(`Tipo de conector no soportado: ${conector.tipo}`);
+  }
+
+  /**
+   * Un conector REST con la MISMA credencial y el MISMO token que el original,
+   * pero apuntando a otro endpoint (citas, convenios).
+   *
+   * Comparte el almacén de token a propósito: Medifolios emite un solo token
+   * vigente por usuario, así que dos sesiones con la misma credencial se
+   * invalidarían entre sí (es lo que causó los 401 de la sincronización). Quien lo
+   * use debe además tomar el candado de sincronización del conector.
+   */
+  instantiateRestConCambios(conector: Conector, cambios: Partial<RestConnectorConfig>): RestConnector {
+    if (conector.tipo !== 'REST_API') throw new Error(`El conector «${conector.nombre}» no es REST`);
+    const parsed = RestConfigSchema.parse(conector.config as Record<string, unknown>);
+    return new RestConnector({ ...parsed, ...cambios, name: conector.nombre }, makeSessionStore(conector.id));
   }
 
   // ─── Test connection ──────────────────────────────────────────────────────

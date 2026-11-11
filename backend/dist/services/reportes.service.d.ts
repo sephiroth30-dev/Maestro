@@ -1,3 +1,4 @@
+import { type AgendaResultado } from './agenda-periodo.js';
 export interface KpisResult {
     facturacion_bruta: number;
     presupuesto: number;
@@ -117,6 +118,24 @@ declare class ReportesService {
         entidadId?: string;
         diaSemana?: number;
     }): Promise<ServiciosResult>;
+    /**
+     * La parte AGENDADA de la proyección: citas pendientes del periodo, valoradas
+     * con lo facturado antes. La pantalla la suma a lo ya atendido.
+     *
+     * Sigue el mismo filtro que los KPIs (mes o rango, entidad, día de la semana).
+     * Un periodo ya terminado devuelve vacío sin tocar la tabla de citas.
+     *
+     * La caché lleva `hoy` en la clave: al cambiar de día, el recorte «desde hoy»
+     * cambia y no puede servirse el de ayer.
+     */
+    getAgenda(params: {
+        mesIdx: number;
+        anio: number;
+        startDate?: string;
+        endDate?: string;
+        entidadId?: string;
+        diaSemana?: number;
+    }): Promise<AgendaResultado>;
     /**
      * Meses con datos, para el selector de Reportes.
      *

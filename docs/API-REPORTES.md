@@ -16,6 +16,31 @@ All endpoints require a valid JWT in the `Authorization: Bearer <token>` header.
 
 ---
 
+## GET /api/reportes/agenda
+
+Parte **agendada** de la proyección: citas pendientes de Medifolios con fecha **≥ hoy** (hora de
+Colombia) dentro del filtro, valoradas. Lo atendido ya lo trae `kpis`/`entidades`; la pantalla
+suma ambos (**proyectado = atendido + agendado**). Mismos parámetros que `kpis` (`mes_idx`+`anio`
+o `start_date`+`end_date`, `entidad_id`, `dia_semana`). Un periodo ya terminado devuelve la
+agenda vacía (ceros, no `undefined`). ADMISIONES queda restringido al mes en curso como en el
+resto. Caché: 60 s, con el prefijo de la fuente activa.
+
+```ts
+{
+  actualizado_en: string | null;   // ISO; última sincronización de citas CORRECTA
+  horizonte: string | null;        // YYYY-MM-DD de la última cita cargada (global, no por filtro)
+  total: { citas: number; valor: number; citas_sin_valor: number };   // suma de por_entidad
+  por_entidad: Array<{ entidad_id: string | null; entidad: string; tipo: string; citas: number;
+    valor: number; citas_sin_valor: number; promedio_3m: number | null }>;
+  por_dia: Array<{ fecha: string; citas: number; valor: number }>;
+}
+```
+
+`citas_sin_valor` cuenta las citas sin precio de referencia: **no** suman $0 al valor. Ver
+`docs/PROYECCION-AGENDA.md`.
+
+---
+
 ## GET /api/reportes/kpis
 
 Retorna KPIs del mes seleccionado.

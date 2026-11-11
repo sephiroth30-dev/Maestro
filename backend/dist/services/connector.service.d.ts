@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Conector, TipoConector } from '@prisma/client';
 import { BaseConnector, type ConnectionTestResult } from '../connectors/base.connector.js';
-import { RestConfigSchema } from '../connectors/rest.connector.js';
+import { RestConnector, RestConfigSchema, type RestConnectorConfig } from '../connectors/rest.connector.js';
 export declare const SheetsConfigSchema: z.ZodEffects<z.ZodObject<{
     spreadsheetId: z.ZodOptional<z.ZodString>;
     folderId: z.ZodOptional<z.ZodString>;
@@ -129,6 +129,16 @@ export declare class ConnectorService {
     instantiate(conector: Conector, opciones?: {
         efimero?: boolean;
     }): BaseConnector;
+    /**
+     * Un conector REST con la MISMA credencial y el MISMO token que el original,
+     * pero apuntando a otro endpoint (citas, convenios).
+     *
+     * Comparte el almacén de token a propósito: Medifolios emite un solo token
+     * vigente por usuario, así que dos sesiones con la misma credencial se
+     * invalidarían entre sí (es lo que causó los 401 de la sincronización). Quien lo
+     * use debe además tomar el candado de sincronización del conector.
+     */
+    instantiateRestConCambios(conector: Conector, cambios: Partial<RestConnectorConfig>): RestConnector;
     testConnection(conectorOrDto: Conector | CreateConnectorDto): Promise<ConnectionTestResult>;
     listSheets(conectorId: string): Promise<string[]>;
 }

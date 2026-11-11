@@ -28,10 +28,19 @@ export async function disconnectRedis(): Promise<void> {
   memCache.clear();
 }
 
+/**
+ * Las claves de los reportes llevan el prefijo de la fuente activa (`f:<id>:`),
+ * así que hay que quitárselo antes de comparar. Sin eso, con una fuente marcada
+ * esta función no borraba NADA: tras cada sincronización los reportes seguían
+ * mostrando lo anterior hasta que vencía el TTL.
+ */
+const PREFIJO_FUENTE = /^f:[^:]+:/;
+
 export function flushReportesCache(): void {
-  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:'];
+  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:', 'agenda:'];
   for (const key of memCache.keys()) {
-    if (prefixes.some((p) => key.startsWith(p))) {
+    const sinFuente = key.replace(PREFIJO_FUENTE, '');
+    if (prefixes.some((p) => sinFuente.startsWith(p))) {
       memCache.delete(key);
     }
   }

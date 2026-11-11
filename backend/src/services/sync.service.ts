@@ -6,6 +6,7 @@ import { logger } from '../config/logger.js';
 import type { DataSet } from '../connectors/base.connector.js';
 import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
 import { adquirirCandadoSync } from './sync-lock.service.js';
+import { sincronizarCitas } from './citas-sync.service.js';
 import {
   decidirModo, ventanaDesde, VENTANA_MESES_POR_DEFECTO,
   type ModoSolicitado, type ModoSync,
@@ -77,7 +78,18 @@ export class SyncService {
       const huerfanas = await conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
       if (huerfanas > 0) logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
 
-      return await this.ejecutarSync(conectorId, modo);
+      const resultado = await this.ejecutarSync(conectorId, modo);
+
+      // La agenda de citas, DENTRO del mismo candado: usa la misma credencial y el
+      // mismo token, y Medifolios invalida el anterior en cada login. Si fallara,
+      // no estropea el resultado de los consumos: tiene su propio estado.
+      try {
+        const citas = await sincronizarCitas(conectorId);
+        if (!citas.ok && !citas.omitida) logger.warn('Citas: la sincronización tras los consumos falló', { conectorId, error: citas.error });
+      } catch (err) {
+        logger.error('Citas: excepción tras la sincronización de consumos', { conectorId, error: err instanceof Error ? err.message : String(err) });
+      }
+      return resultado;
     } finally {
       await candado.liberar();
     }

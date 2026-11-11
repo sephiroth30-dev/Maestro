@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.10] - 2026-11-11
+
+### Added
+- **Proyección por agenda: backend real, y la proyección queda ENCENDIDA.** Reportes ya muestra *Atendido + Agendado = Proyectado* siguiendo todos los filtros (mes, semana, día, rango, día de la semana, entidad), por EPS y en total. Se sincronizan de Medifolios las citas **pendientes** (estado P, origen agenda, de hoy a fin del mes siguiente) con la **misma credencial y el mismo candado** que los consumos: nunca corren a la vez. Cada 15 min en horario de trabajo (lunes a sábado, 6:00–19:59, hora de Colombia) y al final de cada sincronización de consumos.
+- **Valoración de cada cita:** mediana de lo facturado por *visita* de su grupo de capacidad a su EPS en los últimos 90 días (respaldos: EPS×grupo con ≥3 casos → grupo → *sin precio*). Una cita sin precio se cuenta y se avisa; nunca suma $0. No se guardan datos de pacientes.
+- `GET /api/reportes/agenda` y tablas `citas_agendadas`, `agenda_sync`, `convenios_eps`, `agenda_backtest`.
+- **Configuración → Fuentes:** casilla *Agenda de citas* en el conector REST.
+- **Configuración → Diagnóstico → Proyección por agenda:** última sincronización, **permisos de la API** (01010202 citas; 01041504 convenios, opcional) con el mensaje de Medifolios si falta uno, citas cargadas, hasta qué fecha llega la agenda, **convenios sin EPS vinculada**, **citas sin precio**, botón *Sincronizar citas ahora* y **backtest** («Evaluar precisión del mes pasado»: valora las citas del último mes cerrado con el historial anterior y compara por EPS contra lo realmente facturado).
+- Los errores HTTP del conector REST ahora incluyen el mensaje que devuelve la API (p. ej. el 403 con el permiso que falta).
+
+### Changed
+- La sincronización de citas se reintenta como mucho cada 30 min tras un fallo (el botón del Diagnóstico lo salta); con el candado ocupado, el botón y el backtest responden 409 en vez de fingir que arrancaron ni borrar el último resultado.
+- `VITE_PROYECCION_AGENDA` pasa a **encendida por omisión** (se apaga compilando con `false`). Si la agenda no está activada, no se ha sincronizado o falló, la pantalla lo avisa.
+
+### Fixed
+- Hallazgos de la revisión independiente, todos corregidos con prueba: el cron de la agenda se cancelaba solo al programar los consumos con cualquier frecuencia distinta de «manual»; la agenda y los consumos caían en el mismo minuto y la primera en registrarse ganaba siempre el candado (ahora la agenda corre en los minutos 7, 22, 37 y 52); promesas sin captura que podían terminar el proceso; un backtest podía quedar «corriendo» para siempre; un campo anidado mal mapeado guardaba un JSON como nombre y congelaba la agenda (nombres recortados al ancho de columna y fallo explícito); un fallo del *login* con 403 se mostraba como «sin permiso 01010202»; un catálogo de convenios duplicado o vacío rompía o vaciaba el anterior; fechas con zona horaria (`Z`, `-05:00`) se leían sin convertir; una hora imposible se movía a las 00:00; con la agenda desactivada se seguían sirviendo las citas viejas.
+- `flushReportesCache` no borraba **nada** cuando había una fuente activa marcada (las claves llevan el prefijo `f:<id>:`): tras una sincronización los reportes seguían mostrando datos cacheados.
+
+### Estado
+- **Falta correrlo contra el Medifolios real.** El mapeo se escribió contra la especificación y las consultas SQL no pudieron ejecutarse en el entorno de desarrollo (sin MySQL). Se verificó la lógica con 141 pruebas, el código de producción contra un Medifolios simulado (paginación, parámetros, 403, sin re-login, sin datos de pacientes) y el navegador con API simulada. La **precisión de la valoración se desconoce** hasta correr el backtest con datos reales.
+- Ventana conocida: una cita atendida desde la última sincronización puede contarse como agendada hasta 15 min. Ver `docs/PROYECCION-AGENDA.md`.
+
+---
+
 ## [1.9.9] - 2026-11-10
 
 ### Added

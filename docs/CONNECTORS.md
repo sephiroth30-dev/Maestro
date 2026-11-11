@@ -276,6 +276,19 @@ reemplaza solo esas fechas; cada noche a las 3 a. m. (hora de Colombia) corre ad
 completa. `POST /api/connectors/:id/sync?modo=completa` fuerza una completa. Ver
 `docs/MEDIFOLIOS.md` para el detalle y las garantías.
 
+### Agenda de citas (proyección)
+
+| Campo | Para qué |
+|---|---|
+| `agenda.activo` | Activa la lectura de citas pendientes con la misma credencial y el mismo candado |
+| `agenda.endpointCitas` | Por omisión `citas/listar` (permiso **01010202**) |
+| `agenda.endpointConvenios` | Por omisión `catalogos/convenios` (permiso **01041504**, opcional: sin él la EPS se vincula por nombre) |
+
+Lo consume `citas-sync.service.ts`, no el conector: pide solo estado `P`, origen agenda, de hoy a
+fin del mes siguiente. Corre cada 15 min en horario de trabajo y al final de cada sincronización
+de consumos, siempre dentro del candado del conector. Un 403 se guarda con el mensaje de la API
+y **no** provoca un re-login. Ver `docs/PROYECCION-AGENDA.md`.
+
 ### Paginación
 
 | Campo | Para qué |

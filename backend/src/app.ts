@@ -16,6 +16,7 @@ import { registerPacientesRoutes } from './routes/pacientes.routes.js';
 import { registerUsuariosRoutes } from './routes/usuarios.routes.js';
 import { registerAuditoriaRoutes } from './routes/auditoria.routes.js';
 import { registerCapacidadRoutes } from './routes/capacidad.routes.js';
+import { registerAgendaRoutes } from './routes/agenda.routes.js';
 import { registerReglasHonorariosRoutes } from './controllers/reglas-honorarios.controller.js';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -128,6 +129,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerUsuariosRoutes(fastify);
   await registerAuditoriaRoutes(fastify);
   await registerCapacidadRoutes(fastify);
+  await registerAgendaRoutes(fastify);
   await registerReglasHonorariosRoutes(fastify);
 
   // ─── Static frontend (production) / JSON 404 (development) ───────────────

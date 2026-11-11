@@ -167,7 +167,7 @@ export function hashFila(fields: {
 
 // ─── Entity/Professional resolution cache ─────────────────────────────────────
 
-interface ResolverCache {
+export interface ResolverCache {
   entidades: Array<{ id: string; nombres: string[] }>;
   profesionales: Array<{ id: string; nombres: string[]; especialidad: string | null }>;
   servicios: Array<{ id: string; nombre: string; palabrasClave: string[] }>;
@@ -175,7 +175,7 @@ interface ResolverCache {
   specialtyUpgrade: Map<string, { NEUROLOGIA: string | null; FISIATRIA: string | null; PEDIATRIA: string | null }>;
 }
 
-async function buildCache(): Promise<ResolverCache> {
+export async function buildCache(): Promise<ResolverCache> {
   const [[entidadRows], [profesionalRows]] = await Promise.all([
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw FROM entidades WHERE activa = 1'),
     pool.query<RowDataPacket[]>('SELECT id, nombres_raw, especialidad FROM profesionales WHERE activo = 1'),
@@ -238,7 +238,7 @@ async function buildCache(): Promise<ResolverCache> {
   };
 }
 
-function resolveServicioId(
+export function resolveServicioId(
   descripcionNorm: string,
   catalog: Array<{ id: string; nombre: string; palabrasClave: string[] }>,
   profesionalEspecialidad: string | null,
@@ -263,7 +263,7 @@ function resolveServicioId(
   return null;
 }
 
-function resolveId(
+export function resolveId(
   rawName: string | null | undefined,
   catalog: Array<{ id: string; nombres: string[] }>
 ): string | null {

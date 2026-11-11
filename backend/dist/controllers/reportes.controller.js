@@ -168,6 +168,36 @@ async function registerReportesController(fastify) {
         const meses = await reportes_service_js_1.reportesService.getMesesDisponibles();
         return reply.send(meses);
     });
+    /**
+     * GET /api/reportes/agenda
+     *
+     * La parte AGENDADA de la proyección (citas pendientes valoradas con lo
+     * facturado antes). Mismos parámetros que /kpis para que la proyección siga el
+     * filtro aplicado. Devuelve solo lo agendado: lo atendido ya lo tiene la pantalla.
+     *
+     * ADMISIONES queda atado al mes en curso, como en los demás endpoints.
+     */
+    fastify.get('/api/reportes/agenda', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (request, reply) => {
+        const parsed = kpisQuerySchema.safeParse(request.query);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Bad Request',
+                message: parsed.error.issues.map((i) => i.message).join(', '),
+                statusCode: 400,
+            });
+        }
+        const userRol = request.user?.rol ?? '';
+        const { mes_idx, anio, start_date, end_date } = enforceAdmisionesPeriod(userRol, parsed.data);
+        const result = await reportes_service_js_1.reportesService.getAgenda({
+            mesIdx: mes_idx,
+            anio,
+            startDate: start_date,
+            endDate: end_date,
+            entidadId: parsed.data.entidad_id,
+            diaSemana: parsed.data.dia_semana,
+        });
+        return reply.send(result);
+    });
     // GET /api/reportes/entidades
     fastify.get('/api/reportes/entidades', { preHandler: [auth_middleware_js_1.requireAuth, (0, rbac_middleware_js_1.requireRole)(...REPORTES_ROLES)] }, async (request, reply) => {
         const parsed = mesAnioDateSchema.safeParse(request.query);

@@ -3,7 +3,7 @@ id: reportes
 titulo: Reportes
 modulo: reportes
 orden: 40
-claves: facturacion, filtros, entidad, eps, servicio, dia de la semana, rango de fechas, detalle, comparar, comparacion, año anterior, interanual, variacion, meses
+claves: proyeccion, agenda, citas agendadas, agendado, proyectado, facturacion, filtros, entidad, eps, servicio, dia de la semana, rango de fechas, detalle, comparar, comparacion, año anterior, interanual, variacion, meses
 ---
 
 ## Para qué sirve
@@ -91,6 +91,35 @@ No hay un panel de filtros: **se filtra pulsando sobre las propias gráficas y t
 
 Los filtros activos salen como etiquetas de colores bajo el encabezado. Se acumulan, y
 cada uno se quita con su **X**.
+
+## Proyección: lo atendido + lo agendado
+
+La ficha **Facturación Bruta** y la tabla por entidad no solo dicen cuánto **se ha facturado**,
+sino cuánto **se va a facturar** si se atienden las citas que ya están asignadas:
+
+**Proyectado = Atendido (facturado) + Agendado (citas pendientes de hoy en adelante)**
+
+Sigue **todos los filtros**: mes, semana, día, rango, día de la semana y entidad. En la tabla por
+entidad aparecen las columnas **Agendado**, **Proyectado** y **vs prom. 3 meses**, que compara
+cada EPS con su propia facturación media de los últimos 3 meses cerrados (colores neutros: estar
+por encima no es «malo»; lo decide quien lee).
+
+Para decidir cuántas citas dar a cada EPS, este número **informa, no decide**: no hay topes ni
+calificaciones cargadas en el sistema.
+
+Cómo leerla con criterio:
+
+- **Es una estimación.** Cada cita se valora con la mediana de lo facturado por visita de ese
+  tipo de servicio y esa EPS en los últimos 90 días. No es el valor que se cobrará.
+- **Es un piso.** Solo cuenta lo que ya está en la agenda; si la agenda llega hasta mediados de
+  mes, lo posterior no está. La pantalla avisa («agenda cargada solo hasta…»).
+- **Las citas sin precio de referencia no valen $0:** se cuentan y se avisan aparte.
+- Un mes o una semana **ya pasados** no tienen agenda; el modo **Año** no la lleva.
+- La agenda se actualiza cada 15 minutos en horario de trabajo. Si no se ha sincronizado, está
+  vieja o falló, la ficha lo dice en vez de mostrar un proyectado engañosamente bajo.
+
+Un administrador revisa que todo funcione en **Configuración → Diagnóstico → Proyección por
+agenda** (permisos de la API, citas cargadas, convenios sin EPS y la precisión del método).
 
 ## Las tablas
 

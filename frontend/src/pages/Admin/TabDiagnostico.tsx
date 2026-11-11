@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Loader2, AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useDiagnostico } from '../../api/reportes.js';
 import type { DiagnosticoRow } from '../../api/reportes.js';
+import { PROYECCION_AGENDA } from '../../config/features.js';
+import SeccionAgenda from './SeccionAgenda.js';
 
 const MESES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -55,6 +57,7 @@ export default function TabDiagnostico(): React.ReactElement {
 
   return (
     <div>
+      {PROYECCION_AGENDA && <SeccionAgenda />}
       <div className="entidades-config-banner" style={{ background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}>
         <CheckCircle size={14} />
         <span>

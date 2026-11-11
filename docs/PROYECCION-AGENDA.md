@@ -1,8 +1,29 @@
 # Proyección por agenda: lo atendido + lo agendado
 
-> **Estado: la parte visual está hecha y desplegada APAGADA. El backend no existe todavía.**
-> Se enciende con `VITE_PROYECCION_AGENDA=true` (ver `docs/ENV.md`) cuando existan
-> `GET /api/reportes/agenda` y la sincronización de citas.
+> **Estado (v1.9.10): parte visual + backend completos y ENCENDIDOS por omisión.**
+> Falta lo único que este entorno no podía comprobar: **correrlo contra el Medifolios real**. El mapeo se
+> escribió contra la especificación y las consultas SQL nunca se ejecutaron en el entorno de desarrollo (no
+> hay MySQL). La verdadera prueba es el primer día en producción: **Configuración → Diagnóstico → Proyección
+> por agenda** dice si funcionó (ver «Puesta en marcha»).
+>
+> Para apagarla: compilar el frontend con `VITE_PROYECCION_AGENDA=false` (ver `docs/ENV.md`).
+
+## Puesta en marcha (una sola vez)
+
+1. **Configuración → Fuentes → editar el conector de Medifolios → marcar «Agenda de citas»** y guardar. Sin esta
+   casilla no se sincroniza ninguna cita y la pantalla lo avisa.
+2. El usuario de la API necesita el permiso **01010202** (citas). Opcionalmente **01041504** (convenios): si falta,
+   la EPS de cada cita se vincula por el **nombre del convenio** contra los alias de Entidades.
+3. **Configuración → Diagnóstico → Proyección por agenda:** pulsar **«Sincronizar citas ahora»** (~1 minuto) y
+   revisar: permisos (si falta uno sale el mensaje de Medifolios), citas cargadas, hasta qué fecha llega la agenda,
+   **convenios sin EPS vinculada** (agregar su nombre como alias de la entidad correcta) y **citas sin precio**.
+4. Pulsar **«Evaluar precisión del mes pasado»** (backtest, unos minutos). **No fiarse de la cifra antes de ver
+   ese resultado.**
+
+Se usa la **misma credencial** que los consumos, con el **mismo candado** (`sync-lock.core.ts`): la sincronización
+de citas nunca corre a la vez que la de consumos ni que el backtest, porque Medifolios da un solo token por
+usuario. Un 403 **no** reautentica (no es un token caducado y reautenticar invalidaría el token de la otra
+sincronización).
 
 ## Para qué sirve
 
@@ -98,7 +119,10 @@ cuando: la consulta **falla**; la agenda **nunca se ha sincronizado** (`actualiz
 cargadas** (`horizonte` nulo); se sincronizó **hace más de 6 h**; o **no cubre todo el periodo**. Y avisa de las
 **citas sin precio de referencia**: no se cuentan como cero en silencio.
 
-## Contrato del endpoint (a construir)
+## Contrato del endpoint (`GET /api/reportes/agenda`, implementado)
+
+Código: `reportes.controller.ts` → `reportes.service.ts#getAgenda` → `agenda.repo.ts` y `agenda-periodo.ts`
+(lógica pura: `periodoDeAgenda`, `armarAgenda`). Caché de 60 s con el prefijo de la fuente activa.
 
 `GET /api/reportes/agenda`, con **los mismos parámetros que `/api/reportes/kpis`** (`mes_idx`+`anio` o
 `start_date`+`end_date`, `entidad_id`, `dia_semana`). Devuelve **solo la parte agendada**: lo atendido ya lo
@@ -147,27 +171,58 @@ Tipos en `frontend/src/api/reportes.ts` (`AgendaResult`, `useAgenda`).
   (`citas_agendadas`); las pantallas leen de ahí con la caché de 60 s de los reportes.
 - Solo se piden las citas **P de agenda**, de hoy a fin del mes siguiente (sin históricas, canceladas ni
   imagenología): cientos o pocos miles de filas, ~15 páginas, **cerca de un minuto** (referencia: 4,3 s por
-  página en consumos). Cada 30 min en horario de trabajo y tras cada sincronización de consumos; reemplazo
-  completo en una transacción.
+  página en consumos). **Cada 15 min en horario de trabajo** (lunes a sábado, 6:00–19:59, hora de Colombia; en los
+  minutos 7, 22, 37 y 52 para no coincidir con los consumos, que usan el 0 y el 30) y
+  **al final de cada sincronización de consumos**; reemplazo completo en una transacción. Al arrancar el
+  servidor, si la agenda lleva más de 30 min sin sincronizarse, se sincroniza de inmediato.
+- **Si falla, no se pierde lo último bueno:** un 403, un error de red o un resultado sospechoso (0 citas, o
+  ninguna válida) se guardan en `agenda_sync.error` y **no** vacían `citas_agendadas`. La pantalla avisa de que
+  la agenda está desactualizada.
+- **Un fallo persistente no se reintenta sin freno:** tras un error, el cron y la sincronización de consumos esperan
+  30 min; el botón «Sincronizar citas ahora» lo salta. Si el botón o el backtest encuentran el candado ocupado,
+  responden «ya hay una sincronización en curso» (409) y **no tocan** el último resultado guardado.
+- **Un campo mal mapeado falla en voz alta:** si las citas llegan sin nombre de convenio o de procedimiento (la API
+  llama distinto a un campo anidado), la sincronización **no guarda** y avisa en Diagnóstico, en vez de dejar todas
+  las citas sin EPS con un «ok» engañoso. Un catálogo de convenios vacío tampoco reemplaza al anterior.
+- **Desactivar «Agenda de citas»** hace que el endpoint deje de servir las citas guardadas (quedarían viejas).
+- Un backtest «corriendo» de más de 30 min se muestra como interrumpido (el servidor se reinició a mitad).
 - **No se guardan datos de pacientes**: para proyectar no hacen falta.
-- **Riesgo clave: un solo token por usuario** (la causa de los 401 de la sincronización). La de citas no puede
-  correr a la vez que la de consumos con el mismo usuario. **Recomendado: un segundo usuario de API solo para la
-  agenda** (permiso 01010202). Alternativa: misma credencial y **el mismo candado** (`sync-lock.core.ts`).
+- **Riesgo clave: un solo token por usuario** (la causa de los 401 de la sincronización). Se resolvió con la misma
+  credencial y **el mismo candado**. Si algún día la carga molesta, la alternativa es un segundo usuario de API
+  solo para la agenda (permiso 01010202).
+- **Con la misma credencial, pulsar «Probar» en Fuentes mientras corre una sincronización invalida su token**
+  (ya ocurría con los consumos; ahora hay más sincronizaciones y queda más a la vista).
+
+### Ventana de doble conteo (≤ 15 min)
+
+Una cita que se atiende deja de estar «pendiente» en la siguiente vuelta. Entre que se atiende y esa vuelta
+(hasta 15 min), su consumo ya puede estar facturado **y** la cita contarse aún como agendada. Es una ventana
+conocida y pequeña; por eso la cadencia es corta. No se intenta «descontar» a mano.
 
 ## Qué falta (por fases)
 
 | Fase | Qué | Estado |
 |---|---|---|
-| 0 | Parte visual, con cifras de ejemplo | **Hecha**, desplegada apagada |
-| 1 | Tabla `citas_agendadas`, sincronización de citas, valoración y **backtest** en Diagnóstico | Pendiente. **Parada:** el usuario revisa la precisión con sus datos reales |
-| 2 | Endpoint `GET /api/reportes/agenda`; encender `VITE_PROYECCION_AGENDA` | Pendiente |
+| 0 | Parte visual, con cifras de ejemplo | **Hecha** (v1.9.9) |
+| 1 | Tablas `citas_agendadas`, `agenda_sync`, `convenios_eps`, `agenda_backtest`; sincronización de citas, valoración, backtest y Diagnóstico | **Hecha** (v1.9.10). **Falta correrla contra Medifolios real** |
+| 2 | Endpoint `GET /api/reportes/agenda`; encendida por omisión | **Hecha** (v1.9.10) |
 | 3 | Opcional: ajuste por inasistencia (`I/(C+I)`), cupos libres (`L`), ver el mes siguiente en el selector | Si se pide |
+| 4 | Opcional: si Medifolios expone un tope por contrato (`valorControlContrato` / `controlValor` en convenios, **sin confirmar**), mostrarlo junto al proyectado. Hoy no se usa: el usuario dijo que no hay topes formales | Solo si el usuario lo pide |
 
-### El backtest (cómo se sabrá si sirve)
+### El backtest (cómo se sabe si sirve)
 
-Con las citas del mes pasado (todos los estados), reconstruir lo que se habría proyectado el día 10 y
-compararlo con lo realmente facturado, **por EPS**. Se publica el error en Diagnóstico. **La precisión no se
-conoce todavía**: depende de este paso.
+Botón **«Evaluar precisión del mes pasado»** en Diagnóstico (`agenda-backtest.service.ts`, con el candado). Toma
+las citas del **último mes cerrado** en estados **C** (cumplida) e **I** (incumplida), las **valora con el
+historial anterior a ese mes** (sin fuga de datos) y compara, **por EPS**, lo estimado de las cumplidas contra lo
+realmente facturado:
+
+- **Cobertura = estimado ÷ real.** Es normal que quede algo por debajo de 100 %: lo facturado incluye atenciones
+  que no nacen de una cita (sin agendar, ajustes). Lo que importa es que sea **estable y parecida entre EPS**: una
+  EPS en 40 % mientras las demás están en 90 % es la que está mal valorada.
+- **Inasistencia = I ÷ (C + I)** por EPS (información para decidir; no se aplica a la proyección).
+- **Mide la valoración** (cuánto vale una cita), **no** si las citas se agendaron bien ni cuántas se cumplirán.
+
+La precisión **no se conoce todavía**: depende de correrlo con datos reales.
 
 ### Para escribir el mapeo sobre campos reales
 

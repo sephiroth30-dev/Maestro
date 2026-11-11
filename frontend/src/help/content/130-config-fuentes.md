@@ -91,6 +91,12 @@ Además de hojas de cálculo, una fuente puede ser una **API**. El formulario pi
   *Meses a refrescar* = 2 es el mes actual y el anterior. Cada noche, a las 3 a. m., se hace
   además una sincronización **completa** que corrige lo que haya cambiado fuera de esa
   ventana. En la tarjeta aparece entonces un botón **Completa** para lanzarla a mano.
+- **Agenda de citas** — además de los consumos, lee las citas **pendientes** de Medifolios con
+  la misma credencial para proyectar lo que se va a facturar. Se sincroniza cada 15 minutos
+  en horario de trabajo y **nunca a la vez** que los consumos. El usuario de la API necesita el
+  permiso **01010202** (y, opcional, **01041504** para vincular la EPS; sin él se vincula por el
+  nombre del convenio). El resultado se revisa en **Configuración → Diagnóstico → Proyección por
+  agenda**, donde también está el botón **Sincronizar citas ahora**.
 - **Correspondencia de campos** — cómo se llama cada dato en la respuesta. Admite **rutas
   con punto** (`eps.nomEps`) para cuando el dato viene dentro de otro objeto.
 

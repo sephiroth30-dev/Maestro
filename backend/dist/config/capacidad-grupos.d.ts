@@ -48,6 +48,14 @@ export declare const GRUPOS_CAPACIDAD: GrupoCapacidad[];
 /** Tabla derivada con un renglón por grupo: `grupo`, `nombre`, `base_def`. */
 export declare function sqlCatalogoGrupos(): string;
 /**
+ * Los grupos en el orden en que se EVALÚAN: menor prioridad primero y, a igual
+ * prioridad, el de la lista. Lo usan tanto el `CASE` de SQL como
+ * `grupoDeNombre`, a propósito: si cada uno calculara su propio orden, un grupo
+ * nuevo con `prioridad` los separaría y el mismo servicio caería en grupos
+ * distintos según se clasificara en la base o en memoria.
+ */
+export declare const GRUPOS_ORDENADOS: GrupoCapacidad[];
+/**
  * `CASE` que traduce el nombre del servicio a su grupo, o NULL si no encaja en
  * ninguno. `col` es la columna a inspeccionar, p. ej. `sv.nombre`.
  */
@@ -56,4 +64,9 @@ export declare function sqlClasificacionGrupo(col: string): string;
 export declare function sqlOrdenGrupos(col: string): string;
 /** Base por omisión de cada grupo, para resolver en memoria. */
 export declare const BASE_POR_GRUPO: Record<string, BaseConteo>;
+/**
+ * Grupo de capacidad de un servicio según su nombre, o `null` si no encaja en
+ * ninguno. Equivale al `CASE` de `sqlClasificacionGrupo`.
+ */
+export declare function grupoDeNombre(nombre: string | null | undefined): string | null;
 //# sourceMappingURL=capacidad-grupos.d.ts.map

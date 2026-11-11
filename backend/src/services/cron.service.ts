@@ -3,6 +3,9 @@ import { conectoresRepo } from '../repositories/conectores.repo.js';
 import { syncService } from './sync.service.js';
 import { logger } from '../config/logger.js';
 import type { Conector } from '@prisma/client';
+import { sincronizarCitasConCandado, agendaActiva } from './citas-sync.service.js';
+import { enHorarioLaboral } from './agenda-ventana.js';
+import { leerEstadoSync } from '../repositories/agenda.repo.js';
 
 // ─── Schedule map ─────────────────────────────────────────────────────────────
 
@@ -37,8 +40,10 @@ export function scheduleConnector(
   cronExpression: string,
   opciones: { incremental?: boolean } = {},
 ): void {
-  // Cancel existing task for this connector (la normal y la completa nocturna)
-  unscheduleConnector(conectorId);
+  // Cancela la tarea anterior de este conector (la normal y la completa nocturna).
+  // NO toca la de la agenda: es independiente, y cancelarla aquí la dejaba muerta
+  // en cuanto el conector tuviera una frecuencia distinta de «manual».
+  detenerTareas([conectorId, claveCompleta(conectorId)]);
 
   if (!cron.validate(cronExpression)) {
     logger.warn('Invalid cron expression', { conectorId, cronExpression });
@@ -111,14 +116,60 @@ export function scheduleConnector(
   });
 }
 
-export function unscheduleConnector(conectorId: string): void {
-  for (const clave of [conectorId, claveCompleta(conectorId)]) {
+const claveAgenda = (conectorId: string): string => `${conectorId}:agenda`;
+
+/** Cada cuánto se sincronizan las citas (L–S, de 6:00 a 19:59, hora de Colombia). */
+// Minutos 7, 22, 37 y 52, y NO «*/15»: los consumos se programan en el minuto 0 y 30
+// (cada 30 min, hora, 4 h, día). Si coincidieran en el mismo segundo, el primero en
+// registrarse ganaría SIEMPRE el candado y los consumos no se sincronizarían en todo
+// el horario de trabajo.
+export const CRON_AGENDA = '7,22,37,52 * * * *';
+
+/**
+ * Programa la sincronización de las citas pendientes. Es INDEPENDIENTE de la
+ * frecuencia del conector (un conector «manual» también puede tener agenda): lo
+ * que se agenda cambia durante el día aunque los consumos se carguen una vez.
+ *
+ * Todos los procesos del servidor programan el mismo cron; el candado del
+ * conector hace que solo uno trabaje y los demás se aparten sin fallar.
+ */
+export function scheduleAgenda(conectorId: string, nombre: string): void {
+  const previa = scheduledTasks.get(claveAgenda(conectorId));
+  if (previa) { previa.stop(); scheduledTasks.delete(claveAgenda(conectorId)); }
+
+  const task = cron.schedule(
+    CRON_AGENDA,
+    async () => {
+      // Fuera de horario la agenda no cambia de forma que importe; sincronizar toda
+      // la noche solo cargaría a Medifolios.
+      if (!enHorarioLaboral(new Date())) return;
+      try {
+        const r = await sincronizarCitasConCandado(conectorId);
+        if (r.omitida) logger.info('Cron de citas omitido', { conectorId, motivo: r.motivo });
+        else if (!r.ok) logger.warn('Cron de citas falló', { conectorId, error: r.error });
+      } catch (err) {
+        logger.error('Cron de citas lanzó una excepción', { conectorId, error: err instanceof Error ? err.message : 'unknown' });
+      }
+    },
+    { timezone: 'America/Bogota' },
+  );
+  scheduledTasks.set(claveAgenda(conectorId), task);
+  logger.info('Agenda de citas programada', { conectorId, nombre, cronExpression: CRON_AGENDA });
+}
+
+function detenerTareas(claves: string[]): void {
+  for (const clave of claves) {
     const task = scheduledTasks.get(clave);
     if (task) {
       task.stop();
       scheduledTasks.delete(clave);
     }
   }
+}
+
+/** Detiene TODO lo programado de un conector: consumos, completa nocturna y agenda. */
+export function unscheduleConnector(conectorId: string): void {
+  detenerTareas([conectorId, claveCompleta(conectorId), claveAgenda(conectorId)]);
 }
 
 const CATCH_UP_INTERVAL_MS: Partial<Record<string, number>> = {
@@ -161,11 +212,35 @@ async function catchUpSyncs(activos: Conector[]): Promise<void> {
   }
 }
 
+/**
+ * Al arrancar: si la agenda lleva más de 30 minutos sin sincronizarse (o nunca),
+ * se sincroniza ya. Sin esto, tras un despliegue la agenda quedaría vieja hasta el
+ * siguiente cuarto de hora, o hasta la mañana siguiente si se despliega de noche.
+ */
+async function catchUpAgenda(activos: Conector[]): Promise<void> {
+  if (!enHorarioLaboral(new Date())) return;
+  for (const conector of activos) {
+    if (!agendaActiva(conector)) continue;
+    try {
+      const estado = await leerEstadoSync(conector.id);
+      const ok = estado?.ultimaOk ? Date.parse(`${estado.ultimaOk.replace(' ', 'T')}Z`) : null;
+      if (ok === null || Date.now() - ok > 30 * 60_000) {
+        logger.info('Catch-up: agenda de citas desactualizada, sincronizando', { id: conector.id });
+        void sincronizarCitasConCandado(conector.id).catch((e: unknown) =>
+          logger.warn('Catch-up de la agenda: la sincronización lanzó una excepción', { id: conector.id, error: e instanceof Error ? e.message : String(e) }));
+      }
+    } catch (err) {
+      logger.warn('Catch-up de la agenda falló', { id: conector.id, error: err instanceof Error ? err.message : 'unknown' });
+    }
+  }
+}
+
 export async function initCron(): Promise<void> {
   logger.info('Initializing cron service');
   try {
     const activos = await conectoresRepo.findAllActive();
     for (const conector of activos) {
+      if (agendaActiva(conector)) scheduleAgenda(conector.id, conector.nombre);
       if (conector.frecuenciaSync === 'manual') continue;
       const cronExpr = CRON_SCHEDULES[conector.frecuenciaSync as FrecuenciaSync];
       if (!cronExpr) {
@@ -176,6 +251,7 @@ export async function initCron(): Promise<void> {
     }
     logger.info('Cron jobs scheduled', { count: scheduledTasks.size });
     await catchUpSyncs(activos);
+    await catchUpAgenda(activos);
   } catch (err) {
     logger.error('Failed to initialize cron jobs', { error: err instanceof Error ? err.message : 'unknown' });
   }

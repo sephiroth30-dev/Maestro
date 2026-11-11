@@ -207,6 +207,18 @@ ningún aviso.
 > por omisión (`maxPaginas`). Si el histórico sigue creciendo, esa completa fallará con un
 > aviso claro en vez de guardar a medias; entonces hay que subir el tope en el formulario.
 
+## Citas pendientes (proyección por agenda)
+
+Además de `/consumos/buscar`, el mismo conector puede leer `GET /citas/listar` (permiso **01010202**)
+y `GET /catalogos/convenios` (permiso **01041504**) para proyectar lo que se va a facturar. Se
+pide solo `estadoCita=P`, sin canceladas ni imagenología, de hoy a fin del mes siguiente, con
+el mismo token y el mismo candado que los consumos (un solo token por usuario). No se guardan
+datos de pacientes. Detalle, permisos, puesta en marcha y límites en `docs/PROYECCION-AGENDA.md`.
+
+> **Lo que la especificación no dice y solo los datos reales confirman:** el formato exacto de
+> `fechaInicioCita` (se toleran `YYYY-MM-DD HH:MM:SS`, ISO y `DD/MM/YYYY`), cuántas citas
+> pendientes hay y que el `nomReferencia` de las citas se clasifique como el de los consumos.
+
 ## Referencias
 
 - Swagger: `https://balanceo-reportes.medifolios.net/API_DOCS/`

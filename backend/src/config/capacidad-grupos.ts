@@ -172,14 +172,23 @@ export function sqlCatalogoGrupos(): string {
 }
 
 /**
+ * Los grupos en el orden en que se EVALÚAN: menor prioridad primero y, a igual
+ * prioridad, el de la lista. Lo usan tanto el `CASE` de SQL como
+ * `grupoDeNombre`, a propósito: si cada uno calculara su propio orden, un grupo
+ * nuevo con `prioridad` los separaría y el mismo servicio caería en grupos
+ * distintos según se clasificara en la base o en memoria.
+ */
+export const GRUPOS_ORDENADOS: GrupoCapacidad[] = [...GRUPOS_CAPACIDAD]
+  .map((g, i) => ({ g, i }))
+  .sort((a, b) => (a.g.prioridad ?? 50) - (b.g.prioridad ?? 50) || a.i - b.i)
+  .map(({ g }) => g);
+
+/**
  * `CASE` que traduce el nombre del servicio a su grupo, o NULL si no encaja en
  * ninguno. `col` es la columna a inspeccionar, p. ej. `sv.nombre`.
  */
 export function sqlClasificacionGrupo(col: string): string {
-  const ordenados = [...GRUPOS_CAPACIDAD]
-    .map((g, i) => ({ g, i }))
-    .sort((a, b) => (a.g.prioridad ?? 50) - (b.g.prioridad ?? 50) || a.i - b.i)
-    .map(({ g }) => g);
+  const ordenados = GRUPOS_ORDENADOS;
 
   const ramas = ordenados.map((g) => {
     const cond = g.patrones.map((p) => `${col} LIKE ${lit(p)}`).join(' OR ');
@@ -197,3 +206,45 @@ export function sqlOrdenGrupos(col: string): string {
 export const BASE_POR_GRUPO: Record<string, BaseConteo> = Object.fromEntries(
   GRUPOS_CAPACIDAD.map((g) => [g.grupo, g.base]),
 );
+
+// ─── Clasificación en memoria ─────────────────────────────────────────────────
+//
+// Existe porque a una CITA hay que asignarle su grupo en JavaScript (todavía no
+// es una fila de `atenciones` con `servicio_id`), con las MISMAS reglas que usa
+// el `CASE` de arriba para las atenciones ya facturadas.
+//
+// El `LIKE` de MySQL con `utf8mb4_unicode_ci` ignora mayúsculas Y TILDES, así que
+// «ELECTROMIOGRAFÍA» casa con `ELECTROMIOGRAFIA%` en la base. La versión en
+// memoria normaliza igual; sin eso, el mismo servicio quedaría clasificado en
+// SQL y sin clasificar aquí.
+
+function normalizarParaLike(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+}
+
+/** `%` = cualquier secuencia, `_` = un carácter, como en `LIKE`. */
+function likeARegex(patron: string): RegExp {
+  const esc = normalizarParaLike(patron)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/%/g, '.*')
+    .replace(/_/g, '.');
+  return new RegExp(`^${esc}$`, 's');
+}
+
+const REGEX_POR_GRUPO: Array<{ grupo: string; regex: RegExp[] }> = GRUPOS_ORDENADOS.map((g) => ({
+  grupo: g.grupo,
+  regex: g.patrones.map(likeARegex),
+}));
+
+/**
+ * Grupo de capacidad de un servicio según su nombre, o `null` si no encaja en
+ * ninguno. Equivale al `CASE` de `sqlClasificacionGrupo`.
+ */
+export function grupoDeNombre(nombre: string | null | undefined): string | null {
+  if (!nombre) return null;
+  const n = normalizarParaLike(nombre);
+  for (const { grupo, regex } of REGEX_POR_GRUPO) {
+    if (regex.some((r) => r.test(n))) return grupo;
+  }
+  return null;
+}

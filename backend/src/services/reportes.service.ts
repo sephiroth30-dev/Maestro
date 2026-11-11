@@ -2,6 +2,13 @@ import { getRedisClient } from '../config/redis.js';
 import { logger } from '../config/logger.js';
 import * as repo from '../repositories/reportes.repo.js';
 import { fuenteActivaId } from './fuente-activa.service.js';
+import * as agendaRepo from '../repositories/agenda.repo.js';
+import { conectoresRepo } from '../repositories/conectores.repo.js';
+import { agendaActiva } from './citas-sync.service.js';
+import {
+  periodoDeAgenda, mesesCerradosPrevios, armarAgenda, agendaVacia, type AgendaResultado,
+} from './agenda-periodo.js';
+import { hoyEnBogota } from './agenda-ventana.js';
 
 // Colombia is UTC-5 with no DST. All "today" logic must use Colombia time,
 // not the UTC clock of the Hostinger server.
@@ -622,6 +629,56 @@ class ReportesService {
 
     if (!entidadId && diaSemana === undefined) await cacheSet(cacheKey, result, TTL_REPORTES);
     return result;
+  }
+
+  /**
+   * La parte AGENDADA de la proyección: citas pendientes del periodo, valoradas
+   * con lo facturado antes. La pantalla la suma a lo ya atendido.
+   *
+   * Sigue el mismo filtro que los KPIs (mes o rango, entidad, día de la semana).
+   * Un periodo ya terminado devuelve vacío sin tocar la tabla de citas.
+   *
+   * La caché lleva `hoy` en la clave: al cambiar de día, el recorte «desde hoy»
+   * cambia y no puede servirse el de ayer.
+   */
+  async getAgenda(params: {
+    mesIdx: number;
+    anio: number;
+    startDate?: string;
+    endDate?: string;
+    entidadId?: string;
+    diaSemana?: number;
+  }): Promise<AgendaResultado> {
+    const hoy = hoyEnBogota(new Date());
+    const cacheKey = `agenda:${params.mesIdx}:${params.anio}:${params.startDate ?? ''}:${params.endDate ?? ''}:${params.entidadId ?? ''}:${params.diaSemana ?? ''}:${hoy}`;
+    const cached = await cacheGet<AgendaResultado>(cacheKey);
+    if (cached) return cached;
+
+    // Con la agenda desactivada (o el conector borrado) las citas guardadas quedan
+    // viejas y se seguirían sirviendo como si fueran actuales: se tratan como «sin agenda».
+    const activos = await conectoresRepo.findAllActive();
+    const hayAgenda = activos.some((c) => agendaActiva(c));
+
+    const [estado, horizonte] = await Promise.all([agendaRepo.leerEstadoSync(), agendaRepo.horizonteAgenda()]);
+    const rango = periodoDeAgenda(params, hoy);
+
+    let resultado: AgendaResultado;
+    if (!hayAgenda) {
+      resultado = agendaVacia(null, null);
+    } else if (!rango) {
+      resultado = agendaVacia(horizonte, estado?.ultimaOk ?? null);
+    } else {
+      const filtro = { ...rango, entidadId: params.entidadId, diaSemana: params.diaSemana };
+      const [porEntidad, porDia, promedios] = await Promise.all([
+        agendaRepo.agendaPorEntidad(filtro),
+        agendaRepo.agendaPorDia(filtro),
+        agendaRepo.promedio3Meses(mesesCerradosPrevios(hoy)),
+      ]);
+      resultado = armarAgenda(porEntidad, porDia, promedios, horizonte, estado?.ultimaOk ?? null);
+    }
+
+    await cacheSet(cacheKey, resultado, TTL_REPORTES);
+    return resultado;
   }
 
   /**

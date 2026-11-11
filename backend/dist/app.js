@@ -22,6 +22,7 @@ const pacientes_routes_js_1 = require("./routes/pacientes.routes.js");
 const usuarios_routes_js_1 = require("./routes/usuarios.routes.js");
 const auditoria_routes_js_1 = require("./routes/auditoria.routes.js");
 const capacidad_routes_js_1 = require("./routes/capacidad.routes.js");
+const agenda_routes_js_1 = require("./routes/agenda.routes.js");
 const reglas_honorarios_controller_js_1 = require("./controllers/reglas-honorarios.controller.js");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const APP_VERSION = require('../../package.json').version;
@@ -122,6 +123,7 @@ async function buildApp() {
     await (0, usuarios_routes_js_1.registerUsuariosRoutes)(fastify);
     await (0, auditoria_routes_js_1.registerAuditoriaRoutes)(fastify);
     await (0, capacidad_routes_js_1.registerCapacidadRoutes)(fastify);
+    await (0, agenda_routes_js_1.registerAgendaRoutes)(fastify);
     await (0, reglas_honorarios_controller_js_1.registerReglasHonorariosRoutes)(fastify);
     // ─── Static frontend (production) / JSON 404 (development) ───────────────
     const frontendReady = env_js_1.env.NODE_ENV === 'production' && fs_1.default.existsSync(path_1.default.join(FRONTEND_DIST, 'index.html'));

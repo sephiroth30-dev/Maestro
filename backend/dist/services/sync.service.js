@@ -7,6 +7,7 @@ const redis_js_1 = require("../config/redis.js");
 const logger_js_1 = require("../config/logger.js");
 const sheet_atencion_mapper_js_1 = require("./sheet-atencion-mapper.js");
 const sync_lock_service_js_1 = require("./sync-lock.service.js");
+const citas_sync_service_js_1 = require("./citas-sync.service.js");
 const sync_incremental_js_1 = require("./sync-incremental.js");
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 const FRECUENCIA_TTL = {
@@ -52,7 +53,19 @@ class SyncService {
             const huerfanas = await conectores_repo_js_1.conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
             if (huerfanas > 0)
                 logger_js_1.logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
-            return await this.ejecutarSync(conectorId, modo);
+            const resultado = await this.ejecutarSync(conectorId, modo);
+            // La agenda de citas, DENTRO del mismo candado: usa la misma credencial y el
+            // mismo token, y Medifolios invalida el anterior en cada login. Si fallara,
+            // no estropea el resultado de los consumos: tiene su propio estado.
+            try {
+                const citas = await (0, citas_sync_service_js_1.sincronizarCitas)(conectorId);
+                if (!citas.ok && !citas.omitida)
+                    logger_js_1.logger.warn('Citas: la sincronización tras los consumos falló', { conectorId, error: citas.error });
+            }
+            catch (err) {
+                logger_js_1.logger.error('Citas: excepción tras la sincronización de consumos', { conectorId, error: err instanceof Error ? err.message : String(err) });
+            }
+            return resultado;
         }
         finally {
             await candado.liberar();

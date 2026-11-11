@@ -16,6 +16,18 @@ export declare const CRON_COMPLETA = "0 3 * * *";
 export declare function scheduleConnector(conectorId: string, nombre: string, cronExpression: string, opciones?: {
     incremental?: boolean;
 }): void;
+/** Cada cuánto se sincronizan las citas (L–S, de 6:00 a 19:59, hora de Colombia). */
+export declare const CRON_AGENDA = "7,22,37,52 * * * *";
+/**
+ * Programa la sincronización de las citas pendientes. Es INDEPENDIENTE de la
+ * frecuencia del conector (un conector «manual» también puede tener agenda): lo
+ * que se agenda cambia durante el día aunque los consumos se carguen una vez.
+ *
+ * Todos los procesos del servidor programan el mismo cron; el candado del
+ * conector hace que solo uno trabaje y los demás se aparten sin fallar.
+ */
+export declare function scheduleAgenda(conectorId: string, nombre: string): void;
+/** Detiene TODO lo programado de un conector: consumos, completa nocturna y agenda. */
 export declare function unscheduleConnector(conectorId: string): void;
 /** ¿Tiene el conector activada la sincronización incremental? */
 export declare function esIncremental(conector: {

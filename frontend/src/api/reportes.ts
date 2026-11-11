@@ -393,6 +393,92 @@ export function useDiagnostico() {
   });
 }
 
+// ─── Diagnóstico de la proyección por agenda (solo ADMIN) ────────────────────
+
+export type PermisoAgenda = 'ok' | 'sin_permiso' | 'error' | 'desconocido';
+
+export interface FilaBacktestAgenda {
+  entidadKey: string;
+  entidad: string;
+  cumplidas: number;
+  incumplidas: number;
+  sinPrecio: number;
+  estimado: number;
+  real: number;
+  cobertura: number | null;
+  inasistencia: number | null;
+}
+
+export interface ResultadoBacktestAgenda {
+  mes: string;
+  filas: FilaBacktestAgenda[];
+  total: Omit<FilaBacktestAgenda, 'entidadKey' | 'entidad'>;
+}
+
+export interface AgendaDiagnostico {
+  configurada: boolean;
+  conector: { id: string; nombre: string } | null;
+  estado?: {
+    ultimoIntento: string | null;
+    ultimaOk: string | null;
+    estado: 'nunca' | 'ok' | 'error';
+    error: string | null;
+    httpStatus: number | null;
+    citasLeidas: number;
+    citasGuardadas: number;
+    citasSinPrecio: number;
+    horizonte: string | null;
+    duracionMs: number | null;
+    conveniosEstado: 'ok' | 'sin_permiso' | 'error' | null;
+    conveniosError: string | null;
+    conveniosActualizado: string | null;
+  } | null;
+  permisos?: { citas: PermisoAgenda; convenios: PermisoAgenda };
+  resumen?: { citas: number; conPrecio: number; sinPrecio: number; sinEntidad: number };
+  conveniosSinEntidad?: Array<{ convenio: string; citas: number }>;
+  citasSinPrecio?: Array<{ referencia: string; convenio: string; citas: number }>;
+  backtest?: {
+    estado: 'nunca' | 'corriendo' | 'ok' | 'error';
+    iniciado: string | null;
+    terminado: string | null;
+    error: string | null;
+    resultado: ResultadoBacktestAgenda | null;
+  };
+}
+
+/**
+ * Mientras el backtest corre (o la sincronización acaba de pedirse) se consulta
+ * cada pocos segundos para ver el resultado sin recargar.
+ */
+export function useAgendaDiagnostico(refrescarCada: number | false = false) {
+  return useQuery<AgendaDiagnostico>({
+    queryKey: ['agenda-diagnostico'],
+    queryFn: async () => {
+      const res = await apiClient.get<AgendaDiagnostico>('/diagnostico/agenda');
+      return res.data;
+    },
+    staleTime: 0,
+    refetchInterval: refrescarCada,
+  });
+}
+
+export function useSincronizarCitas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await apiClient.post<{ status: string }>('/diagnostico/agenda/sincronizar')).data,
+    // La sincronización corre en segundo plano (~1 min): se vuelve a leer el estado después.
+    onSuccess: () => { setTimeout(() => { void qc.invalidateQueries({ queryKey: ['agenda-diagnostico'] }); }, 3000); },
+  });
+}
+
+export function useEjecutarBacktest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await apiClient.post<{ status: string }>('/diagnostico/agenda/backtest')).data,
+    onSuccess: () => { setTimeout(() => { void qc.invalidateQueries({ queryKey: ['agenda-diagnostico'] }); }, 1500); },
+  });
+}
+
 export interface SinEntidadRow {
   nombre_raw: string | null;
   cnt: number;
