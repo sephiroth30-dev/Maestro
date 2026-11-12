@@ -120,6 +120,7 @@ const COLUMNAS_SYNC = {
     httpStatus: 'http_status', citasLeidas: 'citas_leidas', citasGuardadas: 'citas_guardadas',
     citasSinPrecio: 'citas_sin_precio', horizonte: 'horizonte', duracionMs: 'duracion_ms',
     conveniosEstado: 'convenios_estado', conveniosError: 'convenios_error', conveniosActualizado: 'convenios_actualizado',
+    tvEstado: 'tv_estado', tvError: 'tv_error', tvActualizado: 'tv_actualizado',
 };
 /**
  * Guarda SOLO los campos que se pasan (el resto queda como estaba). Las fechas se
@@ -165,6 +166,9 @@ async function leerEstadoSync(conectorId) {
         conveniosEstado: str('convenios_estado'),
         conveniosError: str('convenios_error'),
         conveniosActualizado: str('convenios_actualizado'),
+        tvEstado: str('tv_estado'),
+        tvError: str('tv_error'),
+        tvActualizado: str('tv_actualizado'),
     };
 }
 function dondeAgenda(f) {

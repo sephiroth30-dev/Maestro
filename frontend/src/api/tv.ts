@@ -40,6 +40,8 @@ export interface EstadoTv {
     por_hora: CitasPorHoraTv[];
     actualizado_en: string | null;
     es_de_hoy: boolean;
+    /** `error` = la última lectura de las citas de hoy falló (ver Diagnóstico); `nunca` = aún no corrió. */
+    lectura: 'ok' | 'error' | 'nunca';
   };
   agenda: {
     actualizado_en: string | null;

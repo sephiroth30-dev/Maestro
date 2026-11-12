@@ -199,6 +199,19 @@ export default function SeccionAgenda(): React.ReactElement {
           </div>
         )}
 
+        {/* Citas de hoy para la pantalla de TV */}
+        <h4 style={{ margin: '16px 0 4px' }}>Citas de hoy (pantalla de TV)</h4>
+        <div data-testid="agenda-tv" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          {e?.tvEstado === 'ok'
+            ? <CheckCircle size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 2 }} />
+            : <AlertTriangle size={15} style={{ color: e?.tvEstado === 'error' ? '#ef4444' : '#94a3b8', flexShrink: 0, marginTop: 2 }} />}
+          <div>
+            {e?.tvEstado === 'ok' && <>Se leyeron correctamente · {fechaLocal(e.tvActualizado)}</>}
+            {e?.tvEstado === 'error' && <>La última lectura falló · {fechaLocal(e.tvActualizado)}<div style={{ color: '#64748b', fontSize: 12 }}>{e.tvError}</div></>}
+            {!e?.tvEstado && <>Aún no se ha leído (corre tras cada sincronización de citas).</>}
+          </div>
+        </div>
+
         {/* Permisos */}
         <h4 style={{ margin: '16px 0 4px' }}>Permisos del usuario de la API</h4>
         <Permiso nombre="Citas" codigo="01010202" estado={data.permisos?.citas ?? 'desconocido'} />

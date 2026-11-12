@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.13] - 2026-11-12
+
+### Fixed
+- **Modo TV: «Citas de hoy» decía «Aún no hay citas de hoy sincronizadas» sin explicar por qué.** Tras un despliegue las citas de hoy no se leían hasta el siguiente ciclo (hasta 15 min), y un fallo de esa lectura solo quedaba en el registro del servidor. Ahora: al arrancar el servidor se sincronizan también si las citas de hoy no están leídas; **el resultado de la lectura queda guardado y se ve en Configuración → Diagnóstico → «Citas de hoy (pantalla de TV)»** (con el error si falló); y la pantalla distingue «esperando la primera lectura» de «no se pudieron leer» (con el motivo en Diagnóstico).
+- **Modo TV: la cifra de «Facturado hoy» se cortaba** en ventanas más angostas; ahora se ajusta al ancho de su tarjeta, y todo el diseño escala por el lado que limite (16:9) para que una ventana baja o ancha no recorte ni aplaste las barras.
+
+---
+
 ## [1.9.12] - 2026-11-12
 
 ### Added

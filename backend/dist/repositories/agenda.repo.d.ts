@@ -64,6 +64,10 @@ export interface EstadoAgendaSync {
     conveniosEstado: 'ok' | 'sin_permiso' | 'error' | null;
     conveniosError: string | null;
     conveniosActualizado: string | null;
+    /** Última lectura de las citas de HOY (pantalla de TV): `ok`, `error` o nunca (null). */
+    tvEstado: 'ok' | 'error' | null;
+    tvError: string | null;
+    tvActualizado: string | null;
 }
 /**
  * Guarda SOLO los campos que se pasan (el resto queda como estaba). Las fechas se

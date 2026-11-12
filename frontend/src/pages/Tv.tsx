@@ -175,7 +175,11 @@ function CitasHoy({ d, interpolar, ahora, enHorario }: { d: EstadoTv; interpolar
     <section className="tv-card tv-citas" data-testid="tv-citas">
       <header className="tv-card-t"><span>Citas de hoy</span><span className="tv-chip">{formatoNum(c.total)} en total · {horaTexto(c.actualizado_en)}</span></header>
       {!c.es_de_hoy ? (
-        <p className="tv-vacio">Aún no hay citas de hoy sincronizadas.</p>
+        <p className="tv-vacio" data-testid="tv-citas-vacio">
+          {c.lectura === 'error'
+            ? 'No se pudieron leer las citas de hoy. Un administrador puede ver el motivo en Configuración → Diagnóstico.'
+            : 'Esperando la primera lectura de las citas de hoy (se sincroniza cada 15 minutos).'}
+        </p>
       ) : (
         <>
           <div className="tv-tres">

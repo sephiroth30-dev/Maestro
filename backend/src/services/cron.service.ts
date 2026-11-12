@@ -6,6 +6,8 @@ import type { Conector } from '@prisma/client';
 import { sincronizarCitasConCandado, agendaActiva } from './citas-sync.service.js';
 import { enHorarioLaboral } from './agenda-ventana.js';
 import { leerEstadoSync } from '../repositories/agenda.repo.js';
+import { leerCitasDia } from '../repositories/tv.repo.js';
+import { hoyEnBogota } from './agenda-ventana.js';
 
 // ─── Schedule map ─────────────────────────────────────────────────────────────
 
@@ -224,8 +226,11 @@ async function catchUpAgenda(activos: Conector[]): Promise<void> {
     try {
       const estado = await leerEstadoSync(conector.id);
       const ok = estado?.ultimaOk ? Date.parse(`${estado.ultimaOk.replace(' ', 'T')}Z`) : null;
-      if (ok === null || Date.now() - ok > 30 * 60_000) {
-        logger.info('Catch-up: agenda de citas desactualizada, sincronizando', { id: conector.id });
+      // Tras un despliegue las citas de HOY (pantalla de TV) aún no están leídas aunque la agenda esté al
+      // día: sin esto la pantalla diría «aún no hay citas» hasta el siguiente ciclo (hasta 15 min).
+      const hoyLeido = await leerCitasDia(conector.id).then((c) => c !== null && c.fechaDia === hoyEnBogota(new Date())).catch(() => false);
+      if (ok === null || Date.now() - ok > 30 * 60_000 || !hoyLeido) {
+        logger.info('Catch-up: agenda de citas desactualizada o citas de hoy sin leer, sincronizando', { id: conector.id, hoyLeido });
         void sincronizarCitasConCandado(conector.id).catch((e: unknown) =>
           logger.warn('Catch-up de la agenda: la sincronización lanzó una excepción', { id: conector.id, error: e instanceof Error ? e.message : String(e) }));
       }

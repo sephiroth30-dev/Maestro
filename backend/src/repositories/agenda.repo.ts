@@ -152,6 +152,10 @@ export interface EstadoAgendaSync {
   conveniosEstado: 'ok' | 'sin_permiso' | 'error' | null;
   conveniosError: string | null;
   conveniosActualizado: string | null;
+  /** Última lectura de las citas de HOY (pantalla de TV): `ok`, `error` o nunca (null). */
+  tvEstado: 'ok' | 'error' | null;
+  tvError: string | null;
+  tvActualizado: string | null;
 }
 
 // camelCase → columna. Lista cerrada: nada de lo que llegue se interpola en el SQL.
@@ -160,6 +164,7 @@ const COLUMNAS_SYNC: Record<string, string> = {
   httpStatus: 'http_status', citasLeidas: 'citas_leidas', citasGuardadas: 'citas_guardadas',
   citasSinPrecio: 'citas_sin_precio', horizonte: 'horizonte', duracionMs: 'duracion_ms',
   conveniosEstado: 'convenios_estado', conveniosError: 'convenios_error', conveniosActualizado: 'convenios_actualizado',
+  tvEstado: 'tv_estado', tvError: 'tv_error', tvActualizado: 'tv_actualizado',
 };
 
 /**
@@ -214,6 +219,9 @@ export async function leerEstadoSync(conectorId?: string): Promise<EstadoAgendaS
     conveniosEstado: str('convenios_estado') as EstadoAgendaSync['conveniosEstado'],
     conveniosError: str('convenios_error'),
     conveniosActualizado: str('convenios_actualizado'),
+    tvEstado: str('tv_estado') as EstadoAgendaSync['tvEstado'],
+    tvError: str('tv_error'),
+    tvActualizado: str('tv_actualizado'),
   };
 }
 

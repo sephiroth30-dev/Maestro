@@ -86,6 +86,17 @@ describe('estado de la TV', () => {
     expect(r.citas_hoy.actualizado_en).toBeNull();
   });
 
+  it('dice POR QUÉ no hay citas de hoy: la última lectura falló, o aún no corrió', () => {
+    expect(armarEstadoTv(base({ citasDia: null, lecturaCitasDia: 'error' })).citas_hoy.lectura).toBe('error');
+    expect(armarEstadoTv(base({ citasDia: null, lecturaCitasDia: null })).citas_hoy.lectura).toBe('nunca');
+    expect(armarEstadoTv(base({ citasDia: null, lecturaCitasDia: 'ok' })).citas_hoy.lectura).toBe('nunca');   // «ok» de ayer, hoy aún no
+    expect(armarEstadoTv(base({ lecturaCitasDia: 'ok' })).citas_hoy.lectura).toBe('ok');
+  });
+
+  it('un fallo reciente se dice aunque haya una lectura de hoy guardada (puede estar atrasada)', () => {
+    expect(armarEstadoTv(base({ lecturaCitasDia: 'error' })).citas_hoy.lectura).toBe('error');
+  });
+
   it('sin citas de hoy guardadas (agenda sin activar): ceros, no error', () => {
     const r = armarEstadoTv(base({ citasDia: null }));
     expect(r.citas_hoy).toMatchObject({ atendidas: 0, pendientes: 0, incumplidas: 0, total: 0, es_de_hoy: false });

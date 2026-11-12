@@ -38,6 +38,7 @@ exports._vaciarCacheTv = _vaciarCacheTv;
 const reportes_service_js_1 = require("./reportes.service.js");
 const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
 const tvRepo = __importStar(require("../repositories/tv.repo.js"));
+const agenda_repo_js_1 = require("../repositories/agenda.repo.js");
 const tv_estado_js_1 = require("./tv-estado.js");
 const agenda_ventana_js_1 = require("./agenda-ventana.js");
 const citas_sync_service_js_1 = require("./citas-sync.service.js");
@@ -66,12 +67,13 @@ async function obtenerEstadoTv() {
     const mesIdx = Number(mesStr);
     const activos = await conectores_repo_js_1.conectoresRepo.findAllActive();
     const conectorAgenda = activos.find((c) => (0, citas_sync_service_js_1.agendaActiva)(c));
-    const [kpis, agendaMes, agendaSemana, citasDia, movimientos] = await Promise.all([
+    const [kpis, agendaMes, agendaSemana, citasDia, movimientos, estadoSync] = await Promise.all([
         reportes_service_js_1.reportesService.getKpis({ mesIdx, anio }),
         reportes_service_js_1.reportesService.getAgenda({ mesIdx, anio }),
         reportes_service_js_1.reportesService.getAgenda({ mesIdx, anio, startDate: hoy, endDate: (0, agenda_ventana_js_1.diasAntes)(hoy, -6) }),
         conectorAgenda ? tvRepo.leerCitasDia(conectorAgenda.id) : Promise.resolve(null),
         tvRepo.leerMovimientos(new Date(ahora.getTime() - MOVIMIENTOS_HORAS * 3_600_000), MOVIMIENTOS_MAX),
+        conectorAgenda ? (0, agenda_repo_js_1.leerEstadoSync)(conectorAgenda.id) : Promise.resolve(null),
     ]);
     // Última sincronización de consumos de las fuentes activas.
     // El pool entrega las fechas como TEXTO en UTC (`dateStrings`), aunque el tipo diga Date.
@@ -84,6 +86,7 @@ async function obtenerEstadoTv() {
     const estado = (0, tv_estado_js_1.armarEstadoTv)({
         ahora, hoy, version: APP_VERSION, mesIdx, anio, kpis, agendaMes, agendaSemana,
         citasDia, movimientos, consumosActualizado, cadenciaConsumosMin,
+        lecturaCitasDia: estadoSync?.tvEstado ?? null,
     });
     cache = { en: t, estado };
     return estado;

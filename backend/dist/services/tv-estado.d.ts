@@ -55,6 +55,8 @@ export interface EstadoTv {
     citas_hoy: ResumenCitasHoy & {
         actualizado_en: string | null;
         es_de_hoy: boolean;
+        /** Resultado de la última lectura de las citas de hoy: `error` = falló (ver Diagnóstico); `nunca` = aún no corrió. */
+        lectura: 'ok' | 'error' | 'nunca';
     };
     agenda: {
         actualizado_en: string | null;
@@ -116,6 +118,7 @@ export interface EntradaEstadoTv {
     }>;
     consumosActualizado: string | null;
     cadenciaConsumosMin: number | null;
+    lecturaCitasDia?: 'ok' | 'error' | null;
 }
 export declare function armarEstadoTv(e: EntradaEstadoTv): EstadoTv;
 //# sourceMappingURL=tv-estado.d.ts.map

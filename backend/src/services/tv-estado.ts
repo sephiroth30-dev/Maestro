@@ -45,7 +45,12 @@ export interface EstadoTv {
     facturado_por_hora: number | null;
     atendidas_por_hora: number | null;
   };
-  citas_hoy: ResumenCitasHoy & { actualizado_en: string | null; es_de_hoy: boolean };
+  citas_hoy: ResumenCitasHoy & {
+    actualizado_en: string | null;
+    es_de_hoy: boolean;
+    /** Resultado de la última lectura de las citas de hoy: `error` = falló (ver Diagnóstico); `nunca` = aún no corrió. */
+    lectura: 'ok' | 'error' | 'nunca';
+  };
   agenda: {
     actualizado_en: string | null;
     horizonte: string | null;
@@ -102,6 +107,7 @@ export interface EntradaEstadoTv {
   movimientos: Array<{ creado: string; tipo: string; cantidad: number; valor: number | null }>;
   consumosActualizado: string | null;
   cadenciaConsumosMin: number | null;
+  lecturaCitasDia?: 'ok' | 'error' | null;
 }
 
 export function armarEstadoTv(e: EntradaEstadoTv): EstadoTv {
@@ -130,7 +136,11 @@ export function armarEstadoTv(e: EntradaEstadoTv): EstadoTv {
       proyectado: k.facturacion_bruta + agendaMes.valor,
     },
     ritmo: ritmoDelDia(e.ahora, k.facturacion_hoy, resumen.atendidas),
-    citas_hoy: { ...resumen, actualizado_en: esDeHoy ? aIso(e.citasDia!.syncEn) : null, es_de_hoy: esDeHoy },
+    citas_hoy: {
+      ...resumen, actualizado_en: esDeHoy ? aIso(e.citasDia!.syncEn) : null, es_de_hoy: esDeHoy,
+      // Aunque haya una lectura de ayer guardada, si la última intentada falló, se dice.
+      lectura: e.lecturaCitasDia === 'error' ? 'error' : esDeHoy ? 'ok' : 'nunca',
+    },
     agenda: {
       actualizado_en: e.agendaSemana.actualizado_en,
       horizonte: e.agendaSemana.horizonte,

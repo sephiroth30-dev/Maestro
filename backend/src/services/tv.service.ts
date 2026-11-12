@@ -1,6 +1,7 @@
 import { reportesService } from './reportes.service.js';
 import { conectoresRepo } from '../repositories/conectores.repo.js';
 import * as tvRepo from '../repositories/tv.repo.js';
+import { leerEstadoSync } from '../repositories/agenda.repo.js';
 import { armarEstadoTv, type EstadoTv } from './tv-estado.js';
 import { hoyEnBogota, diasAntes } from './agenda-ventana.js';
 import { agendaActiva } from './citas-sync.service.js';
@@ -36,12 +37,13 @@ export async function obtenerEstadoTv(): Promise<EstadoTv> {
   const activos = await conectoresRepo.findAllActive();
   const conectorAgenda = activos.find((c) => agendaActiva(c));
 
-  const [kpis, agendaMes, agendaSemana, citasDia, movimientos] = await Promise.all([
+  const [kpis, agendaMes, agendaSemana, citasDia, movimientos, estadoSync] = await Promise.all([
     reportesService.getKpis({ mesIdx, anio }),
     reportesService.getAgenda({ mesIdx, anio }),
     reportesService.getAgenda({ mesIdx, anio, startDate: hoy, endDate: diasAntes(hoy, -6) }),
     conectorAgenda ? tvRepo.leerCitasDia(conectorAgenda.id) : Promise.resolve(null),
     tvRepo.leerMovimientos(new Date(ahora.getTime() - MOVIMIENTOS_HORAS * 3_600_000), MOVIMIENTOS_MAX),
+    conectorAgenda ? leerEstadoSync(conectorAgenda.id) : Promise.resolve(null),
   ]);
 
   // Última sincronización de consumos de las fuentes activas.
@@ -57,6 +59,7 @@ export async function obtenerEstadoTv(): Promise<EstadoTv> {
   const estado = armarEstadoTv({
     ahora, hoy, version: APP_VERSION, mesIdx, anio, kpis, agendaMes, agendaSemana,
     citasDia, movimientos, consumosActualizado, cadenciaConsumosMin,
+    lecturaCitasDia: estadoSync?.tvEstado ?? null,
   });
   cache = { en: t, estado };
   return estado;

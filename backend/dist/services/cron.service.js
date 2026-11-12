@@ -17,6 +17,8 @@ const logger_js_1 = require("../config/logger.js");
 const citas_sync_service_js_1 = require("./citas-sync.service.js");
 const agenda_ventana_js_1 = require("./agenda-ventana.js");
 const agenda_repo_js_1 = require("../repositories/agenda.repo.js");
+const tv_repo_js_1 = require("../repositories/tv.repo.js");
+const agenda_ventana_js_2 = require("./agenda-ventana.js");
 // ─── Schedule map ─────────────────────────────────────────────────────────────
 exports.CRON_SCHEDULES = {
     '30min': '*/30 * * * *',
@@ -208,8 +210,11 @@ async function catchUpAgenda(activos) {
         try {
             const estado = await (0, agenda_repo_js_1.leerEstadoSync)(conector.id);
             const ok = estado?.ultimaOk ? Date.parse(`${estado.ultimaOk.replace(' ', 'T')}Z`) : null;
-            if (ok === null || Date.now() - ok > 30 * 60_000) {
-                logger_js_1.logger.info('Catch-up: agenda de citas desactualizada, sincronizando', { id: conector.id });
+            // Tras un despliegue las citas de HOY (pantalla de TV) aún no están leídas aunque la agenda esté al
+            // día: sin esto la pantalla diría «aún no hay citas» hasta el siguiente ciclo (hasta 15 min).
+            const hoyLeido = await (0, tv_repo_js_1.leerCitasDia)(conector.id).then((c) => c !== null && c.fechaDia === (0, agenda_ventana_js_2.hoyEnBogota)(new Date())).catch(() => false);
+            if (ok === null || Date.now() - ok > 30 * 60_000 || !hoyLeido) {
+                logger_js_1.logger.info('Catch-up: agenda de citas desactualizada o citas de hoy sin leer, sincronizando', { id: conector.id, hoyLeido });
                 void (0, citas_sync_service_js_1.sincronizarCitasConCandado)(conector.id).catch((e) => logger_js_1.logger.warn('Catch-up de la agenda: la sincronización lanzó una excepción', { id: conector.id, error: e instanceof Error ? e.message : String(e) }));
             }
         }

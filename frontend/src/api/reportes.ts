@@ -432,6 +432,10 @@ export interface AgendaDiagnostico {
     conveniosEstado: 'ok' | 'sin_permiso' | 'error' | null;
     conveniosError: string | null;
     conveniosActualizado: string | null;
+    /** Última lectura de las citas de HOY (pantalla de TV). */
+    tvEstado?: 'ok' | 'error' | null;
+    tvError?: string | null;
+    tvActualizado?: string | null;
   } | null;
   permisos?: { citas: PermisoAgenda; convenios: PermisoAgenda };
   resumen?: { citas: number; conPrecio: number; sinPrecio: number; sinEntidad: number };

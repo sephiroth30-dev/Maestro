@@ -300,9 +300,13 @@ export async function sincronizarCitas(conectorId: string, opciones: { manual?: 
           pedir: (estado) => pedirCitas(conector, cfg, { fechaInicial: hoy, fechaFinal: hoy, estadoCita: estado }),
         });
         fallosTv.delete(conectorId);
+        await repo.guardarEstadoSync(conectorId, { tvEstado: 'ok', tvError: null, tvActualizado: new Date().toISOString() }).catch(() => undefined);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         fallosTv.set(conectorId, Date.now());
-        logger.warn('Citas de hoy para la TV: no se pudieron actualizar', { conectorId, error: err instanceof Error ? err.message : String(err) });
+        logger.warn('Citas de hoy para la TV: no se pudieron actualizar', { conectorId, error: msg });
+        // Que el fallo SE VEA (Diagnóstico y la propia pantalla), no solo en el registro del servidor.
+        await repo.guardarEstadoSync(conectorId, { tvEstado: 'error', tvError: msg.slice(0, 600), tvActualizado: new Date().toISOString() }).catch(() => undefined);
       }
     }
     return resultado;

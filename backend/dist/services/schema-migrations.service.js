@@ -260,6 +260,16 @@ const MIGRATIONS = [
       KEY idx_citas_dia_fecha (fecha_dia)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     },
+    // Resultado de la última lectura de las citas de HOY (pantalla de TV): sin esto, un fallo solo
+    // quedaba en el registro del servidor y la pantalla decía «aún no hay citas» sin explicar por qué.
+    {
+        id: 'm27_agenda_sync_tv',
+        sql: `ALTER TABLE agenda_sync
+      ADD COLUMN tv_estado VARCHAR(20) NULL,
+      ADD COLUMN tv_error TEXT NULL,
+      ADD COLUMN tv_actualizado DATETIME NULL`,
+        columna: { tabla: 'agenda_sync', columna: 'tv_estado' },
+    },
     // Lo que se movió entre dos lecturas (más citas atendidas, más agendadas, más
     // facturado). Se DETECTA al sincronizar; no es un evento en tiempo real. Se
     // conservan 48 horas.

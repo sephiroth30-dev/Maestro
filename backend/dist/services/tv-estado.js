@@ -67,7 +67,11 @@ function armarEstadoTv(e) {
             proyectado: k.facturacion_bruta + agendaMes.valor,
         },
         ritmo: ritmoDelDia(e.ahora, k.facturacion_hoy, resumen.atendidas),
-        citas_hoy: { ...resumen, actualizado_en: esDeHoy ? (0, agenda_periodo_js_1.aIso)(e.citasDia.syncEn) : null, es_de_hoy: esDeHoy },
+        citas_hoy: {
+            ...resumen, actualizado_en: esDeHoy ? (0, agenda_periodo_js_1.aIso)(e.citasDia.syncEn) : null, es_de_hoy: esDeHoy,
+            // Aunque haya una lectura de ayer guardada, si la última intentada falló, se dice.
+            lectura: e.lecturaCitasDia === 'error' ? 'error' : esDeHoy ? 'ok' : 'nunca',
+        },
         agenda: {
             actualizado_en: e.agendaSemana.actualizado_en,
             horizonte: e.agendaSemana.horizonte,

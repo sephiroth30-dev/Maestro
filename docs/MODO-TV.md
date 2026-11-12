@@ -97,6 +97,10 @@ El punto de la cabecera y el aviso dicen la verdad:
   ligero; la pantalla lo consulta cada **45 s** (también con la pestaña en segundo plano). Caché de 20 s en el servidor además
   de la de reportes (60 s). **Solo agregados: nada de pacientes ni de honorarios** (hay una prueba que lo comprueba).
 - **Polling, no WebSocket:** el hosting (Passenger) no es amigable con conexiones largas y el dato solo cambia cada 15–30 min.
+- **Si «Citas de hoy» sale vacía:** la tarjeta lo explica. «Esperando la primera lectura» = aún no corrió (tras un despliegue se lee al
+  arrancar el servidor, y luego cada 15 min). «No se pudieron leer» = falló: **Configuración → Diagnóstico → Proyección por agenda →
+  «Citas de hoy (pantalla de TV)»** muestra la hora y el error (p. ej. un 403 de Medifolios). «Sincronizar citas ahora» reintenta
+  saltándose el enfriamiento de 30 min.
 - **Citas de hoy:** la sincronización de citas ya pedía las pendientes; ahora además pide las **cumplidas (C)** y **incumplidas (I)
   de hoy** (dos peticiones pequeñas, dentro del mismo candado y con la misma credencial) y las guarda en `citas_dia`, que se
   reemplaza entera en cada vuelta **junto con sus movimientos, en una sola transacción**. Siempre guarda una fila marcador, para
