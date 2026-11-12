@@ -129,6 +129,7 @@ Tres advertencias que conviene respetar en cualquier cliente:
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/reportes/diagnostico` | Calidad de datos por conector y mes. |
+| GET | `/api/tv/estado` | Todo lo que muestra la pantalla de TV, agregado: meta, facturado hoy, citas de hoy, agenda de 7 días, movimientos y frescura de los datos. Roles ADMIN, GERENCIA, DIRECCION, FACTURACION, COORDINADORA (no ADMISIONES). Solo agregados, sin pacientes ni honorarios. Ver `docs/MODO-TV.md`. |
 | GET | `/api/diagnostico/agenda` | Estado de la proyección por agenda: sincronización, permisos (01010202 / 01041504), citas cargadas, convenios sin EPS, citas sin precio y último backtest. |
 | POST | `/api/diagnostico/agenda/sincronizar` | Sincroniza las citas ahora (202; segundo plano, ~1 min, con el candado del conector). |
 | POST | `/api/diagnostico/agenda/backtest` | Evalúa la precisión de la valoración con el último mes cerrado (202; segundo plano). |

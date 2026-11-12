@@ -7,10 +7,16 @@ import type { DataSet } from '../connectors/base.connector.js';
 import { mapRowsToAtenciones } from './sheet-atencion-mapper.js';
 import { adquirirCandadoSync } from './sync-lock.service.js';
 import { sincronizarCitas } from './citas-sync.service.js';
+import * as reportesRepo from '../repositories/reportes.repo.js';
+import * as tvRepo from '../repositories/tv.repo.js';
+import { movimientoFacturado } from './tv-movimientos.js';
 import {
   decidirModo, ventanaDesde, VENTANA_MESES_POR_DEFECTO,
   type ModoSolicitado, type ModoSync,
 } from './sync-incremental.js';
+
+/** Facturado de HOY (hora de Colombia: UTC-5, sin horario de verano), de la fuente activa. */
+const facturadoHoy = (): Promise<number> => reportesRepo.getFacturacionDia(new Date(Date.now() - 5 * 3_600_000));
 
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 
@@ -78,7 +84,20 @@ export class SyncService {
       const huerfanas = await conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
       if (huerfanas > 0) logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
 
+      // Lo facturado hoy ANTES de sincronizar, para poder decir cuánto subió (pantalla
+      // de TV). Nunca debe estorbar la sincronización: un fallo aquí se ignora.
+      const facturadoAntes = await facturadoHoy().catch(() => null);
+
       const resultado = await this.ejecutarSync(conectorId, modo);
+
+      if (resultado.success) {
+        try {
+          const mov = movimientoFacturado(facturadoAntes, await facturadoHoy());
+          if (mov) await tvRepo.insertarMovimientos([mov], new Date());
+        } catch (err) {
+          logger.warn('TV: no se pudo registrar el movimiento de lo facturado', { conectorId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
 
       // La agenda de citas, DENTRO del mismo candado: usa la misma credencial y el
       // mismo token, y Medifolios invalida el anterior en cada login. Si fallara,

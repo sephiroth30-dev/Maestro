@@ -17,6 +17,7 @@ import { Configuracion } from './pages/Admin/index.js';
 import Honorarios from './pages/Honorarios.js';
 import Auditoria from './pages/Auditoria.js';
 import Capacidad from './pages/Capacidad.js';
+import Tv from './pages/Tv.js';
 import Sidebar from './components/layout/Sidebar.js';
 import { tieneAcceso } from './lib/permisos.js';
 import { HelpProvider } from './help/HelpProvider.js';
@@ -238,7 +239,9 @@ function PublicRoute({ children }: { children: ReactElement }): ReactElement {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    let esTv = false;
+    try { esTv = localStorage.getItem('neurofic-tv') === '1'; } catch { /* sin almacenamiento */ }
+    return <Navigate to={esTv ? '/tv' : '/dashboard'} replace />;
   }
 
   return children;
@@ -272,6 +275,18 @@ export default function App(): ReactElement {
                 <AppLayout>
                   <Dashboard />
                 </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Pantalla de TV: SIN AppLayout (sin menú ni cierre por inactividad: es una pantalla
+              desatendida). Solo ve agregados; el backend la restringe a los roles de reportes
+              salvo ADMISIONES (ver `tv.controller.ts`). */}
+          <Route
+            path="/tv"
+            element={
+              <ProtectedRoute>
+                <Tv />
               </ProtectedRoute>
             }
           />

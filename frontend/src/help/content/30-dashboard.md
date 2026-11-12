@@ -3,7 +3,7 @@ id: dashboard
 titulo: Dashboard
 modulo: dashboard
 orden: 30
-claves: inicio, kpi, meta, cumplimiento, proyeccion, ticket promedio, tendencia
+claves: inicio, kpi, meta, cumplimiento, proyeccion, ticket promedio, tendencia, modo tv, pantalla, televisor, monitor
 ---
 
 ## Para qué sirve
@@ -24,6 +24,20 @@ Es la primera pantalla al entrar. Responde una sola pregunta: **cómo va el mes*
 
 El color del indicador principal cambia solo: **verde** al 100 % o más, **ámbar** entre
 80 y 99 %, **rojo** por debajo del 80 %.
+
+## Modo TV
+
+El botón **Modo TV** (arriba a la derecha) abre una pantalla completa para dejar en el televisor o monitor de la oficina:
+la meta del mes, lo facturado hoy, las citas de hoy (atendidas, pendientes e incumplidas), la agenda de los próximos
+días y una cinta con lo último que se movió. Se actualiza sola y no hay que tocarla.
+
+- **No es tiempo real.** Los datos cambian cada 15–30 minutos. Entre una lectura y otra, los contadores avanzan al ritmo de hoy y
+  van marcados con **≈**; el dato real y su hora se ven debajo, y se corrige cuando llega el dato nuevo. El botón **≈** apaga ese avance.
+- Arriba siempre dice si los datos están **en vivo**, si **Medifolios lleva rato sin sincronizar** o si **no hay conexión**.
+- De noche y los domingos pasa a un modo tranquilo con el resumen del día.
+- Para dejarla fija en un equipo, inicia sesión marcando **«Mantener sesión en este equipo»**.
+
+Para salir, mueve el ratón y pulsa la **✕**.
 
 ## Las gráficas
 

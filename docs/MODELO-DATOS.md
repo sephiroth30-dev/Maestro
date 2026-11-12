@@ -25,6 +25,8 @@ antes de escribir una consulta o prometer un reporte.
 | `agenda_sync` | Una fila por conector: última sincronización de citas (correcta e intento), estado, error, citas leídas/guardadas/sin precio, horizonte y estado del catálogo de convenios. |
 | `convenios_eps` | Catálogo `codConvenio → EPS` de Medifolios (`GET /catalogos/convenios`), con la entidad vinculada si casa. |
 | `agenda_backtest` | Último backtest de la valoración (estado y resultado JSON por EPS). |
+| `citas_dia` | Las citas de **hoy** en cualquier estado (P pendiente, C cumplida, I incumplida), con su hora, para la pantalla de TV. **Sin datos de pacientes.** Se reemplaza entera en cada sincronización de citas. |
+| `tv_movimientos` | Lo que se movió entre dos lecturas (citas atendidas, incumplidas, agendadas, facturado). Se **detecta** al sincronizar; no es un evento en tiempo real. Se conservan 48 h. |
 | `audit_log` | Registro de acciones. |
 | `dashboards`, `widgets` | Reservadas; sin uso activo. |
 

@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.syncService = exports.SyncService = void 0;
 const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
@@ -8,7 +41,12 @@ const logger_js_1 = require("../config/logger.js");
 const sheet_atencion_mapper_js_1 = require("./sheet-atencion-mapper.js");
 const sync_lock_service_js_1 = require("./sync-lock.service.js");
 const citas_sync_service_js_1 = require("./citas-sync.service.js");
+const reportesRepo = __importStar(require("../repositories/reportes.repo.js"));
+const tvRepo = __importStar(require("../repositories/tv.repo.js"));
+const tv_movimientos_js_1 = require("./tv-movimientos.js");
 const sync_incremental_js_1 = require("./sync-incremental.js");
+/** Facturado de HOY (hora de Colombia: UTC-5, sin horario de verano), de la fuente activa. */
+const facturadoHoy = () => reportesRepo.getFacturacionDia(new Date(Date.now() - 5 * 3_600_000));
 // ─── TTL map (seconds) ────────────────────────────────────────────────────────
 const FRECUENCIA_TTL = {
     '30min': 30 * 60,
@@ -53,7 +91,20 @@ class SyncService {
             const huerfanas = await conectores_repo_js_1.conectoresRepo.cerrarSincronizacionesHuerfanas(conectorId);
             if (huerfanas > 0)
                 logger_js_1.logger.warn('Sincronizaciones huérfanas cerradas', { conectorId, huerfanas });
+            // Lo facturado hoy ANTES de sincronizar, para poder decir cuánto subió (pantalla
+            // de TV). Nunca debe estorbar la sincronización: un fallo aquí se ignora.
+            const facturadoAntes = await facturadoHoy().catch(() => null);
             const resultado = await this.ejecutarSync(conectorId, modo);
+            if (resultado.success) {
+                try {
+                    const mov = (0, tv_movimientos_js_1.movimientoFacturado)(facturadoAntes, await facturadoHoy());
+                    if (mov)
+                        await tvRepo.insertarMovimientos([mov], new Date());
+                }
+                catch (err) {
+                    logger_js_1.logger.warn('TV: no se pudo registrar el movimiento de lo facturado', { conectorId, error: err instanceof Error ? err.message : String(err) });
+                }
+            }
             // La agenda de citas, DENTRO del mismo candado: usa la misma credencial y el
             // mismo token, y Medifolios invalida el anterior en cada login. Si fallara,
             // no estropea el resultado de los consumos: tiene su propio estado.

@@ -31,12 +31,18 @@ export function useAuth(): UseAuthReturn {
   const login = useCallback(
     async (email: string, password: string, recordar = false): Promise<void> => {
       await storeLogin(email, password, recordar);
-      navigate('/dashboard', { replace: true });
+      // Si este equipo es la pantalla de TV (ver `pages/Tv.tsx`), tras iniciar sesión vuelve a ella.
+      let esTv = false;
+      try { esTv = localStorage.getItem('neurofic-tv') === '1'; } catch { /* sin almacenamiento */ }
+      navigate(esTv ? '/tv' : '/dashboard', { replace: true });
     },
     [storeLogin, navigate]
   );
 
   const logout = useCallback((): void => {
+    // Cerrar sesión A PROPÓSITO también deja de tratar este equipo como la pantalla de TV. Un cierre
+    // forzado (sesión caducada) NO pasa por aquí: tras volver a entrar, la TV regresa a /tv.
+    try { localStorage.removeItem('neurofic-tv'); } catch { /* sin almacenamiento */ }
     storeLogout();
     navigate('/login', { replace: true });
   }, [storeLogout, navigate]);

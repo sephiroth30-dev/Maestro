@@ -243,6 +243,38 @@ const MIGRATIONS = [
       PRIMARY KEY (cod_convenio, conector_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     },
+    // Las citas de HOY en cualquier estado (pendiente, cumplida, incumplida), para la
+    // pantalla de TV. Aparte de `citas_agendadas`, que solo guarda pendientes y de la
+    // que depende el endpoint de agenda. Se reemplaza entera en cada sincronización.
+    // Sin datos de pacientes.
+    {
+        id: 'm25_citas_dia',
+        sql: `CREATE TABLE IF NOT EXISTS citas_dia (
+      cod_asignacion BIGINT NOT NULL,
+      conector_id VARCHAR(36) NOT NULL,
+      fecha_dia DATE NOT NULL,
+      hora TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      estado CHAR(1) NOT NULL,
+      sync_en DATETIME NOT NULL,
+      PRIMARY KEY (cod_asignacion, conector_id),
+      KEY idx_citas_dia_fecha (fecha_dia)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    // Lo que se movió entre dos lecturas (más citas atendidas, más agendadas, más
+    // facturado). Se DETECTA al sincronizar; no es un evento en tiempo real. Se
+    // conservan 48 horas.
+    {
+        id: 'm26_tv_movimientos',
+        sql: `CREATE TABLE IF NOT EXISTS tv_movimientos (
+      id BIGINT NOT NULL AUTO_INCREMENT,
+      creado DATETIME NOT NULL,
+      tipo VARCHAR(20) NOT NULL,
+      cantidad INT NOT NULL DEFAULT 1,
+      valor DECIMAL(15,2) NULL,
+      PRIMARY KEY (id),
+      KEY idx_tv_mov_creado (creado)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
 ];
 async function columnaExiste(tabla, columna) {
     const [rows] = await prisma_js_1.pool.query(`SELECT 1 FROM information_schema.COLUMNS

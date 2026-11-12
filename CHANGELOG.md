@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.12] - 2026-11-12
+
+### Added
+- **Modo TV** (`/tv`, botón en el Inicio): una pantalla completa para el televisor o monitor de la oficina, con la meta del mes, lo facturado hoy, las citas de hoy (atendidas, pendientes, incumplidas, con barras por hora y un marcador de «ahora»), la agenda de los próximos 7 días con un foco rotativo y una cinta de movimientos. Usa la misma sesión con la que ya se entra (sin usuario nuevo), fuera del cierre por inactividad. Ver `docs/MODO-TV.md`.
+- **«Vivo honesto».** Los datos reales cambian cada 15–30 min (Medifolios no avisa, solo se consulta). Entre lecturas, los contadores avanzan al **ritmo real del día**, con **tope**, marcados «≈» y con el dato real y su hora visibles; se acomodan —también hacia abajo— cuando llega el dato real. Interruptor para apagarlo.
+- Estado de los datos siempre visible (en vivo / Medifolios sin sincronizar / sin conexión, conservando la última lectura), **modo tranquilo** con el resumen del día fuera de horario (L–S 6:00–19:59), Wake Lock y desplazamiento de píxeles, y **autorrecarga** al desplegarse una versión nueva.
+- `GET /api/tv/estado` (solo agregados, roles de reportes menos ADMISIONES) y tablas `citas_dia` y `tv_movimientos`. La sincronización de citas pide además las citas de **hoy** cumplidas e incumplidas (dos peticiones pequeñas, mismo candado y credencial); si fallan, la agenda **no** se afecta.
+- **Movimientos detectados al sincronizar** («+4 citas atendidas», «+$1,8 M facturados», «+7 agendadas»), rotulados con la hora de detección; se suprimen sin lectura previa, con una lectura de otro día o de más de 3 h, y al cambiar de mes.
+
+### Revisión independiente (corregida antes de subir)
+- Una respuesta **vacía o incompleta** de cumplidas/incumplidas se guardaba como verdad y la lectura siguiente las contaba como «+N atendidas» falsas: ahora se arrastran las ya vistas (solo crecen en el día).
+- La salud de los datos usaba la sincronización más reciente de consumos **o** citas, y las citas (cada 15 min) escondían que los consumos llevaban horas parados: ahora se evalúan por separado y con la cadencia real de la fuente.
+- Los movimientos de «agendadas» no tenían límite de antigüedad: tras una caída larga salía un solo «+N»; ahora también se suprimen con una lectura de más de 3 h.
+- Las atendidas se estimaban sin marca «≈» y, a primera hora, podían adelantarse mucho: ahora llevan «≈» y el ritmo no se calcula en la primera hora de jornada.
+- La marca de «este equipo es una TV» se escribía antes de comprobar el rol y no se borraba al cerrar sesión a propósito.
+- Un día sin citas se mostraba como «aún no hay citas sincronizadas»; el «cierre del día» de madrugada mostraba $0; la lectura y sus movimientos se guardan ahora en una sola transacción; el «ok» de la agenda ya no espera a las peticiones de la TV, que tienen su propio enfriamiento de 30 min tras un fallo; `$1000 mil` ahora sale `$1 M`; el Wake Lock concedido tras cerrar la pantalla se libera; «sin conexión» ya no parpadea al arrancar.
+
+### Estado
+- **Las consultas SQL nuevas no se pudieron ejecutar en el entorno de desarrollo** (sin MySQL); el primer día en producción es la prueba. La parte agendada sigue siendo un techo (no descuenta la inasistencia ≈ 23 %); el ajuste está propuesto y pendiente de aprobación.
+
+---
+
 ## [1.9.11] - 2026-11-12
 
 ### Fixed

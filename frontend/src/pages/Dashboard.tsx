@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from 'react';
-import { Navigate, Link } from 'react-router-dom';
-import { Activity, ArrowRight, TrendingUp } from 'lucide-react';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { Activity, ArrowRight, MonitorPlay, TrendingUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import { useKpis, useEntidades, useTendencia, useAgenda } from '../api/reportes.js';
 import type { KpisResult, AgendaResult } from '../api/reportes.js';
@@ -223,12 +223,15 @@ function HeroCard({ data, mesIdx, anio, agenda }: { data: KpisResult; mesIdx: nu
 
 export default function Dashboard(): React.ReactElement {
   const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
   const canViewReportes = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA', 'ADMISIONES'].includes(user.rol);
+  // ADMISIONES queda fuera: el resumen de la TV incluye presupuesto y proyección.
+  const canViewTv = ['ADMIN', 'GERENCIA', 'DIRECCION', 'FACTURACION', 'COORDINADORA'].includes(user.rol);
 
   const now = new Date();
   const mesActual  = now.getMonth() + 1;
@@ -279,6 +282,21 @@ export default function Dashboard(): React.ReactElement {
         {canViewReportes && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <HelpButton articulo="dashboard" />
+            {canViewTv && (
+              <button
+                type="button"
+                className="db-reportes-link"
+                data-testid="btn-modo-tv"
+                title="Pantalla completa para el monitor de la oficina"
+                onClick={() => {
+                  // El permiso de pantalla completa exige un gesto del usuario: se pide aquí, en el clic.
+                  void document.documentElement.requestFullscreen?.().catch(() => undefined);
+                  navigate('/tv');
+                }}
+              >
+                <MonitorPlay size={14} /> Modo TV
+              </button>
+            )}
             <ExportButton buildDoc={buildExportDoc} disabled={kpisQ.isLoading} />
             <Link to="/reportes" className="db-reportes-link">
               Reportes completos <ArrowRight size={14} />

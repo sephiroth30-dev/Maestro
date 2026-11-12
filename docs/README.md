@@ -29,6 +29,7 @@ de cada pantalla; los PDF se generan a partir de esos mismos artículos.
 | [API-REPORTES.md](API-REPORTES.md) | Contratos de los endpoints de reportes. |
 | [CONNECTORS.md](CONNECTORS.md) | Capa de conectores e importación desde hojas de cálculo. |
 | [MEDIFOLIOS.md](MEDIFOLIOS.md) | Conexión con la API de Medifolios: consumos, sincronización incremental y citas. |
+| [MODO-TV.md](MODO-TV.md) | Pantalla de monitoreo para el televisor de la oficina: qué muestra, cómo dejarla 24/7, cómo se mueve sin mentir, límites. |
 | [PROYECCION-AGENDA.md](PROYECCION-AGENDA.md) | Proyección de facturación: lo atendido + lo agendado. Cómo se valora, cómo se pone en marcha, resultados reales y límites conocidos. |
 | [EXPORTACION.md](EXPORTACION.md) | Sistema de exportación a PDF, Excel y CSV, y cómo añadirlo a una página. |
 | [AYUDA-EN-APP.md](AYUDA-EN-APP.md) | Centro de ayuda contextual: cómo escribir un artículo y cómo funciona el buscador. |

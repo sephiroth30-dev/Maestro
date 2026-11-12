@@ -10,6 +10,8 @@ import { ventanaCitas, hoyEnBogota, diasAntes } from './agenda-ventana.js';
 import { construirTablaPrecios, valorarCita } from './agenda-valoracion.js';
 import { RestConfigSchema } from '../connectors/rest.connector.js';
 import * as repo from '../repositories/agenda.repo.js';
+import * as tvRepo from '../repositories/tv.repo.js';
+import { actualizarCitasDia } from './citas-dia.service.js';
 import type { Conector } from '@prisma/client';
 
 /**
@@ -34,6 +36,9 @@ const CONVENIOS_VIGENCIA_MS = 24 * 3_600_000;
 const CONVENIOS_REINTENTO_MS = 6 * 3_600_000;
 /** Tras un fallo de citas, el cron y la sincronización de consumos no reintentan antes de esto. */
 const CITAS_REINTENTO_MS = 30 * 60_000;
+
+/** Cuándo falló por última vez la lectura de las citas de HOY (para la TV), por conector. En memoria. */
+const fallosTv = new Map<string, number>();
 
 export interface ResultadoCitasSync {
   ok: boolean;
@@ -195,11 +200,14 @@ export async function sincronizarCitas(conectorId: string, opciones: { manual?: 
   const cfg = configAgenda(conector);
   if (!cfg) return { ok: false, omitida: true, motivo: 'La agenda de citas no está activada en este conector' };
 
+  // Estado de la sincronización anterior: sirve para el reintento tras un fallo y para
+  // saber si la ventana de citas cambió (cambio de mes) al detectar movimientos.
+  const previo = await repo.leerEstadoSync(conectorId);
+
   // Un fallo persistente (permiso que falta, API caída) no se reintenta en cada vuelta
   // de 15 minutos ni tras cada sincronización de consumos: solo cargaría a Medifolios.
   // El botón «Sincronizar citas ahora» lo salta.
   if (!opciones.manual) {
-    const previo = await repo.leerEstadoSync(conectorId);
     const ultimo = msDeDb(previo?.ultimoIntento ?? null);
     if (previo?.estado === 'error' && ultimo !== null && ahora.getTime() - ultimo < CITAS_REINTENTO_MS) {
       return { ok: false, omitida: true, motivo: 'La última sincronización de citas falló hace poco; se reintenta en unos minutos' };
@@ -260,6 +268,9 @@ export async function sincronizarCitas(conectorId: string, opciones: { manual?: 
       };
     });
 
+    // Las pendientes guardadas ANTES del reemplazo, para detectar las nuevas en la TV.
+    const codigosAgendaPrevios = await tvRepo.leerCodigosAgenda(conectorId).catch(() => new Set<number>());
+
     await repo.reemplazarCitas(conectorId, guardables);
     flushReportesCache();
 
@@ -272,7 +283,29 @@ export async function sincronizarCitas(conectorId: string, opciones: { manual?: 
       horizonte: horizonte || null, duracionMs,
     });
     logger.info('Citas sincronizadas', { conectorId, guardadas: guardables.length, sinPrecio: citasSinPrecio, horizonte, duracionMs });
-    return { ok: true, citasLeidas: ds.rows.length, citasGuardadas: guardables.length, citasSinPrecio, horizonte: horizonte || null, duracionMs };
+    const resultado: ResultadoCitasSync = { ok: true, citasLeidas: ds.rows.length, citasGuardadas: guardables.length, citasSinPrecio, horizonte: horizonte || null, duracionMs };
+
+    // Citas de hoy en todos los estados y movimientos para la pantalla de TV. Va DESPUÉS de dar la
+    // agenda por buena (el «ok» y `ultima_ok` no esperan a estas dos peticiones) y NUNCA la estropea:
+    // si falla, la TV conserva su lectura anterior y se registra el aviso. Tras un fallo no se
+    // reintenta en cada vuelta de 15 min (el botón manual lo salta), como con las pendientes.
+    const falloTv = fallosTv.get(conectorId);
+    if (opciones.manual || falloTv === undefined || Date.now() - falloTv > CITAS_REINTENTO_MS) {
+      try {
+        await actualizarCitasDia({
+          conectorId, ahora, hoy,
+          pendientes: filas.map((f) => ({ codAsignacion: f.codAsignacion, fechaCita: f.fechaCita, fechaDia: f.fechaDia })),
+          codigosAgendaPrevios,
+          ultimaOkPrevia: previo?.ultimaOk ?? null,
+          pedir: (estado) => pedirCitas(conector, cfg, { fechaInicial: hoy, fechaFinal: hoy, estadoCita: estado }),
+        });
+        fallosTv.delete(conectorId);
+      } catch (err) {
+        fallosTv.set(conectorId, Date.now());
+        logger.warn('Citas de hoy para la TV: no se pudieron actualizar', { conectorId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return resultado;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const httpStatus = statusDe(msg);
