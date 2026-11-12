@@ -34,18 +34,43 @@ presupuesto y proyección, y ese rol tiene el acceso limitado al mes en curso.
 5. Cuando se despliega una versión nueva del dashboard, la pantalla **se recarga sola** (compara la versión del servidor en
    cada lectura). No hay que tocarla.
 
-## Qué muestra (una sola pantalla)
+## Diseño: terminal de bolsa (v1.9.14)
 
-| Bloque | Contenido |
-|---|---|
-| **Meta del mes** | % de cumplimiento (grande), facturado y meta, barra con lo agendado en trama, **proyectado** (atendido + agendado) y proyección por ritmo, días hábiles que quedan |
-| **Facturado hoy** | Contador grande, dato real con su hora, ritmo de hoy en $ por hora |
-| **Citas de hoy** | Atendidas / pendientes / incumplidas, y barras por hora (6 a. m.–8 p. m.) con un marcador de **«ahora»** que recorre la jornada |
-| **Agenda** | Valor pendiente de los próximos 7 días y un **foco rotativo** cada 12 s (EPS con más agenda, hora más cargada de hoy, día más cargado de la semana) |
-| **Movimientos** | Cinta que se desplaza sin parar con lo último detectado: «+4 citas atendidas», «+$1,8 M facturados», «+7 citas agendadas», «2 citas incumplidas» |
+La pantalla se parece a la de una bolsa: **índices arriba, un gráfico de línea del día, un mapa de calor, velas diarias y una cinta de EPS
+que no se detiene**. Todo escala por el lado que limite de la ventana (diseño 16:9; vale para 1080p, 4K o una ventana pequeña).
 
-Arriba: la **hora de la clínica** (UTC-5, sin depender de la zona del equipo), el estado de los datos y tres botones
-(≈, pantalla completa, salir) que **se ocultan solos** a los 5 s sin mover el ratón.
+| Bloque | Qué es | De dónde sale |
+|---|---|---|
+| **Índices** (arriba, 5 celdas) | Facturado hoy ▲▼ vs ayer a esta hora · citas atendidas ▲▼ · meta del mes · proyectado (techo) · agenda pendiente | KPIs, citas de hoy y la serie del día |
+| **Facturado acumulado hoy** | Línea de lo facturado a lo largo de la jornada: **un punto por sincronización (real)**, el **día anterior de fondo** (punteado) y un tramo punteado «≈» hasta ahora al ritmo de hoy; la punta pulsa | Tabla `tv_serie` (ver abajo) |
+| **Mapa de EPS** | Cuadros con área = proyectado (facturado del mes + agendado) y color = variación contra el promedio de 3 meses (verde/rojo; **gris = sin historial para comparar**) | Facturado por EPS (Reportes), agenda por EPS y su `promedio_3m` |
+| **Velas diarias** | Una barra por día del mes (sin domingos): **verde** si llegó a la meta diaria, **roja** si no; sábado neutro; hoy en curso; futuros —y pasados **sin ningún dato**, p. ej. un festivo— vacíos. **Sin presupuesto cargado no se juzga ningún día** (todo «cumpliría» una meta de $0) y la meta del mes sale «—" La meta diaria = presupuesto ÷ días hábiles (lunes a viernes) | Facturado por día |
+| **Citas de hoy** y **Agenda 7 días** | Atendidas / pendientes / incumplidas con barras por hora y el marcador de «ahora»; valor pendiente de los próximos días con un foco rotativo | `citas_dia` y la agenda |
+| **Cinta de EPS** (abajo) | `NUEVA EPS $26,6 M ▲ +12,3 % hoy ▲ +$2,1 M agenda $11,4 M` para las 15 principales, desplazándose sin parar | Las mismas EPS del mapa |
+| **Sesión** (cabecera) | Reloj con segundos y «Sesión abierta · cierra en 2 h 29 min» con barra de la jornada; fuera de horario «Sesión cerrada · abre mañana a las 6:00 a. m.» | Solo el horario |
+
+### El parpadeo verde/rojo solo es real
+
+Como en una pantalla de bolsa, una celda parpadea **en verde si su valor subió y en rojo si bajó**, pero **únicamente cuando llega un dato real**
+(un cambio de lo que trae el servidor tras una sincronización). Lo que se estima entre lecturas (los dos contadores «≈») **nunca** parpadea.
+Nada por EPS se inventa entre lecturas: esas cifras solo cambian cuando sincroniza Medifolios.
+
+### La serie del día y «vs ayer a esta hora»
+
+Medifolios no da datos por hora. Para dibujar la línea del día **se guarda una foto** de las cifras (facturado de hoy, atendidas, pendientes e
+incumplidas) **en cada sincronización de citas dentro del horario de trabajo** (lunes a sábado, 6:00–19:59; las sincronizaciones de noche y de
+domingo NO guardan foto, porque harían que el lunes el «día anterior» fuera un domingo en 0), en la tabla `tv_serie` (sin datos de pacientes; se
+conservan 60 días). Consecuencias: el gráfico **empieza vacío** el día del despliegue y se va llenando; **la comparación con el día anterior
+aparece desde la segunda jornada**. El «día anterior» es el más reciente **con datos** (un festivo entre semana, todo en 0, se salta). Compara contra la cifra *vigente* ayer a esa misma hora (el último punto a esa hora o antes, sin
+interpolar). Si ayer aún no tenía datos a esa hora, dice «sin dato» y no 0.
+
+## Barra superior y botones
+
+Arriba: la **hora de la clínica** con segundos (UTC-5, sin depender de la zona del equipo), la **sesión** (abierta / cerrada), el estado de los
+datos y tres botones (≈, pantalla completa, salir) que **se ocultan solos** a los 5 s sin mover el ratón.
+
+> **La cinta de movimientos («+4 citas atendidas») fue reemplazada por la cinta de EPS** (v1.9.14): informaba poco. Los movimientos se
+> siguen detectando y guardando en `tv_movimientos` (48 h), pero hoy no se muestran; ver «Los movimientos se detectan…» más abajo.
 
 ### Fuera de horario (noche, domingos)
 
@@ -58,7 +83,7 @@ meta), atenuada. A las 6:00 vuelve sola. La imagen además se desplaza unos píx
 Siempre se está agendando y facturando, así que una pantalla quieta no representa la clínica. Pero el dato real llega cada
 15–30 minutos. Se resuelve así, con una regla: **el número real es el ancla**.
 
-1. **Contadores con ritmo («≈»).** Entre dos lecturas, *Facturado hoy* y *Citas atendidas* avanzan al **ritmo real de hoy**
+1. **Contadores con ritmo («≈»).** Entre dos lecturas, *Facturado hoy* y *Citas atendidas* (las dos primeras celdas de los índices) avanzan al **ritmo real de hoy**
    (facturado de hoy ÷ horas laborales transcurridas) a partir de la hora de la última sincronización. Esa parte es una
    **estimación**: está **marcada** («≈ entre lecturas»), el **dato real y su hora** se ven debajo, y tiene un **tope**
    (nunca avanza más de lo que daría el ritmo hasta la próxima sincronización esperada: 30 min por omisión, la cadencia de la
@@ -68,12 +93,13 @@ Siempre se está agendando y facturando, así que una pantalla quieta no represe
    - El ritmo del facturado es **lineal sobre la jornada** (los consumos no traen hora de atención): una aproximación, no un
      perfil horario. **No se calcula en la primera hora de jornada** (a las 6:30 una sola cita ya sería «2 por hora» y el contador
      se adelantaría mucho a lo real). Las **atendidas** también llevan «≈» cuando se están estimando.
-2. **Movimiento verídico.** El marcador de «ahora», la cinta y el foco rotativo se alimentan de datos reales.
-3. **Cuando entra un dato nuevo**, el contador se acomoda y aparece el movimiento en la cinta.
+2. **Movimiento verídico.** El marcador de «ahora», la cinta de EPS, la línea del día con su punta que pulsa y el foco rotativo se alimentan de
+   datos reales.
+3. **Cuando entra un dato nuevo**, el contador se acomoda y las celdas que cambiaron **parpadean en verde o rojo** (ver «El parpadeo…»).
 
-### Los movimientos se detectan, no ocurren «en vivo»
+### Los movimientos se detectan, no ocurren «en vivo» (hoy no se muestran)
 
-La cinta se calcula **al sincronizar**, comparando la lectura anterior con la nueva. La hora que muestra es la de **detección**,
+Los movimientos se calculan **al sincronizar**, comparando la lectura anterior con la nueva. La hora que muestra es la de **detección**,
 no la de la atención («10:37 · +4 citas atendidas» = se detectó a las 10:37). Se **suprimen** en tres casos, para no inventar
 movimientos: sin lectura previa (primer arranque), lectura de otro día o de **más de 3 horas** (tras una caída, todo lo agendado en
 el hueco saldría como un solo «+N»; vale para atendidas, incumplidas y agendadas), y cambio de mes (la ventana de citas se alarga y
@@ -113,8 +139,11 @@ El punto de la cabecera y el aviso dicen la verdad:
 - **Movimientos:** tabla `tv_movimientos` (48 h). Las citas nuevas/atendidas/incumplidas salen de `citas-dia.service.ts` +
   `tv-movimientos.ts` (lógica pura); lo facturado, de comparar lo facturado hoy antes y después de cada sincronización de consumos
   (`sync.service.ts`).
-- **Código:** `backend/src/services/{tv-estado,tv.service,tv-movimientos,citas-dia.service}.ts`, `controllers/tv.controller.ts`,
-  `repositories/tv.repo.ts`; frontend `pages/Tv.tsx`, `pages/tv.css`, `api/tv.ts`, `lib/tv.ts` (lógica pura).
+- **Código:** `backend/src/services/{tv-estado,tv-serie,tv.service,tv-movimientos,citas-dia.service}.ts`, `controllers/tv.controller.ts`,
+  `repositories/tv.repo.ts`; frontend `pages/Tv.tsx`, `pages/tv/*` (Indices, GraficoDia, MapaEps, Velas, CintaEps, Contador, useFlash),
+  `pages/tv.css`, `api/tv.ts`, `lib/tv.ts` (lógica pura: treemap, geometría del gráfico, velas, sesión, ritmo).
+- **Más campos en `GET /api/tv/estado`:** `serie` (fotos de hoy), `previa` (día anterior con fotos), `vs_previa`, `eps` (15 principales con
+  facturado, agendado, proyectado y variación) y `dias_mes` (velas y meta diaria). Siguen siendo solo agregados.
 
 ## Límites conocidos
 

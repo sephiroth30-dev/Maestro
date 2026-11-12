@@ -2,13 +2,22 @@ import type { CitasDiaGuardadas } from '../../src/repositories/tv.repo';
 
 jest.mock('../../src/config/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
 
-const guardado: { citasDia: CitasDiaGuardadas | null; reemplazos: unknown[]; movimientos: Array<{ tipo: string; cantidad: number }> } = { citasDia: null, reemplazos: [], movimientos: [] };
+const guardado: {
+  citasDia: CitasDiaGuardadas | null; reemplazos: unknown[]; movimientos: Array<{ tipo: string; cantidad: number }>;
+  fotos: Array<{ facturado: number; atendidas: number; pendientes: number; incumplidas: number; fechaDia: string }>; fallaFoto: boolean;
+} = { citasDia: null, reemplazos: [], movimientos: [], fotos: [], fallaFoto: false };
+jest.mock('../../src/repositories/reportes.repo', () => ({ getFacturacionDia: async () => 12_345_678 }));
 jest.mock('../../src/repositories/tv.repo', () => ({
   leerCitasDia: async () => guardado.citasDia,
   // La lectura y sus movimientos van en la MISMA llamada (una transacción).
   reemplazarCitasDia: async (...a: unknown[]) => { guardado.reemplazos.push(a); guardado.movimientos.push(...((a[4] ?? []) as Array<{ tipo: string; cantidad: number }>)); },
   insertarMovimientos: async (m: Array<{ tipo: string; cantidad: number }>) => { guardado.movimientos.push(...m); },
   purgarMovimientos: async () => undefined,
+  insertarFoto: async (f: { facturado: number; atendidas: number; pendientes: number; incumplidas: number; fechaDia: string }) => {
+    if (guardado.fallaFoto) throw new Error('foto');
+    guardado.fotos.push(f);
+  },
+  purgarSerie: async () => undefined,
 }));
 
 import { actualizarCitasDia, type EntradaCitasDia } from '../../src/services/citas-dia.service';
@@ -29,7 +38,7 @@ const entrada = (over: Partial<EntradaCitasDia> = {}): EntradaCitasDia => ({
   ...over,
 });
 
-beforeEach(() => { guardado.citasDia = null; guardado.reemplazos = []; guardado.movimientos = []; });
+beforeEach(() => { guardado.citasDia = null; guardado.reemplazos = []; guardado.movimientos = []; guardado.fotos = []; guardado.fallaFoto = false; });
 
 describe('citas de hoy y movimientos para la TV', () => {
   it('la primera lectura del día guarda las citas y NO inventa movimientos', async () => {
@@ -125,6 +134,34 @@ describe('citas de hoy y movimientos para la TV', () => {
       pendientes: [pend(1), pend(2), pend(3, '2026-11-12'), pend(4), pend(5)],
     }));
     expect(r.movimientos.find((m) => m.tipo === 'agendadas')).toBeUndefined();
+  });
+
+  it('guarda UNA foto de las cifras del día en cada lectura (para el gráfico y la comparación con ayer)', async () => {
+    await actualizarCitasDia(entrada({ pedir: async (e) => (e === 'C' ? [cruda(10, 'C'), cruda(11, 'C')] : [cruda(12, 'I')]) }));
+    expect(guardado.fotos).toEqual([{ ts: AHORA, fechaDia: HOY, facturado: 12_345_678, atendidas: 2, pendientes: 2, incumplidas: 1 }]);
+  });
+
+  it('NO se guarda foto fuera de horario (noche, domingo): haría que el lunes el «día anterior» fuera el domingo en 0', async () => {
+    // domingo 15-nov, 11:00 a. m. en Bogotá
+    await actualizarCitasDia(entrada({ ahora: new Date('2026-11-15T16:00:00Z'), hoy: '2026-11-15' }));
+    expect(guardado.fotos).toEqual([]);
+    // martes 9 p. m.
+    await actualizarCitasDia(entrada({ ahora: new Date('2026-11-11T02:00:00Z'), hoy: '2026-11-10' }));
+    expect(guardado.fotos).toEqual([]);
+    // pero la lectura de las citas SÍ se guardó
+    expect(guardado.reemplazos).toHaveLength(2);
+  });
+
+  it('si falla guardar la foto, la lectura de las citas NO se ve afectada', async () => {
+    guardado.fallaFoto = true;
+    const r = await actualizarCitasDia(entrada());
+    expect(r.citas).toBe(2);
+    expect(guardado.reemplazos).toHaveLength(1);
+  });
+
+  it('si falla la petición de hoy, no se guarda foto (no hay lectura nueva)', async () => {
+    await expect(actualizarCitasDia(entrada({ pedir: async () => { throw new Error('x'); } }))).rejects.toThrow();
+    expect(guardado.fotos).toEqual([]);
   });
 
   it('una cita en dos estados queda en el más avanzado, sin duplicarse', async () => {

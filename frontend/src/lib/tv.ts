@@ -198,3 +198,203 @@ export function proximosSieteDias(
 }
 
 export const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] as const;
+
+// ─── Terminal de bolsa: sesión, variaciones, mapa de calor y gráfico ───────────
+
+export interface Sesion {
+  abierta: boolean;
+  /** «Sesión abierta · cierra en 2 h 29 min» / «Sesión cerrada · abre mañana 6:00 a. m.». */
+  texto: string;
+  /** Avance de la jornada: 0 a las 6:00, 1 a las 20:00. */
+  progreso: number;
+}
+
+/** Estado de la «sesión» (la jornada de la clínica), a la manera de un mercado: abre, cierra, abre mañana. */
+export function estadoSesion(ms: number): Sesion {
+  const h = horaBogota(ms);
+  // Minutos enteros desde la medianoche (sin pasar por la hora decimal: 8:10:00 daría 489,99… y 1 min de más).
+  const l = new Date(ms + OFFSET_BOGOTA_MS);
+  const min = l.getUTCHours() * 60 + l.getUTCMinutes();
+  const cierre = HORA_FIN * 60;
+  if (enHorarioLaboral(ms)) {
+    const faltan = cierre - min;
+    const hh = Math.floor(faltan / 60);
+    const mm = faltan % 60;
+    const t = hh > 0 ? `${hh} h ${mm} min` : `${mm} min`;
+    return { abierta: true, texto: `Sesión abierta · cierra en ${t}`, progreso: posicionEnJornada(ms) };
+  }
+  // Abre mañana, salvo sábado en la noche o domingo (abre el lunes), o de madrugada (abre hoy a las 6:00).
+  const madrugada = h.hora < HORA_INICIO && h.diaSemana !== 0;
+  const cuando = madrugada ? `abre hoy a las ${HORA_INICIO}:00 a. m.`
+    : h.diaSemana === 6 || h.diaSemana === 0 ? `abre el lunes a las ${HORA_INICIO}:00 a. m.`
+    : `abre mañana a las ${HORA_INICIO}:00 a. m.`;
+  return { abierta: false, texto: `Sesión cerrada · ${cuando}`, progreso: h.hora >= HORA_FIN ? 1 : 0 };
+}
+
+/** `▲ +$1,4 M` / `▼ −$500 mil` / `—` si no hay dato. El signo se dibuja con las flechas. */
+export function textoDelta(n: number | null | undefined, formato: (x: number) => string = formatoCorto): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—';
+  if (n === 0) return '= igual';
+  return `${n > 0 ? '▲ +' : '▼ −'}${formato(Math.abs(n))}`;
+}
+
+export type SignoDelta = 'sube' | 'baja' | 'igual' | 'nada';
+export function signoDelta(n: number | null | undefined): SignoDelta {
+  if (n === null || n === undefined || !Number.isFinite(n)) return 'nada';
+  return n > 0 ? 'sube' : n < 0 ? 'baja' : 'igual';
+}
+
+/** `▲ +12,3 %` / `▼ −4,1 %` / `—`. */
+export function textoPct(p: number | null | undefined): string {
+  if (p === null || p === undefined || !Number.isFinite(p)) return '—';
+  const v = Math.abs(p).toFixed(1).replace('.', ',');
+  return p === 0 ? '= 0 %' : `${p > 0 ? '▲ +' : '▼ −'}${v} %`;
+}
+
+/**
+ * Color de un cuadro del mapa de calor según la variación contra el promedio. Sin variación (sin
+ * historial) es gris: NO se pinta de verde ni de rojo lo que no se puede comparar. Se satura a ±30 %.
+ */
+export function colorVariacion(pct: number | null | undefined): string {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return 'hsl(220, 18%, 22%)';
+  const t = Math.min(Math.abs(pct), 30) / 30;
+  return pct >= 0 ? `hsl(150, ${40 + t * 25}%, ${20 + t * 14}%)` : `hsl(2, ${45 + t * 25}%, ${22 + t * 14}%)`;
+}
+
+export interface RectTm { x: number; y: number; w: number; h: number }
+
+/**
+ * Mapa de calor (treemap «squarified», Bruls et al.): reparte un rectángulo `w × h` entre los
+ * elementos, con ÁREA PROPORCIONAL a su peso y cuadros lo más cuadrados posible. Los pesos ≤ 0 o no
+ * numéricos se descartan. Devuelve los elementos con su rectángulo, del mayor al menor.
+ */
+export function treemap<T extends { peso: number }>(items: readonly T[], w = 100, h = 100): Array<T & RectTm> {
+  const validos = items.filter((i) => Number.isFinite(i.peso) && i.peso > 0).sort((a, b) => b.peso - a.peso);
+  const total = validos.reduce((s, i) => s + i.peso, 0);
+  if (validos.length === 0 || total <= 0 || w <= 0 || h <= 0) return [];
+  const area = w * h;
+  const cola = validos.map((i) => ({ item: i, a: (i.peso / total) * area }));
+  const salida: Array<T & RectTm> = [];
+
+  let x = 0, y = 0, ancho = w, alto = h;
+  const peor = (fila: Array<{ a: number }>, lado: number): number => {
+    const s = fila.reduce((t, f) => t + f.a, 0);
+    const max = Math.max(...fila.map((f) => f.a));
+    const min = Math.min(...fila.map((f) => f.a));
+    return Math.max((lado * lado * max) / (s * s), (s * s) / (lado * lado * min));
+  };
+
+  while (cola.length > 0) {
+    const lado = Math.min(ancho, alto);
+    const fila: typeof cola = [cola.shift()!];
+    while (cola.length > 0 && peor([...fila, cola[0]!], lado) <= peor(fila, lado)) fila.push(cola.shift()!);
+    const suma = fila.reduce((s, f) => s + f.a, 0);
+    if (ancho >= alto) {
+      // La fila se coloca en una columna a la izquierda
+      const anchoFila = suma / alto;
+      let yy = y;
+      for (const f of fila) { const hh = f.a / anchoFila; salida.push({ ...f.item, x, y: yy, w: anchoFila, h: hh }); yy += hh; }
+      x += anchoFila; ancho -= anchoFila;
+    } else {
+      const altoFila = suma / ancho;
+      let xx = x;
+      for (const f of fila) { const ww = f.a / altoFila; salida.push({ ...f.item, x: xx, y, w: ww, h: altoFila }); xx += ww; }
+      y += altoFila; alto -= altoFila;
+    }
+  }
+  return salida;
+}
+
+export interface PuntoGrafico { ts: string; facturado: number }
+
+/** Posición horizontal (0–1) de un instante dentro de la jornada de 6:00 a 20:00. */
+export function xEnJornada(ms: number): number {
+  return posicionEnJornada(ms);
+}
+
+export interface GeometriaGrafico {
+  /** Puntos de la línea, en coordenadas del lienzo, empezando en la apertura con 0 acumulado. */
+  linea: Array<{ x: number; y: number }>;
+  fantasma: Array<{ x: number; y: number }>;
+  /** Tope del eje vertical. */
+  max: number;
+}
+
+/**
+ * Convierte las series (hoy y el día anterior) en coordenadas de un lienzo `ancho × alto`.
+ * El acumulado arranca en 0 a las 6:00. El eje vertical sale del mayor valor de las dos series
+ * (más un 15 % de aire), para que se vean en la misma escala.
+ */
+export function geometriaGrafico(
+  hoy: readonly PuntoGrafico[],
+  previa: readonly PuntoGrafico[] | null,
+  ancho: number,
+  alto: number,
+  extra: number | null = null,
+): GeometriaGrafico {
+  const validos = (xs: readonly PuntoGrafico[]): Array<{ t: number; v: number }> =>
+    xs.map((p) => ({ t: Date.parse(p.ts), v: p.facturado })).filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v)).sort((a, b) => a.t - b.t);
+  const a = validos(hoy);
+  const b = previa ? validos(previa) : [];
+  const max = Math.max(1, ...a.map((p) => p.v), ...b.map((p) => p.v), extra ?? 0) * 1.15;
+  const aCoord = (xs: Array<{ t: number; v: number }>): Array<{ x: number; y: number }> => [
+    { x: 0, y: alto },
+    ...xs.map((p) => ({ x: xEnJornada(p.t) * ancho, y: alto - (Math.max(0, p.v) / max) * alto })),
+  ];
+  return { linea: aCoord(a), fantasma: b.length > 0 ? aCoord(b) : [], max };
+}
+
+/** Un trazo `M x y L x y …` a partir de puntos. */
+export function trazo(puntos: ReadonlyArray<{ x: number; y: number }>): string {
+  return puntos.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+}
+
+export interface Vela {
+  fecha: string;
+  dia: number;
+  diaSemana: number;
+  facturado: number;
+  /** `futura` aún no llega; `hoy` está en curso; `pasada` ya cerró. */
+  estado: 'pasada' | 'hoy' | 'futura';
+  /** Solo los días hábiles (lunes a viernes) se juzgan contra la meta diaria; el sábado es neutro. */
+  juzgable: boolean;
+  /** `true` = alcanzó la meta del día; `null` si no se juzga (sábado, hoy, futura, sin dato o sin meta). */
+  cumple: boolean | null;
+  /** Un día pasado del que no hay NINGÚN dato (festivo, antes de cargar datos): no se pinta de rojo. */
+  sinDato: boolean;
+}
+
+/**
+ * Un día por vela, de todo el mes salvo domingos, con su estado frente a la meta diaria.
+ * Sin meta (`metaDia ≤ 0`: presupuesto sin cargar) NO se juzga ningún día: todo «cumpliría» una meta de $0.
+ * Un día pasado sin ningún dato (festivo, antes de empezar a cargar) es «sin dato», no «no cumplió».
+ */
+export function velasDelMes(
+  hoy: string,
+  dias: ReadonlyArray<{ fecha: string; facturado: number }>,
+  metaDia: number,
+): Vela[] {
+  const [y, m] = hoy.split('-').map(Number) as [number, number];
+  const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const por = new Map(dias.map((d) => [d.fecha, d.facturado]));
+  const out: Vela[] = [];
+  for (let d = 1; d <= ultimo; d++) {
+    const fecha = `${y}-${pad(m)}-${pad(d)}`;
+    const diaSemana = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    if (diaSemana === 0) continue;
+    const estado: Vela['estado'] = fecha < hoy ? 'pasada' : fecha === hoy ? 'hoy' : 'futura';
+    const facturado = por.get(fecha) ?? 0;
+    const sinDato = estado === 'pasada' && !por.has(fecha);
+    const juzgable = diaSemana >= 1 && diaSemana <= 5 && estado === 'pasada' && !sinDato && metaDia > 0;
+    out.push({ fecha, dia: d, diaSemana, facturado, estado, juzgable, cumple: juzgable ? facturado >= metaDia : null, sinDato });
+  }
+  return out;
+}
+
+/** `10:31:07 a. m.` en hora de la clínica, desde milisegundos. */
+export function horaConSegundos(ms: number): string {
+  const l = new Date(ms + OFFSET_BOGOTA_MS);
+  const h = l.getUTCHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${pad(l.getUTCMinutes())}:${pad(l.getUTCSeconds())} ${h < 12 ? 'a. m.' : 'p. m.'}`;
+}

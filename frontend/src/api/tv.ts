@@ -20,6 +20,33 @@ export interface CitasPorHoraTv {
   incumplidas: number;
 }
 
+export interface PuntoTvApi {
+  ts: string;
+  facturado: number;
+  atendidas: number;
+  pendientes: number;
+  incumplidas: number;
+}
+
+export interface EpsTvApi {
+  id: string | null;
+  entidad: string;
+  tipo: string;
+  facturado_mes: number;
+  facturado_hoy: number;
+  agendado_valor: number;
+  agendado_citas: number;
+  proyectado: number;
+  promedio_3m: number | null;
+  variacion_pct: number | null;
+}
+
+export interface VsPreviaApi {
+  fecha: string;
+  facturado: number | null;
+  atendidas: number | null;
+}
+
 export interface EstadoTv {
   generado_en: string;
   hoy: string;
@@ -51,6 +78,11 @@ export interface EstadoTv {
     top_entidades: Array<{ entidad: string; citas: number; valor: number }>;
   };
   movimientos: MovimientoTvApi[];
+  serie: { fecha: string; puntos: PuntoTvApi[] };
+  previa: { fecha: string; puntos: PuntoTvApi[] } | null;
+  vs_previa: VsPreviaApi | null;
+  eps: EpsTvApi[];
+  dias_mes: { meta_dia: number; dias: Array<{ fecha: string; facturado: number }> };
   actualizado: { consumos: string | null; citas: string | null; cadencia_consumos_min: number | null };
 }
 

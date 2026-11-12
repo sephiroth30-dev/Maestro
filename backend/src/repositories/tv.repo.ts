@@ -108,3 +108,57 @@ export async function leerMovimientos(desde: Date, limite: number): Promise<Movi
 export async function purgarMovimientos(antes: Date): Promise<void> {
   await pool.query('DELETE FROM tv_movimientos WHERE creado < ?', [antes]);
 }
+
+// ─── Serie del día (fotos por sincronización) ─────────────────────────────────
+
+export interface FotoDia {
+  ts: Date;
+  fechaDia: string;
+  facturado: number;
+  atendidas: number;
+  pendientes: number;
+  incumplidas: number;
+}
+
+export async function insertarFoto(f: FotoDia): Promise<void> {
+  await pool.query(
+    'INSERT INTO tv_serie (ts, fecha_dia, facturado, atendidas, pendientes, incumplidas) VALUES (?, ?, ?, ?, ?, ?)',
+    [f.ts, f.fechaDia, f.facturado, f.atendidas, f.pendientes, f.incumplidas],
+  );
+}
+
+export interface PuntoGuardado {
+  ts: string;
+  facturado: number;
+  atendidas: number;
+  pendientes: number;
+  incumplidas: number;
+}
+
+export async function leerSerie(fechaDia: string): Promise<PuntoGuardado[]> {
+  const [rows] = await pool.query<(RowDataPacket & { ts: string; facturado: string; atendidas: number; pendientes: number; incumplidas: number })[]>(
+    'SELECT ts, facturado, atendidas, pendientes, incumplidas FROM tv_serie WHERE fecha_dia = ? ORDER BY ts ASC',
+    [fechaDia],
+  );
+  return rows.map((r) => ({
+    ts: String(r.ts), facturado: Number(r.facturado), atendidas: Number(r.atendidas),
+    pendientes: Number(r.pendientes), incumplidas: Number(r.incumplidas),
+  }));
+}
+
+/**
+ * El día anterior a `hoy` más reciente que tenga fotos CON DATOS (algún facturado > 0): un festivo entre
+ * semana, con todo en 0, no sirve de referencia para comparar. `null` si no hay.
+ */
+export async function fechaPreviaConSerie(hoy: string): Promise<string | null> {
+  const [rows] = await pool.query<(RowDataPacket & { f: string | null })[]>(
+    `SELECT MAX(d.fecha_dia) AS f
+       FROM (SELECT fecha_dia FROM tv_serie WHERE fecha_dia < ? GROUP BY fecha_dia HAVING MAX(facturado) > 0) d`,
+    [hoy],
+  );
+  return rows[0]?.f ? String(rows[0].f).slice(0, 10) : null;
+}
+
+export async function purgarSerie(antes: Date): Promise<void> {
+  await pool.query('DELETE FROM tv_serie WHERE ts < ?', [antes]);
+}

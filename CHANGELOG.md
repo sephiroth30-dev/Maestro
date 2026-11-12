@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.14] - 2026-11-12
+
+### Changed
+- **Modo TV rediseñado como terminal de bolsa.** Índices arriba (facturado hoy ▲▼ vs ayer a esta hora, citas atendidas, meta, proyectado, agenda); **línea de lo facturado acumulado hoy** (un punto real por sincronización, el día anterior de fondo y un tramo «≈» hasta ahora, con la punta pulsando); **mapa de calor de EPS** (área = proyectado, color = variación contra su promedio de 3 meses, gris si no hay historial); **velas diarias** del mes (verde/roja contra la meta diaria = presupuesto ÷ días hábiles); citas de hoy y agenda de 7 días; **cinta de EPS** continua con facturado del mes, variación, hoy y agenda; y **reloj de sesión** («Sesión abierta · cierra en 2 h 29 min»).
+- **Parpadeo verde/rojo** en las celdas cuando cambia un dato **real**; la estimación «≈» entre lecturas nunca parpadea, y nada por EPS se inventa.
+- La cinta de movimientos («+4 citas atendidas») se retira de la pantalla porque informaba poco; los movimientos se siguen guardando.
+- Todo el diseño escala por el lado que limite de la ventana (antes las medidas en `rem` no escalaban y un 4K o una ventana pequeña se veían mal).
+
+### Fixed (revisión independiente, antes de subir)
+- **Los lunes el «día anterior» podía ser el domingo en 0** (las sincronizaciones de noche y de domingo también guardaban foto): ahora solo se guardan fotos en horario de trabajo, y el día de comparación es el más reciente con datos.
+- La vela de **hoy** pintaba la columna entera (la clase de la barra chocaba con la de la columna); la **línea de meta** quedaba ~10 % por encima de donde acaba una barra igual a la meta (se medía sobre otra altura).
+- **Sin presupuesto cargado** todo salía verde y «▼ −100 %»: ahora la meta sale «—», no se juzga ningún día y el proyectado no lleva variación. Un día pasado **sin ningún dato** ya no se pinta de rojo.
+- La cifra grande del gráfico (estimada) no llevaba «≈»; «vs ayer» sin dato a esa hora no lo decía; las atendidas comparaban contra 0 antes de leer las citas de hoy.
+- La cinta mostraba un monto de hoy con flecha de variación; con pocas EPS dejaba huecos. Tres declaraciones CSS inválidas (`-calc(...)`) desplazaban el punto de «ahora» y la etiqueta de meta. El parpadeo reemplazaba el fondo (un cuadro verde del mapa podía parpadear rojo y la celda saltaba de color al terminar): ahora es una sombra interior que se desvanece.
+- Si fallaba la consulta de EPS o de velas diarias, toda la pantalla daba 500: ahora solo esa parte queda vacía. Minutos de cierre de sesión con 1 min de más en 18 minutos del día. CSS huérfano eliminado.
+
+### Added
+- Tabla `tv_serie`: una foto de las cifras del día en cada sincronización de citas (60 días, sin pacientes). **El gráfico del día empieza vacío y se llena a medida que se sincroniza; la comparación con el día anterior aparece desde la segunda jornada.**
+- `GET /api/tv/estado` suma `serie`, `previa`, `vs_previa`, `eps` (15 principales) y `dias_mes`.
+
+---
+
 ## [1.9.13] - 2026-11-12
 
 ### Fixed

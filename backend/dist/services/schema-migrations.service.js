@@ -270,6 +270,23 @@ const MIGRATIONS = [
       ADD COLUMN tv_actualizado DATETIME NULL`,
         columna: { tabla: 'agenda_sync', columna: 'tv_estado' },
     },
+    // Una foto de las cifras del día en cada sincronización: con ellas se dibuja el gráfico de lo
+    // facturado hoy como una línea real y se compara con el mismo momento del día anterior. Sin datos
+    // de pacientes. Se conservan 60 días.
+    {
+        id: 'm28_tv_serie',
+        sql: `CREATE TABLE IF NOT EXISTS tv_serie (
+      id BIGINT NOT NULL AUTO_INCREMENT,
+      ts DATETIME NOT NULL,
+      fecha_dia DATE NOT NULL,
+      facturado DECIMAL(15,2) NOT NULL DEFAULT 0,
+      atendidas INT NOT NULL DEFAULT 0,
+      pendientes INT NOT NULL DEFAULT 0,
+      incumplidas INT NOT NULL DEFAULT 0,
+      PRIMARY KEY (id),
+      KEY idx_tv_serie_dia (fecha_dia, ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
     // Lo que se movió entre dos lecturas (más citas atendidas, más agendadas, más
     // facturado). Se DETECTA al sincronizar; no es un evento en tiempo real. Se
     // conservan 48 horas.

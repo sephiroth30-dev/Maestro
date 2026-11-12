@@ -52,7 +52,8 @@ function mesesCerradosPrevios(hoy, n = 3) {
 function aIso(s) {
     if (!s)
         return null;
-    const t = Date.parse(`${s.replace(' ', 'T')}Z`);
+    // El pool entrega 'YYYY-MM-DD HH:MM:SS' en UTC; un ISO que ya trae zona se respeta tal cual.
+    const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s.replace(' ', 'T') : `${s.replace(' ', 'T')}Z`);
     return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 function armarAgenda(porEntidad, porDia, promedios, horizonte, ultimaOk) {

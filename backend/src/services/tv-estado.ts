@@ -5,11 +5,12 @@
  * un monitor es visible: lo que no se envía no se puede mostrar.
  */
 
-import type { KpisResult } from './reportes.service.js';
+import type { KpisResult, EntidadRow } from './reportes.service.js';
 import type { AgendaResultado } from './agenda-periodo.js';
 import { enHorarioLaboral } from './agenda-ventana.js';
 import { resumenCitasHoy, type CitaDia, type ResumenCitasHoy } from './tv-movimientos.js';
 import { aIso } from './agenda-periodo.js';
+import { compararConPrevia, diasHabilesDelMes, variacionPct, type PuntoSerie, type VsPrevia } from './tv-serie.js';
 
 /** Horario de trabajo de la clínica, hora de Colombia: lunes a sábado, de 6:00 a 19:59. */
 export const HORA_INICIO = 6;
@@ -22,6 +23,87 @@ export interface MovimientoTv {
   /** Cuándo se DETECTÓ (al sincronizar), no cuándo ocurrió. ISO. */
   detectado_en: string | null;
 }
+
+/** Una EPS como «símbolo» de la pantalla: lo facturado, lo agendado y su variación contra su promedio. */
+export interface EpsTv {
+  id: string | null;
+  entidad: string;
+  tipo: string;
+  facturado_mes: number;
+  facturado_hoy: number;
+  agendado_valor: number;
+  agendado_citas: number;
+  /** Facturado del mes + agendado: un techo, como en Reportes. */
+  proyectado: number;
+  /** Facturación mensual media de los últimos 3 meses cerrados; `null` sin historial. */
+  promedio_3m: number | null;
+  /** Proyectado frente a su promedio (la misma comparación que «vs prom. 3 meses» en Reportes); `null` sin promedio. */
+  variacion_pct: number | null;
+}
+
+export const MAX_EPS_TV = 15;
+
+export interface EntidadAgendaTv {
+  entidad_id: string | null;
+  entidad: string;
+  tipo: string;
+  citas: number;
+  valor: number;
+  promedio_3m: number | null;
+}
+
+/**
+ * Une lo facturado del mes, lo facturado hoy y lo agendado por EPS, y deja las de mayor
+ * proyectado. Se cruzan por id; una EPS sin id (sin vincular) se cruza por nombre.
+ */
+export function armarEps(
+  mes: readonly EntidadRow[],
+  hoy: readonly EntidadRow[],
+  agenda: readonly EntidadAgendaTv[],
+): EpsTv[] {
+  const clave = (id: string | null, nombre: string): string => (id ? `id:${id}` : `n:${nombre.trim().toUpperCase()}`);
+  const por = new Map<string, EpsTv>();
+  const get = (id: string | null, entidad: string, tipo: string): EpsTv => {
+    const k = clave(id, entidad);
+    let x = por.get(k);
+    if (!x) {
+      x = { id, entidad, tipo, facturado_mes: 0, facturado_hoy: 0, agendado_valor: 0, agendado_citas: 0, proyectado: 0, promedio_3m: null, variacion_pct: null };
+      por.set(k, x);
+    }
+    return x;
+  };
+  for (const r of mes) get(r.id, r.entidad, r.tipo).facturado_mes += r.valor_bruto;
+  for (const r of hoy) get(r.id, r.entidad, r.tipo).facturado_hoy += r.valor_bruto;
+  for (const a of agenda) {
+    const x = get(a.entidad_id, a.entidad, a.tipo);
+    x.agendado_valor += a.valor;
+    x.agendado_citas += a.citas;
+    if (a.promedio_3m !== null) x.promedio_3m = a.promedio_3m;
+  }
+  return [...por.values()]
+    .map((x) => {
+      const proyectado = x.facturado_mes + x.agendado_valor;
+      return { ...x, proyectado, variacion_pct: variacionPct(proyectado, x.promedio_3m) };
+    })
+    .filter((x) => x.proyectado > 0 || x.facturado_hoy > 0)
+    .sort((a, b) => b.proyectado - a.proyectado)
+    .slice(0, MAX_EPS_TV);
+}
+
+export interface PuntoTv {
+  /** ISO. */
+  ts: string;
+  facturado: number;
+  atendidas: number;
+  pendientes: number;
+  incumplidas: number;
+}
+
+const aPuntos = (xs: ReadonlyArray<{ ts: string; facturado: number; atendidas: number; pendientes: number; incumplidas: number }>): PuntoTv[] =>
+  xs.flatMap((p) => {
+    const ts = aIso(p.ts);
+    return ts ? [{ ts, facturado: p.facturado, atendidas: p.atendidas, pendientes: p.pendientes, incumplidas: p.incumplidas }] : [];
+  });
 
 export interface EstadoTv {
   generado_en: string;
@@ -59,6 +141,14 @@ export interface EstadoTv {
     top_entidades: Array<{ entidad: string; citas: number; valor: number }>;
   };
   movimientos: MovimientoTv[];
+  /** Lo facturado y las citas de HOY en cada sincronización (una foto por punto). */
+  serie: { fecha: string; puntos: PuntoTv[] };
+  /** El día anterior con fotos, para dibujarlo de fondo y comparar a la misma hora. `null` la primera jornada. */
+  previa: { fecha: string; puntos: PuntoTv[] } | null;
+  vs_previa: VsPrevia | null;
+  eps: EpsTv[];
+  /** Velas diarias: lo facturado cada día del mes y la meta diaria (presupuesto ÷ días hábiles). */
+  dias_mes: { meta_dia: number; dias: Array<{ fecha: string; facturado: number }> };
   actualizado: {
     consumos: string | null;
     citas: string | null;
@@ -108,6 +198,12 @@ export interface EntradaEstadoTv {
   consumosActualizado: string | null;
   cadenciaConsumosMin: number | null;
   lecturaCitasDia?: 'ok' | 'error' | null;
+  entidadesMes: readonly EntidadRow[];
+  entidadesHoy: readonly EntidadRow[];
+  /** Facturado por día del mes en curso. */
+  diarios: ReadonlyArray<{ fecha: string; total: number }>;
+  serieHoy: ReadonlyArray<PuntoSerie>;
+  seriePrevia: { fecha: string; puntos: PuntoSerie[] } | null;
 }
 
 export function armarEstadoTv(e: EntradaEstadoTv): EstadoTv {
@@ -150,6 +246,20 @@ export function armarEstadoTv(e: EntradaEstadoTv): EstadoTv {
         .sort((a, b) => b.valor - a.valor)
         .slice(0, 5)
         .map((x) => ({ entidad: x.entidad, citas: x.citas, valor: x.valor })),
+    },
+    serie: { fecha: e.hoy, puntos: aPuntos(e.serieHoy) },
+    previa: e.seriePrevia ? { fecha: e.seriePrevia.fecha, puntos: aPuntos(e.seriePrevia.puntos) } : null,
+    vs_previa: compararConPrevia(
+      { facturado: k.facturacion_hoy, atendidas: resumen.atendidas },
+      e.seriePrevia ? { fecha: e.seriePrevia.fecha, puntos: aPuntos(e.seriePrevia.puntos) } : null,
+      e.ahora.getTime(),
+    ),
+    eps: armarEps(e.entidadesMes, e.entidadesHoy, e.agendaMes.por_entidad.map((x) => ({
+      entidad_id: x.entidad_id, entidad: x.entidad, tipo: x.tipo, citas: x.citas, valor: x.valor, promedio_3m: x.promedio_3m,
+    }))),
+    dias_mes: {
+      meta_dia: Math.round(k.presupuesto / Math.max(1, diasHabilesDelMes(e.anio, e.mesIdx))),
+      dias: e.diarios.map((d) => ({ fecha: d.fecha, facturado: Math.round(d.total) })),
     },
     movimientos: e.movimientos.map((m) => ({ tipo: m.tipo, cantidad: m.cantidad, valor: m.valor, detectado_en: aIso(m.creado) })),
     actualizado: { consumos: e.consumosActualizado, citas: e.agendaMes.actualizado_en, cadencia_consumos_min: e.cadenciaConsumosMin },

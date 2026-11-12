@@ -27,12 +27,16 @@ El color del indicador principal cambia solo: **verde** al 100 % o más, **ámba
 
 ## Modo TV
 
-El botón **Modo TV** (arriba a la derecha) abre una pantalla completa para dejar en el televisor o monitor de la oficina:
-la meta del mes, lo facturado hoy, las citas de hoy (atendidas, pendientes e incumplidas), la agenda de los próximos
-días y una cinta con lo último que se movió. Se actualiza sola y no hay que tocarla.
+El botón **Modo TV** (arriba a la derecha) abre una pantalla completa para dejar en el televisor o monitor de la oficina, con aspecto
+de pantalla de bolsa: índices arriba (facturado hoy, citas atendidas, meta, proyectado, agenda), una **línea del día** que se dibuja con
+cada sincronización y se compara con el día anterior, un **mapa de calor de EPS** (verde o rojo según vayan contra su promedio de 3
+meses), **velas diarias** del mes contra la meta diaria, las citas de hoy y una **cinta de EPS** que no se detiene. Se actualiza sola y no
+hay que tocarla.
 
 - **No es tiempo real.** Los datos cambian cada 15–30 minutos. Entre una lectura y otra, los contadores avanzan al ritmo de hoy y
   van marcados con **≈**; el dato real y su hora se ven debajo, y se corrige cuando llega el dato nuevo. El botón **≈** apaga ese avance.
+- **Las celdas parpadean en verde o rojo solo cuando entra un dato real**; la estimación «≈» nunca parpadea.
+- **La línea del día empieza vacía** el día que se activa y se llena con cada sincronización; la comparación con el día anterior aparece desde la segunda jornada.
 - Arriba siempre dice si los datos están **en vivo**, si **Medifolios lleva rato sin sincronizar** o si **no hay conexión**.
 - De noche y los domingos pasa a un modo tranquilo con el resumen del día.
 - Para dejarla fija en un equipo, inicia sesión marcando **«Mantener sesión en este equipo»**.

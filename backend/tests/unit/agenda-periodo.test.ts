@@ -78,6 +78,8 @@ describe('armado de la respuesta', () => {
 
   it('actualizado_en sale en ISO (el pool entrega UTC)', () => {
     expect(armarAgenda([], [], new Map(), null, '2026-11-10 15:00:00').actualizado_en).toBe('2026-11-10T15:00:00.000Z');
+    expect(aIso('2026-11-10T15:00:00.000Z')).toBe('2026-11-10T15:00:00.000Z');   // un ISO con zona se respeta
+    expect(aIso('2026-11-10T10:00:00-05:00')).toBe('2026-11-10T15:00:00.000Z');
     expect(aIso(null)).toBeNull();
     expect(aIso('basura')).toBeNull();
   });

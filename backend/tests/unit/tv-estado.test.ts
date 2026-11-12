@@ -69,7 +69,8 @@ const base = (over: Partial<EntradaEstadoTv> = {}): EntradaEstadoTv => ({
     [], new Map(), '2026-12-29', '2026-11-10 15:15:00'),
   agendaSemana: agendaVacia('2026-12-29', '2026-11-10 15:15:00'),
   citasDia: { fechaDia: '2026-11-10', syncEn: '2026-11-10 15:15:00', citas: [{ cod: 1, estado: 'C', hora: 8 }, { cod: 2, estado: 'P', hora: 14 }] },
-  movimientos: [], consumosActualizado: '2026-11-10T15:00:00.000Z', cadenciaConsumosMin: 30, ...over,
+  movimientos: [], consumosActualizado: '2026-11-10T15:00:00.000Z', cadenciaConsumosMin: 30,
+  entidadesMes: [], entidadesHoy: [], diarios: [], serieHoy: [], seriePrevia: null, ...over,
 });
 
 describe('estado de la TV', () => {

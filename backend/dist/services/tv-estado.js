@@ -6,16 +6,59 @@
  * un monitor es visible: lo que no se envía no se puede mostrar.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HORA_FIN = exports.HORA_INICIO = void 0;
+exports.MAX_EPS_TV = exports.HORA_FIN = exports.HORA_INICIO = void 0;
+exports.armarEps = armarEps;
 exports.horaDecimalBogota = horaDecimalBogota;
 exports.ritmoDelDia = ritmoDelDia;
 exports.armarEstadoTv = armarEstadoTv;
 const agenda_ventana_js_1 = require("./agenda-ventana.js");
 const tv_movimientos_js_1 = require("./tv-movimientos.js");
 const agenda_periodo_js_1 = require("./agenda-periodo.js");
+const tv_serie_js_1 = require("./tv-serie.js");
 /** Horario de trabajo de la clínica, hora de Colombia: lunes a sábado, de 6:00 a 19:59. */
 exports.HORA_INICIO = 6;
 exports.HORA_FIN = 20;
+exports.MAX_EPS_TV = 15;
+/**
+ * Une lo facturado del mes, lo facturado hoy y lo agendado por EPS, y deja las de mayor
+ * proyectado. Se cruzan por id; una EPS sin id (sin vincular) se cruza por nombre.
+ */
+function armarEps(mes, hoy, agenda) {
+    const clave = (id, nombre) => (id ? `id:${id}` : `n:${nombre.trim().toUpperCase()}`);
+    const por = new Map();
+    const get = (id, entidad, tipo) => {
+        const k = clave(id, entidad);
+        let x = por.get(k);
+        if (!x) {
+            x = { id, entidad, tipo, facturado_mes: 0, facturado_hoy: 0, agendado_valor: 0, agendado_citas: 0, proyectado: 0, promedio_3m: null, variacion_pct: null };
+            por.set(k, x);
+        }
+        return x;
+    };
+    for (const r of mes)
+        get(r.id, r.entidad, r.tipo).facturado_mes += r.valor_bruto;
+    for (const r of hoy)
+        get(r.id, r.entidad, r.tipo).facturado_hoy += r.valor_bruto;
+    for (const a of agenda) {
+        const x = get(a.entidad_id, a.entidad, a.tipo);
+        x.agendado_valor += a.valor;
+        x.agendado_citas += a.citas;
+        if (a.promedio_3m !== null)
+            x.promedio_3m = a.promedio_3m;
+    }
+    return [...por.values()]
+        .map((x) => {
+        const proyectado = x.facturado_mes + x.agendado_valor;
+        return { ...x, proyectado, variacion_pct: (0, tv_serie_js_1.variacionPct)(proyectado, x.promedio_3m) };
+    })
+        .filter((x) => x.proyectado > 0 || x.facturado_hoy > 0)
+        .sort((a, b) => b.proyectado - a.proyectado)
+        .slice(0, exports.MAX_EPS_TV);
+}
+const aPuntos = (xs) => xs.flatMap((p) => {
+    const ts = (0, agenda_periodo_js_1.aIso)(p.ts);
+    return ts ? [{ ts, facturado: p.facturado, atendidas: p.atendidas, pendientes: p.pendientes, incumplidas: p.incumplidas }] : [];
+});
 /** Hora decimal en Colombia (UTC-5): 14,5 = 2:30 p. m. */
 function horaDecimalBogota(ahora) {
     const l = new Date(ahora.getTime() - 5 * 3_600_000);
@@ -81,6 +124,16 @@ function armarEstadoTv(e) {
                 .sort((a, b) => b.valor - a.valor)
                 .slice(0, 5)
                 .map((x) => ({ entidad: x.entidad, citas: x.citas, valor: x.valor })),
+        },
+        serie: { fecha: e.hoy, puntos: aPuntos(e.serieHoy) },
+        previa: e.seriePrevia ? { fecha: e.seriePrevia.fecha, puntos: aPuntos(e.seriePrevia.puntos) } : null,
+        vs_previa: (0, tv_serie_js_1.compararConPrevia)({ facturado: k.facturacion_hoy, atendidas: resumen.atendidas }, e.seriePrevia ? { fecha: e.seriePrevia.fecha, puntos: aPuntos(e.seriePrevia.puntos) } : null, e.ahora.getTime()),
+        eps: armarEps(e.entidadesMes, e.entidadesHoy, e.agendaMes.por_entidad.map((x) => ({
+            entidad_id: x.entidad_id, entidad: x.entidad, tipo: x.tipo, citas: x.citas, valor: x.valor, promedio_3m: x.promedio_3m,
+        }))),
+        dias_mes: {
+            meta_dia: Math.round(k.presupuesto / Math.max(1, (0, tv_serie_js_1.diasHabilesDelMes)(e.anio, e.mesIdx))),
+            dias: e.diarios.map((d) => ({ fecha: d.fecha, facturado: Math.round(d.total) })),
         },
         movimientos: e.movimientos.map((m) => ({ tipo: m.tipo, cantidad: m.cantidad, valor: m.valor, detectado_en: (0, agenda_periodo_js_1.aIso)(m.creado) })),
         actualizado: { consumos: e.consumosActualizado, citas: e.agendaMes.actualizado_en, cadencia_consumos_min: e.cadenciaConsumosMin },

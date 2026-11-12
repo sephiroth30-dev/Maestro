@@ -6,6 +6,10 @@ exports.leerCodigosAgenda = leerCodigosAgenda;
 exports.insertarMovimientos = insertarMovimientos;
 exports.leerMovimientos = leerMovimientos;
 exports.purgarMovimientos = purgarMovimientos;
+exports.insertarFoto = insertarFoto;
+exports.leerSerie = leerSerie;
+exports.fechaPreviaConSerie = fechaPreviaConSerie;
+exports.purgarSerie = purgarSerie;
 const prisma_js_1 = require("../config/prisma.js");
 /**
  * Consultas de la pantalla de TV.
@@ -78,5 +82,27 @@ async function leerMovimientos(desde, limite) {
 }
 async function purgarMovimientos(antes) {
     await prisma_js_1.pool.query('DELETE FROM tv_movimientos WHERE creado < ?', [antes]);
+}
+async function insertarFoto(f) {
+    await prisma_js_1.pool.query('INSERT INTO tv_serie (ts, fecha_dia, facturado, atendidas, pendientes, incumplidas) VALUES (?, ?, ?, ?, ?, ?)', [f.ts, f.fechaDia, f.facturado, f.atendidas, f.pendientes, f.incumplidas]);
+}
+async function leerSerie(fechaDia) {
+    const [rows] = await prisma_js_1.pool.query('SELECT ts, facturado, atendidas, pendientes, incumplidas FROM tv_serie WHERE fecha_dia = ? ORDER BY ts ASC', [fechaDia]);
+    return rows.map((r) => ({
+        ts: String(r.ts), facturado: Number(r.facturado), atendidas: Number(r.atendidas),
+        pendientes: Number(r.pendientes), incumplidas: Number(r.incumplidas),
+    }));
+}
+/**
+ * El día anterior a `hoy` más reciente que tenga fotos CON DATOS (algún facturado > 0): un festivo entre
+ * semana, con todo en 0, no sirve de referencia para comparar. `null` si no hay.
+ */
+async function fechaPreviaConSerie(hoy) {
+    const [rows] = await prisma_js_1.pool.query(`SELECT MAX(d.fecha_dia) AS f
+       FROM (SELECT fecha_dia FROM tv_serie WHERE fecha_dia < ? GROUP BY fecha_dia HAVING MAX(facturado) > 0) d`, [hoy]);
+    return rows[0]?.f ? String(rows[0].f).slice(0, 10) : null;
+}
+async function purgarSerie(antes) {
+    await prisma_js_1.pool.query('DELETE FROM tv_serie WHERE ts < ?', [antes]);
 }
 //# sourceMappingURL=tv.repo.js.map

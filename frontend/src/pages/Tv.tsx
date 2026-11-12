@@ -1,14 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Maximize, Minimize, X, Activity } from 'lucide-react';
+import { Maximize, Minimize, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth.js';
 import { useEstadoTv, type EstadoTv } from '../api/tv.js';
 import NeuroficLogo from '../assets/NeuroficLogo.js';
 import {
-  HORA_INICIO, HORA_FIN, horaBogota, enHorarioLaboral, posicionEnJornada, valorEntreLecturas, suavizar,
-  formatoCOP, formatoCorto, formatoNum, haceCuanto, horaTexto, saludDatos, textoMovimiento,
+  HORA_INICIO, HORA_FIN, horaBogota, enHorarioLaboral, posicionEnJornada,
+  formatoCOP, formatoCorto, formatoNum, haceCuanto, horaTexto, horaConSegundos, estadoSesion, saludDatos,
   proximosSieteDias, DIAS_CORTOS,
 } from '../lib/tv.js';
+import Contador from './tv/Contador.js';
+import Indices from './tv/Indices.js';
+import GraficoDia from './tv/GraficoDia.js';
+import MapaEps from './tv/MapaEps.js';
+import Velas from './tv/Velas.js';
+import CintaEps from './tv/CintaEps.js';
 import './tv.css';
 
 /**
@@ -47,119 +53,7 @@ function msDe(iso: string | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-/**
- * Contador animado. Muestra el valor REAL de la última lectura más —si se permite— lo que
- * daría el ritmo del día desde la hora de esa lectura, con tope. Se acomoda con una
- * transición, también hacia abajo cuando llega un dato real menor.
- */
-function Contador({
-  valor, anclaMs, porHora, enHorario, topeMin, interpolar, formato, entero = false, className,
-}: {
-  valor: number;
-  anclaMs: number | null;
-  porHora: number | null;
-  enHorario: boolean;
-  topeMin: number;
-  interpolar: boolean;
-  formato: (n: number) => string;
-  entero?: boolean;
-  className?: string;
-}): React.ReactElement {
-  const mostrado = useRef(valor);
-  const [texto, setTexto] = useState(() => formato(valor));
-  const ultimoTexto = useRef(texto);
-
-  // Los parámetros viajan en una ref: el temporizador no se reinicia con cada lectura.
-  const params = useRef({ valor, anclaMs, porHora, enHorario, topeMin, interpolar, formato, entero });
-  params.current = { valor, anclaMs, porHora, enHorario, topeMin, interpolar, formato, entero };
-
-  useEffect(() => {
-    let previo = Date.now();
-    const id = setInterval(() => {
-      const ahoraMs = Date.now();
-      const p = params.current;
-      const objetivo = p.interpolar && p.anclaMs !== null
-        ? valorEntreLecturas({ ancla: p.valor, anclaMs: p.anclaMs, ahoraMs, porHora: p.porHora, enHorario: p.enHorario, topeMin: p.topeMin })
-        : p.valor;
-      mostrado.current = suavizar(mostrado.current, objetivo, ahoraMs - previo);
-      previo = ahoraMs;
-      const t = p.formato(p.entero ? Math.floor(mostrado.current + 1e-6) : mostrado.current);
-      if (t !== ultimoTexto.current) { ultimoTexto.current = t; setTexto(t); }
-    }, 100);
-    return () => clearInterval(id);
-  }, []);
-
-  return <span className={className}>{texto}</span>;
-}
-
 // ─── Bloques ──────────────────────────────────────────────────────────────────
-
-function Meta({ d }: { d: EstadoTv }): React.ReactElement {
-  const m = d.meta;
-  const pct = m.presupuesto > 0 ? (m.facturado_mes / m.presupuesto) * 100 : 0;
-  const pctProy = m.presupuesto > 0 ? (m.proyectado / m.presupuesto) * 100 : 0;
-  const ancho = Math.min(pct, 100);
-  const anchoProy = Math.min(Math.max(pctProy, pct), 100) - ancho;
-  const supera = pctProy > 100;
-
-  return (
-    <section className="tv-card tv-meta" data-testid="tv-meta">
-      <header className="tv-card-t"><span>Meta de {MESES[m.mes_idx]}</span><span className="tv-chip">{m.dias_restantes} días hábiles restantes</span></header>
-      <div className="tv-meta-fila">
-        <Contador className="tv-grande" valor={pct} anclaMs={null} porHora={null} enHorario={false} topeMin={0} interpolar={false}
-          formato={(n) => `${n.toFixed(1).replace('.', ',')} %`} />
-        <div className="tv-meta-cifras">
-          <div><span className="tv-etq">Facturado</span><b>{formatoCOP(m.facturado_mes)}</b></div>
-          <div><span className="tv-etq">Meta</span><b>{formatoCOP(m.presupuesto)}</b></div>
-        </div>
-      </div>
-      <div className="tv-barra" role="img" aria-label={`Cumplimiento ${pct.toFixed(1)} por ciento`}>
-        <div className="tv-barra-real" style={{ width: `${ancho}%` }} />
-        <div className="tv-barra-agenda" style={{ left: `${ancho}%`, width: `${anchoProy}%` }} />
-        <div className="tv-barra-brillo" />
-      </div>
-      <div className="tv-meta-pie">
-        <div>
-          <span className="tv-etq">Proyectado (atendido + agendado)</span>
-          <b className={supera ? 'tv-ok' : ''}>{formatoCorto(m.proyectado)} · {pctProy.toFixed(0)} %</b>
-          <span className="tv-nota">techo: no descuenta a quienes no llegan</span>
-        </div>
-        <div>
-          <span className="tv-etq">Por ritmo</span>
-          <b>{formatoCorto(m.proyeccion_ritmo)}</b>
-        </div>
-        <div>
-          <span className="tv-etq">Hoy es</span>
-          <b>{d.hoy.split('-').reverse().join('/')}</b>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function FacturadoHoy({ d, interpolar, enHorario }: { d: EstadoTv; interpolar: boolean; enHorario: boolean }): React.ReactElement {
-  const anclaMs = msDe(d.actualizado.consumos);
-  const cad = d.actualizado.cadencia_consumos_min;
-  const tope = Math.min(cad ?? 30, 60);
-  const ritmo = d.ritmo.facturado_por_hora;
-  const estimando = interpolar && enHorario && ritmo !== null && ritmo > 0 && anclaMs !== null;
-
-  return (
-    <section className="tv-card tv-hoy" data-testid="tv-hoy">
-      <header className="tv-card-t"><span>Facturado hoy</span>{estimando && <span className="tv-chip tv-chip-est" title="Avanza al ritmo de hoy entre lecturas">≈ entre lecturas</span>}</header>
-      <Contador className="tv-enorme" valor={d.meta.facturado_hoy} anclaMs={anclaMs} porHora={ritmo} enHorario={enHorario}
-        topeMin={tope} interpolar={interpolar} formato={formatoCOP} />
-      <div className="tv-real">
-        <span>dato real: <b>{formatoCOP(d.meta.facturado_hoy)}</b></span>
-        <span>{horaTexto(d.actualizado.consumos)}</span>
-      </div>
-      <div className="tv-ritmo">
-        <Activity size={16} aria-hidden="true" />
-        {ritmo !== null ? <>Ritmo de hoy: <b>{formatoCorto(ritmo)}</b> por hora</> : <>El ritmo se calcula pasada la primera media hora de jornada</>}
-      </div>
-    </section>
-  );
-}
 
 function CitasHoy({ d, interpolar, ahora, enHorario }: { d: EstadoTv; interpolar: boolean; ahora: number; enHorario: boolean }): React.ReactElement {
   const c = d.citas_hoy;
@@ -236,7 +130,7 @@ function Agenda({ d, giro }: { d: EstadoTv; giro: number }): React.ReactElement 
 
   return (
     <section className="tv-card tv-agenda" data-testid="tv-agenda">
-      <header className="tv-card-t"><span>Agenda · próximos 7 días</span><span className="tv-chip">{formatoNum(d.agenda.total.citas)} pendientes en el mes</span></header>
+      <header className="tv-card-t"><span>Agenda 7 días</span><span className="tv-chip">{formatoNum(d.agenda.total.citas)} en el mes</span></header>
       <div className="tv-dias">
         {dias.map((x, i) => (
           <div key={x.fecha} className={`tv-dia${i === 0 ? ' tv-dia-hoy' : ''}`}>
@@ -254,28 +148,6 @@ function Agenda({ d, giro }: { d: EstadoTv; giro: number }): React.ReactElement 
         <p className="tv-nota">{formatoNum(d.meta.agendado_mes.citas_sin_valor)} citas sin precio de referencia no suman al valor.</p>
       )}
     </section>
-  );
-}
-
-function Cinta({ d }: { d: EstadoTv }): React.ReactElement {
-  const items = useMemo(() => {
-    const m = d.movimientos.map(textoMovimiento);
-    if (m.length === 0) m.push('Sin movimientos detectados todavía');
-    m.push(`Citas actualizadas ${horaTexto(d.actualizado.citas)}`);
-    m.push(`Facturación actualizada ${horaTexto(d.actualizado.consumos)}`);
-    return m;
-  }, [d.movimientos, d.actualizado.citas, d.actualizado.consumos]);
-  // Se duplica para que el desplazamiento sea continuo y nunca quede quieta.
-  const lista = [...items, ...items];
-  return (
-    <footer className="tv-cinta" data-testid="tv-cinta">
-      <span className="tv-cinta-t">Movimientos</span>
-      <div className="tv-cinta-v">
-        <div className="tv-cinta-pista" style={{ animationDuration: `${Math.max(30, items.length * 7)}s` }}>
-          {lista.map((t, i) => <span key={i} className="tv-cinta-i">{t}</span>)}
-        </div>
-      </div>
-    </footer>
   );
 }
 
@@ -417,6 +289,7 @@ export default function Tv(): React.ReactElement {
     citas: d?.actualizado.citas ? { ms: msDe(d.actualizado.citas) } : null,
   });
 
+  const sesion = estadoSesion(ahora);
   const tranquilo = !enHorario;
   const clases = `tv${tranquilo ? ' tv-tranquilo' : ''}${controles ? '' : ' tv-sin-controles'}`;
 
@@ -425,7 +298,13 @@ export default function Tv(): React.ReactElement {
       <div className="tv-lienzo" style={{ transform: `translate(${desplazo.x}px, ${desplazo.y}px)` }}>
         <header className="tv-cab">
           <div className="tv-marca"><NeuroficLogo size={44} /><div><b>Neurofic</b><span>Monitor de la clínica</span></div></div>
-          <div className="tv-reloj" data-testid="tv-reloj">{horaTexto(new Date(ahora).toISOString())}</div>
+          <div className="tv-centro">
+            <div className="tv-reloj" data-testid="tv-reloj">{horaConSegundos(ahora)}</div>
+            <div className={`tv-sesion tv-sesion-${sesion.abierta ? 'abierta' : 'cerrada'}`} data-testid="tv-sesion">
+              <span className="tv-sesion-texto">{sesion.texto}</span>
+              <span className="tv-sesion-barra"><i style={{ width: `${sesion.progreso * 100}%` }} /></span>
+            </div>
+          </div>
           <div className="tv-estado">
             <span className={`tv-punto tv-punto-${salud}`} aria-hidden="true" />
             <span data-testid="tv-actualizado">
@@ -457,13 +336,15 @@ export default function Tv(): React.ReactElement {
           <Resumen d={d} ahora={ahora} />
         ) : (
           <main className="tv-malla">
-            <Meta d={d} />
-            <FacturadoHoy d={d} interpolar={interpolar} enHorario={enHorario} />
+            <Indices d={d} interpolar={interpolar} enHorario={enHorario} />
+            <GraficoDia d={d} interpolar={interpolar} ahora={ahora} />
+            <MapaEps d={d} />
+            <Velas d={d} />
             <CitasHoy d={d} interpolar={interpolar} ahora={ahora} enHorario={enHorario} />
             <Agenda d={d} giro={giro} />
           </main>
         )}
-        {d && !tranquilo && <Cinta d={d} />}
+        {d && !tranquilo && <CintaEps d={d} />}
       </div>
     </div>
   );

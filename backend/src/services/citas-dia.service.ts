@@ -5,6 +5,8 @@ import {
   type CitaDia, type EstadoCita, type Movimiento,
 } from './tv-movimientos.js';
 import * as tvRepo from '../repositories/tv.repo.js';
+import * as reportesRepo from '../repositories/reportes.repo.js';
+import { enHorarioLaboral } from './agenda-ventana.js';
 
 /**
  * Citas de HOY en todos los estados, y lo que se movió desde la lectura anterior.
@@ -19,6 +21,7 @@ import * as tvRepo from '../repositories/tv.repo.js';
  */
 
 const CONSERVAR_MOVIMIENTOS_MS = 48 * 3_600_000;
+const CONSERVAR_SERIE_MS = 60 * 24 * 3_600_000;
 
 export interface EntradaCitasDia {
   conectorId: string;
@@ -92,6 +95,27 @@ export async function actualizarCitasDia(e: EntradaCitasDia): Promise<{ movimien
   // La lectura y sus movimientos, en UNA transacción.
   await tvRepo.reemplazarCitasDia(e.conectorId, e.hoy, actuales, e.ahora, movimientos);
   await tvRepo.purgarMovimientos(new Date(e.ahora.getTime() - CONSERVAR_MOVIMIENTOS_MS)).catch(() => {});
+
+  // Una foto de las cifras del día para el gráfico y la comparación con ayer. Aquí y no tras los
+  // consumos: esta vuelta ya corrió DESPUÉS de la sincronización de consumos (mismo candado), así
+  // que el facturado es el más reciente, y las citas de hoy ya están leídas. Si falla, no importa.
+  // SOLO en horario de trabajo (lunes a sábado, 6:00–19:59): los consumos y las citas también se
+  // sincronizan de noche y en domingo, y esas fotos (facturado 0) harían que el lunes el «día anterior»
+  // fuera el domingo y todo lo facturado saliera como «▲ +$X vs ayer».
+  try {
+    if (!enHorarioLaboral(e.ahora)) return { movimientos, citas: actuales.length };
+    await tvRepo.insertarFoto({
+      ts: e.ahora, fechaDia: e.hoy,
+      // Mismo cálculo que `facturacion_hoy` de Reportes (hora de Colombia, fuente activa).
+      facturado: await reportesRepo.getFacturacionDia(new Date(e.ahora.getTime() - 5 * 3_600_000)),
+      atendidas: actuales.filter((c) => c.estado === 'C').length,
+      pendientes: actuales.filter((c) => c.estado === 'P').length,
+      incumplidas: actuales.filter((c) => c.estado === 'I').length,
+    });
+    await tvRepo.purgarSerie(new Date(e.ahora.getTime() - CONSERVAR_SERIE_MS)).catch(() => {});
+  } catch (err) {
+    logger.warn('TV: no se pudo guardar la foto del día', { conectorId: e.conectorId, error: err instanceof Error ? err.message : String(err) });
+  }
 
   logger.info('Citas de hoy actualizadas', {
     conectorId: e.conectorId, citas: actuales.length, comparable,

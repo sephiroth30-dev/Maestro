@@ -4,9 +4,10 @@
  * SOLO agregados: nada de pacientes ni de honorarios. La TV está en una oficina, pero
  * un monitor es visible: lo que no se envía no se puede mostrar.
  */
-import type { KpisResult } from './reportes.service.js';
+import type { KpisResult, EntidadRow } from './reportes.service.js';
 import type { AgendaResultado } from './agenda-periodo.js';
 import { type CitaDia, type ResumenCitasHoy } from './tv-movimientos.js';
+import { type PuntoSerie, type VsPrevia } from './tv-serie.js';
 /** Horario de trabajo de la clínica, hora de Colombia: lunes a sábado, de 6:00 a 19:59. */
 export declare const HORA_INICIO = 6;
 export declare const HORA_FIN = 20;
@@ -16,6 +17,44 @@ export interface MovimientoTv {
     valor: number | null;
     /** Cuándo se DETECTÓ (al sincronizar), no cuándo ocurrió. ISO. */
     detectado_en: string | null;
+}
+/** Una EPS como «símbolo» de la pantalla: lo facturado, lo agendado y su variación contra su promedio. */
+export interface EpsTv {
+    id: string | null;
+    entidad: string;
+    tipo: string;
+    facturado_mes: number;
+    facturado_hoy: number;
+    agendado_valor: number;
+    agendado_citas: number;
+    /** Facturado del mes + agendado: un techo, como en Reportes. */
+    proyectado: number;
+    /** Facturación mensual media de los últimos 3 meses cerrados; `null` sin historial. */
+    promedio_3m: number | null;
+    /** Proyectado frente a su promedio (la misma comparación que «vs prom. 3 meses» en Reportes); `null` sin promedio. */
+    variacion_pct: number | null;
+}
+export declare const MAX_EPS_TV = 15;
+export interface EntidadAgendaTv {
+    entidad_id: string | null;
+    entidad: string;
+    tipo: string;
+    citas: number;
+    valor: number;
+    promedio_3m: number | null;
+}
+/**
+ * Une lo facturado del mes, lo facturado hoy y lo agendado por EPS, y deja las de mayor
+ * proyectado. Se cruzan por id; una EPS sin id (sin vincular) se cruza por nombre.
+ */
+export declare function armarEps(mes: readonly EntidadRow[], hoy: readonly EntidadRow[], agenda: readonly EntidadAgendaTv[]): EpsTv[];
+export interface PuntoTv {
+    /** ISO. */
+    ts: string;
+    facturado: number;
+    atendidas: number;
+    pendientes: number;
+    incumplidas: number;
 }
 export interface EstadoTv {
     generado_en: string;
@@ -78,6 +117,26 @@ export interface EstadoTv {
         }>;
     };
     movimientos: MovimientoTv[];
+    /** Lo facturado y las citas de HOY en cada sincronización (una foto por punto). */
+    serie: {
+        fecha: string;
+        puntos: PuntoTv[];
+    };
+    /** El día anterior con fotos, para dibujarlo de fondo y comparar a la misma hora. `null` la primera jornada. */
+    previa: {
+        fecha: string;
+        puntos: PuntoTv[];
+    } | null;
+    vs_previa: VsPrevia | null;
+    eps: EpsTv[];
+    /** Velas diarias: lo facturado cada día del mes y la meta diaria (presupuesto ÷ días hábiles). */
+    dias_mes: {
+        meta_dia: number;
+        dias: Array<{
+            fecha: string;
+            facturado: number;
+        }>;
+    };
     actualizado: {
         consumos: string | null;
         citas: string | null;
@@ -119,6 +178,18 @@ export interface EntradaEstadoTv {
     consumosActualizado: string | null;
     cadenciaConsumosMin: number | null;
     lecturaCitasDia?: 'ok' | 'error' | null;
+    entidadesMes: readonly EntidadRow[];
+    entidadesHoy: readonly EntidadRow[];
+    /** Facturado por día del mes en curso. */
+    diarios: ReadonlyArray<{
+        fecha: string;
+        total: number;
+    }>;
+    serieHoy: ReadonlyArray<PuntoSerie>;
+    seriePrevia: {
+        fecha: string;
+        puntos: PuntoSerie[];
+    } | null;
 }
 export declare function armarEstadoTv(e: EntradaEstadoTv): EstadoTv;
 //# sourceMappingURL=tv-estado.d.ts.map
