@@ -362,7 +362,12 @@ export interface Vela {
   cumple: boolean | null;
   /** Un día pasado del que no hay NINGÚN dato (festivo, antes de cargar datos): no se pinta de rojo. */
   sinDato: boolean;
+  /** Cuánto de la meta diaria se alcanzó: `ok` ≥ 100 %, `medio` 80–99 %, `bajo` < 80 %; `null` si no se juzga. */
+  nivel: 'ok' | 'medio' | 'bajo' | null;
 }
+
+/** Umbral de «casi llegó»: entre el 80 % y el 100 % de la meta diaria la vela va en ámbar, no en rojo. */
+export const UMBRAL_MEDIO = 0.8;
 
 /**
  * Un día por vela, de todo el mes salvo domingos, con su estado frente a la meta diaria.
@@ -386,7 +391,11 @@ export function velasDelMes(
     const facturado = por.get(fecha) ?? 0;
     const sinDato = estado === 'pasada' && !por.has(fecha);
     const juzgable = diaSemana >= 1 && diaSemana <= 5 && estado === 'pasada' && !sinDato && metaDia > 0;
-    out.push({ fecha, dia: d, diaSemana, facturado, estado, juzgable, cumple: juzgable ? facturado >= metaDia : null, sinDato });
+    const ratio = juzgable ? facturado / metaDia : null;
+    out.push({
+      fecha, dia: d, diaSemana, facturado, estado, juzgable, cumple: juzgable ? facturado >= metaDia : null, sinDato,
+      nivel: ratio === null ? null : ratio >= 1 ? 'ok' : ratio >= UMBRAL_MEDIO ? 'medio' : 'bajo',
+    });
   }
   return out;
 }

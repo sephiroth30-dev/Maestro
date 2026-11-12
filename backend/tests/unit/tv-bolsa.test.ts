@@ -166,6 +166,23 @@ describe('velas diarias del mes', () => {
     expect(sin.every((x) => x.cumple === null && !x.juzgable)).toBe(true);
   });
 
+  it('el nivel distingue «casi llegó» (80–99 %, ámbar) de «lejos» (<80 %, rojo) y de «llegó» (≥100 %)', () => {
+    const r = velasDelMes('2026-11-10', [
+      { fecha: '2026-11-02', facturado: 100 }, { fecha: '2026-11-03', facturado: 99 }, { fecha: '2026-11-04', facturado: 80 },
+      { fecha: '2026-11-05', facturado: 79 }, { fecha: '2026-11-06', facturado: 0.1 },
+    ], 100);
+    const n = (f: string) => r.find((x) => x.fecha === f)!.nivel;
+    expect([n('2026-11-02'), n('2026-11-03'), n('2026-11-04'), n('2026-11-05'), n('2026-11-06')]).toEqual(['ok', 'medio', 'medio', 'bajo', 'bajo']);
+  });
+
+  it('el nivel es null donde no se juzga (sábado, hoy, futuro, sin dato, sin meta)', () => {
+    expect(de('2026-11-07').nivel).toBeNull();
+    expect(de('2026-11-10').nivel).toBeNull();
+    expect(de('2026-11-20').nivel).toBeNull();
+    expect(de('2026-11-04').nivel).toBeNull();
+    expect(velasDelMes('2026-11-10', dias, 0).every((x) => x.nivel === null)).toBe(true);
+  });
+
   it('el sábado no se juzga contra la meta (la meta diaria es de lunes a viernes)', () => {
     expect(de('2026-11-07')).toMatchObject({ diaSemana: 6, juzgable: false, cumple: null });
   });

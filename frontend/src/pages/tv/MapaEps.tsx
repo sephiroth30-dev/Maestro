@@ -12,10 +12,11 @@ export function nombreCorto(n: string): string {
 function Cuadro({ e, x, y, w, h }: { e: EpsTvApi; x: number; y: number; w: number; h: number }): React.ReactElement {
   // Parpadea solo cuando CAMBIA lo facturado real de la EPS (llega con una sincronización).
   const f = useFlash(e.facturado_mes);
-  const area = w * h;
-  const grande = area > 420;
-  const medio = area > 200;
-  const minimo = area > 70;
+  // Cuánto texto cabe se decide por el ALTO y el ANCHO del cuadro (en % del mapa), no por su área: un cuadro
+  // largo y delgado tiene área de sobra pero ninguna línea de texto cabe a lo ancho.
+  const unaLinea = h >= 8 && w >= 10;
+  const dosLineas = h >= 15 && w >= 14;
+  const tresLineas = h >= 25 && w >= 16;
   return (
     <div
       className={`tv-cuadro${f ? ` tv-flash-${f}` : ''}`}
@@ -23,9 +24,9 @@ function Cuadro({ e, x, y, w, h }: { e: EpsTvApi; x: number; y: number; w: numbe
       title={`${e.entidad} · proyectado ${formatoCorto(e.proyectado)} · ${textoPct(e.variacion_pct)} vs su promedio de 3 meses`}
     >
       <div className="tv-cuadro-in">
-        {minimo && <b>{medio ? nombreCorto(e.entidad) : nombreCorto(e.entidad).slice(0, 6)}</b>}
-        {medio && <span>{formatoCorto(e.proyectado)}</span>}
-        {grande && <span className={`tv-delta tv-delta-${signoDelta(e.variacion_pct)}`}>{textoPct(e.variacion_pct)}</span>}
+        {unaLinea && <b>{nombreCorto(e.entidad)}</b>}
+        {dosLineas && <span>{formatoCorto(e.proyectado)}</span>}
+        {tresLineas && <span className={`tv-delta tv-delta-${signoDelta(e.variacion_pct)}`}>{textoPct(e.variacion_pct)}</span>}
       </div>
     </div>
   );
@@ -37,12 +38,13 @@ function Cuadro({ e, x, y, w, h }: { e: EpsTvApi; x: number; y: number; w: numbe
  */
 export default function MapaEps({ d }: { d: EstadoTv }): React.ReactElement {
   const cuadros = useMemo(
-    () => treemap(d.eps.map((e) => ({ ...e, peso: e.proyectado })), 100, 100),
+    // Las 10 mayores: con 15 los cuadros pequeños quedan ilegibles a distancia.
+    () => treemap(d.eps.slice(0, 10).map((e) => ({ ...e, peso: e.proyectado })), 100, 100),
     [d.eps],
   );
   return (
     <section className="tv-card tv-mapa" data-testid="tv-mapa">
-      <header className="tv-card-t"><span>Mapa de EPS</span><span className="tv-chip">tamaño = proyectado · color = vs su promedio</span></header>
+      <header className="tv-card-t"><span>Mapa de EPS</span><span className="tv-chip">color = vs su promedio</span></header>
       {cuadros.length === 0
         ? <p className="tv-vacio">Aún no hay EPS con facturación o agenda.</p>
         : <div className="tv-tm">{cuadros.map((c) => <Cuadro key={c.id ?? c.entidad} e={c} x={c.x} y={c.y} w={c.w} h={c.h} />)}</div>}

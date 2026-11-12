@@ -67,7 +67,7 @@ function CitasHoy({ d, interpolar, ahora, enHorario }: { d: EstadoTv; interpolar
 
   return (
     <section className="tv-card tv-citas" data-testid="tv-citas">
-      <header className="tv-card-t"><span>Citas de hoy</span><span className="tv-chip">{formatoNum(c.total)} en total · {horaTexto(c.actualizado_en)}</span></header>
+      <header className="tv-card-t"><span>Citas de hoy</span><span className="tv-chip">{formatoNum(c.total)} hoy</span></header>
       {!c.es_de_hoy ? (
         <p className="tv-vacio" data-testid="tv-citas-vacio">
           {c.lectura === 'error'
@@ -98,7 +98,7 @@ function CitasHoy({ d, interpolar, ahora, enHorario }: { d: EstadoTv; interpolar
                       <i className="tv-seg tv-seg-pend" style={{ flex: x.pendientes }} />
                     </>}
                   </div>
-                  <span>{h > 12 ? h - 12 : h}{h < 12 ? 'a' : 'p'}</span>
+                  <span>{h % 2 === 0 ? `${h > 12 ? h - 12 : h}${h < 12 ? 'a' : 'p'}` : ''}</span>
                 </div>
               );
             })}
@@ -136,7 +136,7 @@ function Agenda({ d, giro }: { d: EstadoTv; giro: number }): React.ReactElement 
           <div key={x.fecha} className={`tv-dia${i === 0 ? ' tv-dia-hoy' : ''}`}>
             <span className="tv-dia-v">{x.valor > 0 ? formatoCorto(x.valor) : '—'}</span>
             <div className="tv-dia-barra"><i style={{ height: `${(x.valor / max) * 100}%` }} /></div>
-            <span>{DIAS_CORTOS[x.diaSemana]} {x.fecha.slice(8)}</span>
+            <span>{DIAS_CORTOS[x.diaSemana]}</span>
           </div>
         ))}
       </div>

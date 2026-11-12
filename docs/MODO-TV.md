@@ -41,10 +41,10 @@ que no se detiene**. Todo escala por el lado que limite de la ventana (diseño 1
 
 | Bloque | Qué es | De dónde sale |
 |---|---|---|
-| **Índices** (arriba, 5 celdas) | Facturado hoy ▲▼ vs ayer a esta hora · citas atendidas ▲▼ · meta del mes · proyectado (techo) · agenda pendiente | KPIs, citas de hoy y la serie del día |
+| **Índices** (arriba, 4 celdas) | Facturado hoy ▲▼ vs ayer a esta hora · citas atendidas ▲▼ · meta del mes · proyectado (techo) | KPIs, citas de hoy y la serie del día |
 | **Facturado acumulado hoy** | Línea de lo facturado a lo largo de la jornada: **un punto por sincronización (real)**, el **día anterior de fondo** (punteado) y un tramo punteado «≈» hasta ahora al ritmo de hoy; la punta pulsa | Tabla `tv_serie` (ver abajo) |
-| **Mapa de EPS** | Cuadros con área = proyectado (facturado del mes + agendado) y color = variación contra el promedio de 3 meses (verde/rojo; **gris = sin historial para comparar**) | Facturado por EPS (Reportes), agenda por EPS y su `promedio_3m` |
-| **Velas diarias** | Una barra por día del mes (sin domingos): **verde** si llegó a la meta diaria, **roja** si no; sábado neutro; hoy en curso; futuros —y pasados **sin ningún dato**, p. ej. un festivo— vacíos. **Sin presupuesto cargado no se juzga ningún día** (todo «cumpliría» una meta de $0) y la meta del mes sale «—" La meta diaria = presupuesto ÷ días hábiles (lunes a viernes) | Facturado por día |
+| **Mapa de EPS** | Las 10 mayores; cuadros con área = proyectado (facturado del mes + agendado) y color = variación contra el promedio de 3 meses (verde/rojo; **gris = sin historial para comparar**) | Facturado por EPS (Reportes), agenda por EPS y su `promedio_3m` |
+| **Velas diarias** | Una barra por día del mes (sin domingos): **verde** si llegó a la meta diaria, **ámbar** si llegó al 80–99 % («casi»), **roja** por debajo del 80 %; sábado neutro; hoy en curso; futuros —y pasados **sin ningún dato**, p. ej. un festivo— vacíos. **Sin presupuesto cargado no se juzga ningún día** (todo «cumpliría» una meta de $0) y la meta del mes sale «—" La meta diaria = presupuesto ÷ días hábiles (lunes a viernes) | Facturado por día |
 | **Citas de hoy** y **Agenda 7 días** | Atendidas / pendientes / incumplidas con barras por hora y el marcador de «ahora»; valor pendiente de los próximos días con un foco rotativo | `citas_dia` y la agenda |
 | **Cinta de EPS** (abajo) | `NUEVA EPS $26,6 M ▲ +12,3 % hoy ▲ +$2,1 M agenda $11,4 M` para las 15 principales, desplazándose sin parar | Las mismas EPS del mapa |
 | **Sesión** (cabecera) | Reloj con segundos y «Sesión abierta · cierra en 2 h 29 min» con barra de la jornada; fuera de horario «Sesión cerrada · abre mañana a las 6:00 a. m.» | Solo el horario |

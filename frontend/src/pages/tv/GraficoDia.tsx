@@ -80,7 +80,7 @@ export default function GraficoDia({ d, interpolar, ahora }: { d: EstadoTv; inte
           {g.fantasma.length > 1 && <path d={trazo(g.fantasma)} className="tv-fantasma" fill="none" />}
           {hayPuntos && <path d={area} fill="url(#tv-area)" />}
           {hayPuntos && <path d={trazo(g.linea)} className="tv-linea" fill="none" pathLength={1} />}
-          {g.linea.slice(1).map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.4" className="tv-punto-serie" />)}
+          {g.linea.slice(1).map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4.6" className="tv-punto-serie" />)}
 
           {hayTramoVivo && <path d={`M${ultimo.x.toFixed(1)} ${ultimo.y.toFixed(1)} L${xAhora.toFixed(1)} ${yEstimado.toFixed(1)}`} className="tv-tramo-vivo" fill="none" />}
           {enHorario && <line x1={xAhora} x2={xAhora} y1="0" y2={AH} className="tv-linea-ahora" />}
@@ -94,12 +94,12 @@ export default function GraficoDia({ d, interpolar, ahora }: { d: EstadoTv; inte
       </svg>
       <p className="tv-grafico-pie">
         {!hayPuntos
-          ? 'La línea se dibuja a medida que se sincroniza: una foto de las cifras en cada sincronización de citas (cada 15 min).'
+          ? 'La línea se dibuja a medida que se sincroniza (una foto cada 15 min).'
           : <>
-              <span><i className="tv-leyenda tv-leyenda-hoy" /> hoy (un punto por sincronización)</span>
-              {d.previa && <span><i className="tv-leyenda tv-leyenda-prev" /> {d.previa.fecha.slice(8)}/{d.previa.fecha.slice(5, 7)}</span>}
-              {hayTramoVivo && <span><i className="tv-leyenda tv-leyenda-vivo" /> ≈ al ritmo de hoy, hasta ahora</span>}
-              {!d.previa && <span>La comparación con el día anterior aparece desde la segunda jornada.</span>}
+              {d.previa
+                ? <span><i className="tv-leyenda tv-leyenda-prev" /> {d.previa.fecha.slice(8)}/{d.previa.fecha.slice(5, 7)} (día anterior)</span>
+                : <span>El día anterior se compara desde la segunda jornada.</span>}
+              {hayTramoVivo && <span><i className="tv-leyenda tv-leyenda-vivo" /> ≈ al ritmo de hoy</span>}
             </>}
       </p>
     </section>

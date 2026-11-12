@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.15] - 2026-11-12
+
+### Changed
+- **Modo TV más grande y legible a distancia.** Todos los textos ×1,25 y la unidad base ~9 % mayor; **4 índices** en vez de 5 (la agenda pendiente ya está en su tarjeta); textos de apoyo más cortos; leyendas del gráfico reducidas; **mapa de EPS con las 10 mayores** (con 15 los cuadros chicos no se leían) y el texto de cada cuadro se decide por su alto y ancho; etiquetas de las velas solo en lunes, hoy y el primer día; etiquetas de hora cada 2 h; las tres tarjetas de abajo del mismo ancho.
+- **Velas con tres niveles:** verde si llegó a la meta diaria, **ámbar entre el 80 % y el 99 %** («casi llegó») y rojo por debajo del 80 %. Antes, con la meta real, casi todo salía rojo y no distinguía un 95 % de un 40 %.
+
+### Fixed
+- **«Citas de hoy» mostraba las tres cifras apiladas en vertical y las barras por hora aplastadas.** Al limpiar CSS huérfano quedó un selector colgante que se tragó la regla de la cuadrícula (error mío, de la limpieza de la v1.9.14).
+
+---
+
 ## [1.9.14] - 2026-11-12
 
 ### Changed

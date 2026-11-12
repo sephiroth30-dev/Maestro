@@ -70,7 +70,7 @@ export default function Indices({ d, interpolar, enHorario }: { d: EstadoTv; int
       <Indice testid="tv-hoy" etiqueta="Facturado hoy" flash={fFact}
         nota={estimandoFact ? <i className="tv-aprox" title="Avanza al ritmo de hoy entre lecturas">≈</i> : null}
         delta={dFact}
-        sub={<>{etqVs} · real {formatoCorto(m.facturado_hoy)} {horaTexto(d.actualizado.consumos)}</>}>
+        sub={<>{etqVs}<br />dato real {formatoCorto(m.facturado_hoy)} · {horaTexto(d.actualizado.consumos)}</>}>
         <Contador className="tv-cifra" valor={m.facturado_hoy} anclaMs={anclaConsumos} porHora={ritmoFact} enHorario={enHorario}
           topeMin={tope} interpolar={interpolar} formato={formatoCOP} />
       </Indice>
@@ -78,14 +78,14 @@ export default function Indices({ d, interpolar, enHorario }: { d: EstadoTv; int
       <Indice testid="tv-atendidas" etiqueta="Citas atendidas" flash={fAt}
         nota={estimandoAt ? <i className="tv-aprox" title="Avanza al ritmo de hoy entre lecturas">≈</i> : null}
         delta={dAt}
-        sub={<>{formatoNum(c.pendientes)} pendientes · {formatoNum(c.incumplidas)} incumplidas · {formatoNum(c.total)} hoy</>}>
+        sub={<>{formatoNum(c.pendientes)} pendientes · {formatoNum(c.incumplidas)} incumplidas</>}>
         <Contador className="tv-cifra" valor={c.atendidas} anclaMs={msDe(c.actualizado_en)} porHora={ritmoAt} enHorario={enHorario}
           topeMin={15} interpolar={interpolar} formato={formatoNum} entero />
       </Indice>
 
       <Indice testid="tv-meta" etiqueta={`Meta de ${MESES[m.mes_idx]}`} flash={fMeta}
         sub={hayMeta
-          ? <>{formatoCorto(m.facturado_mes)} de {formatoCorto(m.presupuesto)} · {m.dias_restantes} días hábiles</>
+          ? <>{formatoCorto(m.facturado_mes)} de {formatoCorto(m.presupuesto)}</>
           : <>sin presupuesto cargado para este mes</>}>
         <b className="tv-cifra tv-azul">{hayMeta ? `${pct.toFixed(1).replace('.', ',')} %` : '—'}</b>
         <div className="tv-mini"><i style={{ width: `${hayMeta ? Math.min(pct, 100) : 0}%` }} /></div>
@@ -93,15 +93,10 @@ export default function Indices({ d, interpolar, enHorario }: { d: EstadoTv; int
 
       <Indice testid="tv-proyectado" etiqueta="Proyectado (techo)"
         delta={hayMeta ? { texto: textoPct(pctProy - 100), signo: pctProy >= 100 ? 'sube' : 'baja' } : null}
-        sub={<>atendido + agendado · no descuenta a quienes no llegan</>}>
+        sub={<>atendido + agendado<br />no descuenta a quienes no llegan</>}>
         <b className="tv-cifra">{formatoCorto(m.proyectado)}</b>
       </Indice>
 
-      <Indice testid="tv-agendado" etiqueta="Agenda pendiente del mes"
-        sub={<>por ritmo {formatoCorto(m.proyeccion_ritmo)}{m.agendado_mes.citas_sin_valor > 0 ? ` · ${formatoNum(m.agendado_mes.citas_sin_valor)} sin precio` : ''}</>}>
-        <b className="tv-cifra tv-violeta">{formatoCorto(m.agendado_mes.valor)}</b>
-        <span className="tv-ind-aux">{formatoNum(m.agendado_mes.citas)} citas</span>
-      </Indice>
     </section>
   );
 }

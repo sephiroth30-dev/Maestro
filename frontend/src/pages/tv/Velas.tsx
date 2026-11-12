@@ -6,8 +6,9 @@ import { velasDelMes, formatoCorto, DIAS_CORTOS, type Vela } from '../../lib/tv.
 function claseBarra(x: Vela): string {
   if (x.estado === 'hoy') return 'tv-vb tv-vb-hoy';
   if (x.estado === 'futura' || x.sinDato) return 'tv-vb tv-vb-vacia';
-  if (x.cumple === true) return 'tv-vb tv-vb-ok';
-  if (x.cumple === false) return 'tv-vb tv-vb-no';
+  if (x.nivel === 'ok') return 'tv-vb tv-vb-ok';
+  if (x.nivel === 'medio') return 'tv-vb tv-vb-medio';
+  if (x.nivel === 'bajo') return 'tv-vb tv-vb-no';
   return 'tv-vb tv-vb-neutra';   // sábado, o sin meta cargada
 }
 
@@ -29,7 +30,7 @@ export default function Velas({ d }: { d: EstadoTv }): React.ReactElement {
       <header className="tv-card-t">
         <span>Velas diarias · {d.hoy.slice(0, 7)}</span>
         <span className="tv-chip">
-          {hayMeta ? `${cumplen} de ${juzgables.length} días sobre la meta de ${formatoCorto(meta)}` : 'sin meta cargada para el mes'}
+          {hayMeta ? `${cumplen} de ${juzgables.length} días en meta` : 'sin meta cargada'}
         </span>
       </header>
       <div className="tv-velas-cuerpo">
@@ -49,7 +50,12 @@ export default function Velas({ d }: { d: EstadoTv }): React.ReactElement {
           ))}
         </div>
         <div className="tv-velas-dias">
-          {v.map((x) => <span key={x.fecha} className={x.estado === 'hoy' ? 'tv-vela-d tv-vela-d-hoy' : 'tv-vela-d'}>{x.dia}</span>)}
+          {/* Solo algunas etiquetas (lunes, hoy y el primer día): 25 números juntos no se leen a distancia. */}
+          {v.map((x, i) => (
+            <span key={x.fecha} className={x.estado === 'hoy' ? 'tv-vela-d tv-vela-d-hoy' : 'tv-vela-d'}>
+              {x.estado === 'hoy' || x.diaSemana === 1 || i === 0 ? x.dia : ''}
+            </span>
+          ))}
         </div>
       </div>
     </section>
