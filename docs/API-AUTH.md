@@ -82,7 +82,11 @@ Rate limited: **5 requests per minute per IP**.
 
 ### POST /api/auth/refresh
 
-Exchanges a refresh token for a new access token. The used refresh token is revoked and a new one is **not** issued (single-use rotation only updates the access token here; the refresh token in the body remains valid until its expiry).
+Exchanges a refresh token for a new access token **and a new refresh token**. The used refresh token is revoked (single-use rotation) and the client **must store the new one**: the expiry is sliding, each renewal issues another token of `REFRESH_TOKEN_EXPIRES_IN` (7 d by default), so a session that keeps renewing never expires.
+
+> **Historial (corregido en 1.9.11).** Antes el servidor revocaba el token usado, creaba uno nuevo y **no lo devolvía**; el cliente seguía con el revocado y en la **segunda** renovación (≈ 30 min) se interpretaba como robo y se cerraban todas las sesiones del usuario. La inactividad de 15 min lo disimulaba en el uso normal.
+>
+> **Reuso.** Un token ya revocado que reaparece **después de 10 s** se trata como robo: se revocan todos los refresh tokens del usuario. Dentro de esos 10 s (dos renovaciones simultáneas con el mismo token, p. ej. una pestaña duplicada) solo falla esa petición y **no** se cierra ninguna otra sesión.
 
 **Request body**
 ```json
@@ -94,7 +98,8 @@ Exchanges a refresh token for a new access token. The used refresh token is revo
 **Response 200**
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "9f1c...(128 hex chars, NUEVO)..."
 }
 ```
 
@@ -175,9 +180,9 @@ Login
       POST /auth/refresh
             │
             ├─► Verify token exists & not revoked & not expired
-            ├─► Revoke old token (rotation)
-            ├─► Issue new accessToken
-            └─► Return { accessToken }
+            ├─► Revoke old token (rotation; atomic: only one of two simultaneous calls wins)
+            ├─► Issue new accessToken AND new refreshToken (7 d, sliding)
+            └─► Return { accessToken, refreshToken }
 ```
 
 ### Access Token Payload
@@ -194,12 +199,16 @@ Login
 
 ### Token Reuse Detection
 
-If a **revoked** refresh token is used again:
+If a **revoked** refresh token is used again **more than 10 s after it was revoked**:
 1. All refresh tokens for that user are immediately revoked
 2. A warning is logged with the user ID
 3. The user must log in again
 
 This detects token theft scenarios where an attacker uses a token after the legitimate user has already used it.
+
+Within 10 s of the revocation (two simultaneous renewals with the same token) only that request is rejected and no other session is closed. "Within 10 s" and "expired" are computed **in SQL**: the pool returns dates as text (`dateStrings: true`), and comparing them in JS depends on Node's time zone (before 1.9.11 the expiry check never fired).
+
+**Known limits.** A tab that copies its `sessionStorage` (duplicate tab) shares the refresh token with the original and is closed at its first renewal after the original renewed; with «Mantener sesión» the tabs stay in sync through the `storage` event. If a renewal response is lost in transit the client keeps the revoked token and the next renewal (after 10 s) is read as theft. There is no absolute session lifetime: a screen that keeps renewing stays logged in until someone logs out or the user is deactivated.
 
 ---
 

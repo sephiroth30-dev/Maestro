@@ -25,6 +25,9 @@ interface RefreshTokenRow extends RowDataPacket {
   expires_at: Date;
   revoked_at: Date | null;
   created_at: Date;
+  /** Calculados en SQL (ver `findRefreshToken`): comparar fechas en JS contra texto de la BD no es fiable. */
+  vencido?: number;
+  revocado_reciente?: number;
 }
 
 // ─── Mapped return types ──────────────────────────────────────────────────────
@@ -49,6 +52,10 @@ export interface RefreshTokenMapped {
   expiresAt: Date;
   revokedAt: Date | null;
   createdAt: Date;
+  /** `expires_at` ya pasó (comparado en SQL contra UTC: así se guarda). */
+  vencido: boolean;
+  /** Se revocó hace menos de la gracia: una renovación simultánea, no un robo. */
+  revocadoReciente: boolean;
 }
 
 export interface CreateRefreshTokenData {
@@ -102,6 +109,8 @@ function mapRefreshToken(row: RefreshTokenRow): RefreshTokenMapped {
     expiresAt: row.expires_at,
     revokedAt: row.revoked_at,
     createdAt: row.created_at,
+    vencido: Number(row.vencido ?? 0) === 1,
+    revocadoReciente: Number(row.revocado_reciente ?? 0) === 1,
   };
 }
 
@@ -143,20 +152,37 @@ export class UsuariosRepository {
     return mapRefreshToken(rows[0]!);
   }
 
-  async findRefreshToken(tokenHash: string): Promise<RefreshTokenMapped | null> {
+  /**
+   * `vencido` y `revocado_reciente` se calculan EN SQL a propósito. El pool devuelve las
+   * fechas como TEXTO (`dateStrings: true`): `new Date('2026-11-12 10:00:00')` se
+   * interpreta en la zona de Node y `texto < Date` da siempre `false`, de modo que la
+   * caducidad nunca se aplicaba. `expires_at` se escribe en UTC (zona del pool) y se
+   * compara con `UTC_TIMESTAMP()`; `revoked_at` lo escribe `NOW()` y se compara con `NOW()`.
+   */
+  async findRefreshToken(tokenHash: string, graciaSegundos = 10): Promise<RefreshTokenMapped | null> {
     const [rows] = await pool.query<RefreshTokenRow[]>(
-      'SELECT * FROM refresh_tokens WHERE token_hash = ? LIMIT 1',
-      [tokenHash]
+      `SELECT t.*,
+              (t.expires_at < UTC_TIMESTAMP()) AS vencido,
+              (t.revoked_at IS NOT NULL AND t.revoked_at >= NOW() - INTERVAL ? SECOND) AS revocado_reciente
+         FROM refresh_tokens t
+        WHERE t.token_hash = ? LIMIT 1`,
+      [graciaSegundos, tokenHash]
     );
     const row = rows[0];
     return row ? mapRefreshToken(row) : null;
   }
 
-  async revokeRefreshToken(tokenHash: string): Promise<void> {
-    await pool.execute<ResultSetHeader>(
+  /**
+   * Revoca un token. Devuelve `true` solo si ESTA llamada lo revocó: con dos
+   * renovaciones simultáneas, el `UPDATE ... WHERE revoked_at IS NULL` lo gana una sola,
+   * y la otra no debe seguir emitiendo un token nuevo.
+   */
+  async revokeRefreshToken(tokenHash: string): Promise<boolean> {
+    const [res] = await pool.execute<ResultSetHeader>(
       'UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ? AND revoked_at IS NULL',
       [tokenHash]
     );
+    return res.affectedRows > 0;
   }
 
   async revokeAllUserRefreshTokens(usuarioId: string): Promise<void> {

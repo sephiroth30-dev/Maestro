@@ -35,6 +35,8 @@ export interface RefreshRequest {
 
 export interface RefreshResponse {
   accessToken: string;
+  /** Refresh token NUEVO: el usado queda revocado. El cliente debe guardarlo. */
+  refreshToken: string;
 }
 
 export interface LogoutRequest {

@@ -9,7 +9,7 @@ export interface UseAuthReturn {
   isAuthenticated: AuthStore['isAuthenticated'];
   isLoading: AuthStore['isLoading'];
   error: AuthStore['error'];
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, recordar?: boolean) => Promise<void>;
   logout: () => void;
   clearError: AuthStore['clearError'];
 }
@@ -29,8 +29,8 @@ export function useAuth(): UseAuthReturn {
   } = useAuthStore();
 
   const login = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      await storeLogin(email, password);
+    async (email: string, password: string, recordar = false): Promise<void> => {
+      await storeLogin(email, password, recordar);
       navigate('/dashboard', { replace: true });
     },
     [storeLogin, navigate]

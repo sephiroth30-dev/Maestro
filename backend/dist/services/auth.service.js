@@ -3,13 +3,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuthService = void 0;
+exports.AuthService = exports.GRACIA_REUSO_MS = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const usuarios_repo_js_1 = require("../repositories/usuarios.repo.js");
 const logger_js_1 = require("../config/logger.js");
 const REFRESH_TOKEN_BYTES = 64;
 const BCRYPT_ROUNDS = 12;
+/**
+ * Margen para dos renovaciones simultáneas con el mismo token (dos pestañas
+ * duplicadas, o una petición reintentada): la segunda llega con un token que la primera
+ * acaba de revocar. Dentro de este margen se rechaza SOLO esa petición; fuera de él,
+ * un token revocado que reaparece sí se trata como robo y revoca todas las sesiones.
+ */
+exports.GRACIA_REUSO_MS = 10_000;
 function hashToken(token) {
     return crypto_1.default.createHash('sha256').update(token).digest('hex');
 }
@@ -82,11 +89,17 @@ class AuthService {
     }
     async refresh(rawRefreshToken) {
         const tokenHash = hashToken(rawRefreshToken);
-        const storedToken = await usuarios_repo_js_1.usuariosRepo.findRefreshToken(tokenHash);
+        const storedToken = await usuarios_repo_js_1.usuariosRepo.findRefreshToken(tokenHash, exports.GRACIA_REUSO_MS / 1000);
         if (!storedToken) {
             throw createUnauthorizedError('Invalid refresh token');
         }
         if (storedToken.revokedAt !== null) {
+            if (storedToken.revocadoReciente) {
+                // Carrera entre dos renovaciones legítimas: no se cierra la sesión de nadie.
+                // («Reciente» lo calcula SQL: aquí las fechas llegan como texto y compararlas
+                // en JS depende de la zona horaria de Node.)
+                throw createUnauthorizedError('Refresh token already used');
+            }
             // Token reuse detected — revoke all tokens for this user
             await usuarios_repo_js_1.usuariosRepo.revokeAllUserRefreshTokens(storedToken.usuarioId);
             logger_js_1.logger.warn('Refresh token reuse detected', {
@@ -94,15 +107,19 @@ class AuthService {
             });
             throw createUnauthorizedError('Refresh token has been revoked');
         }
-        if (storedToken.expiresAt < new Date()) {
+        if (storedToken.vencido) {
             throw createUnauthorizedError('Refresh token has expired');
         }
         const usuario = await usuarios_repo_js_1.usuariosRepo.findById(storedToken.usuarioId);
         if (!usuario) {
             throw createUnauthorizedError('User not found');
         }
-        // Rotate refresh token
-        await usuarios_repo_js_1.usuariosRepo.revokeRefreshToken(tokenHash);
+        // Rotate refresh token. Solo una de dos renovaciones simultáneas lo revoca: la otra
+        // NO debe emitir un token nuevo (la sesión se bifurcaría en dos cadenas válidas).
+        const revocadoAqui = await usuarios_repo_js_1.usuariosRepo.revokeRefreshToken(tokenHash);
+        if (!revocadoAqui) {
+            throw createUnauthorizedError('Refresh token already used');
+        }
         const payload = {
             sub: usuario.id,
             email: usuario.email,
@@ -117,7 +134,10 @@ class AuthService {
             usuarioId: usuario.id,
             expiresAt,
         });
-        return { accessToken };
+        // Se DEVUELVE el nuevo: antes se creaba y se perdía, el cliente seguía usando el
+        // revocado, y en la segunda renovación (a los ~30 min) se interpretaba como robo y
+        // se cerraban todas las sesiones del usuario.
+        return { accessToken, refreshToken: newRawRefreshToken };
     }
     async logout(rawRefreshToken) {
         const tokenHash = hashToken(rawRefreshToken);

@@ -45,6 +45,8 @@ export interface LoginResponse {
 
 export interface RefreshResponse {
   accessToken: string;
+  /** El servidor rota el refresh token en cada renovación: hay que guardar el nuevo. */
+  refreshToken?: string;
 }
 
 // ─── Error Types ──────────────────────────────────────────────────────────────

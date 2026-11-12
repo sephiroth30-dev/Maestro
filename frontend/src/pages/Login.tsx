@@ -11,6 +11,7 @@ export default function Login(): React.ReactElement {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showResetInfo, setShowResetInfo] = useState(false);
+  const [recordar, setRecordar] = useState(false);
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {
@@ -24,7 +25,7 @@ export default function Login(): React.ReactElement {
     if (!email.trim() || !password.trim()) return;
 
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, recordar);
     } catch {
       // Error is already stored in the auth store — no local state needed
     }
@@ -118,6 +119,18 @@ export default function Login(): React.ReactElement {
               </button>
             </div>
           </div>
+
+          <label className="login-remember" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, margin: '4px 0 12px' }}>
+            <input
+              type="checkbox"
+              checked={recordar}
+              onChange={(e) => setRecordar(e.target.checked)}
+              disabled={isLoading}
+              style={{ width: 'auto', margin: 0 }}
+            />
+            Mantener sesión en este equipo
+            <span style={{ color: '#94a3b8' }}>(solo en equipos propios, p. ej. la pantalla de la oficina)</span>
+          </label>
 
           <button
             type="submit"

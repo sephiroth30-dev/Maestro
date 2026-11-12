@@ -32,6 +32,8 @@ function mapRefreshToken(row) {
         expiresAt: row.expires_at,
         revokedAt: row.revoked_at,
         createdAt: row.created_at,
+        vencido: Number(row.vencido ?? 0) === 1,
+        revocadoReciente: Number(row.revocado_reciente ?? 0) === 1,
     };
 }
 // ─── Repository ───────────────────────────────────────────────────────────────
@@ -55,13 +57,30 @@ class UsuariosRepository {
         const [rows] = await prisma_js_1.pool.query('SELECT * FROM refresh_tokens WHERE id = ? LIMIT 1', [id]);
         return mapRefreshToken(rows[0]);
     }
-    async findRefreshToken(tokenHash) {
-        const [rows] = await prisma_js_1.pool.query('SELECT * FROM refresh_tokens WHERE token_hash = ? LIMIT 1', [tokenHash]);
+    /**
+     * `vencido` y `revocado_reciente` se calculan EN SQL a propósito. El pool devuelve las
+     * fechas como TEXTO (`dateStrings: true`): `new Date('2026-11-12 10:00:00')` se
+     * interpreta en la zona de Node y `texto < Date` da siempre `false`, de modo que la
+     * caducidad nunca se aplicaba. `expires_at` se escribe en UTC (zona del pool) y se
+     * compara con `UTC_TIMESTAMP()`; `revoked_at` lo escribe `NOW()` y se compara con `NOW()`.
+     */
+    async findRefreshToken(tokenHash, graciaSegundos = 10) {
+        const [rows] = await prisma_js_1.pool.query(`SELECT t.*,
+              (t.expires_at < UTC_TIMESTAMP()) AS vencido,
+              (t.revoked_at IS NOT NULL AND t.revoked_at >= NOW() - INTERVAL ? SECOND) AS revocado_reciente
+         FROM refresh_tokens t
+        WHERE t.token_hash = ? LIMIT 1`, [graciaSegundos, tokenHash]);
         const row = rows[0];
         return row ? mapRefreshToken(row) : null;
     }
+    /**
+     * Revoca un token. Devuelve `true` solo si ESTA llamada lo revocó: con dos
+     * renovaciones simultáneas, el `UPDATE ... WHERE revoked_at IS NULL` lo gana una sola,
+     * y la otra no debe seguir emitiendo un token nuevo.
+     */
     async revokeRefreshToken(tokenHash) {
-        await prisma_js_1.pool.execute('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ? AND revoked_at IS NULL', [tokenHash]);
+        const [res] = await prisma_js_1.pool.execute('UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = ? AND revoked_at IS NULL', [tokenHash]);
+        return res.affectedRows > 0;
     }
     async revokeAllUserRefreshTokens(usuarioId) {
         await prisma_js_1.pool.execute('UPDATE refresh_tokens SET revoked_at = NOW() WHERE usuario_id = ? AND revoked_at IS NULL', [usuarioId]);

@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.11] - 2026-11-12
+
+### Fixed
+- **La sesión se cerraba sola a los ~30 minutos de uso.** El servidor rotaba el refresh token en cada renovación (revocaba el usado y creaba uno nuevo) pero **no devolvía el nuevo**: el navegador seguía con el revocado, y en la segunda renovación (a los ~30 min) el servidor lo tomaba por un robo y **cerraba todas las sesiones del usuario**. La inactividad de 15 min lo disimulaba en el uso normal. Ahora `/auth/refresh` devuelve el `refreshToken` nuevo, el navegador lo guarda y la expiración se desliza (cada renovación emite otro de 7 días).
+- **La caducidad del refresh token nunca se aplicaba.** Las fechas llegan de la base como texto y se comparaban en JavaScript, donde `texto < Date` es siempre falso. Ahora «vencido» y «revocado hace menos de 10 s» se calculan en SQL.
+- **Dos renovaciones simultáneas con el mismo token** podían bifurcar la sesión en dos cadenas válidas; ahora la revocación es atómica y solo una emite token. Dentro de los 10 s siguientes, la perdedora falla sin cerrar las demás sesiones; pasado ese margen, un token revocado que reaparece sigue siendo un robo y revoca todo.
+- Una renovación en vuelo ya no «resucita» una sesión cerrada (dejaba un refresh token vivo tras cerrar sesión).
+
+### Added
+- **«Mantener sesión en este equipo»** en el inicio de sesión: guarda la sesión en `localStorage` (opt-in) para que un PC que se reinicia —p. ej. el de la pantalla de la oficina— vuelva a entrar solo. Las pestañas se mantienen sincronizadas.
+
+### Notas
+- Límites conocidos (en `docs/API-AUTH.md`): una pestaña duplicada sin «mantener sesión» comparte el token y se cierra en su primera renovación después de la original; si una respuesta de renovación se pierde en la red, la siguiente se lee como robo; no hay tope absoluto de vida de la sesión.
+
+---
+
 ## [1.9.10] - 2026-11-11
 
 ### Added
