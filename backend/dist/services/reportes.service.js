@@ -43,6 +43,8 @@ const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
 const citas_sync_service_js_1 = require("./citas-sync.service.js");
 const agenda_periodo_js_1 = require("./agenda-periodo.js");
 const agenda_ventana_js_1 = require("./agenda-ventana.js");
+const incumplidasRepo = __importStar(require("../repositories/incumplidas.repo.js"));
+const incumplidas_plan_js_1 = require("./incumplidas-plan.js");
 // Colombia is UTC-5 with no DST. All "today" logic must use Colombia time,
 // not the UTC clock of the Hostinger server.
 function getColombiaDate() {
@@ -521,6 +523,37 @@ class ReportesService {
                 agendaRepo.promedio3Meses((0, agenda_periodo_js_1.mesesCerradosPrevios)(hoy)),
             ]);
             resultado = (0, agenda_periodo_js_1.armarAgenda)(porEntidad, porDia, promedios, horizonte, estado?.ultimaOk ?? null);
+        }
+        await cacheSet(cacheKey, resultado, TTL_REPORTES);
+        return resultado;
+    }
+    /**
+     * Citas INCUMPLIDAS (estado I de Medifolios) por EPS, siguiendo el mismo filtro que los KPIs: mes o rango,
+     * entidad y día de la semana. Cuenta citas por el día de la CITA. No depende de la fuente activa de consumos.
+     *
+     * Sin la agenda activada no hay nada guardado (o lo guardado quedó viejo): se responde vacío con
+     * `cobertura.estado = null`, para que la pantalla diga «sin sincronizar» y no «0 incumplidas».
+     */
+    async getIncumplidas(params) {
+        const periodo = (0, incumplidas_plan_js_1.periodoDeFiltro)(params);
+        // La caché lleva `hoy`: la cobertura «completa» depende de qué día es.
+        const cacheKey = `incumplidas:${periodo.desde}:${periodo.hasta}:${params.entidadId ?? ''}:${params.diaSemana ?? ''}:${(0, agenda_ventana_js_1.hoyEnBogota)(new Date())}`;
+        const cached = await cacheGet(cacheKey);
+        if (cached)
+            return cached;
+        const activos = await conectores_repo_js_1.conectoresRepo.findAllActive();
+        const conector = activos.find((c) => (0, citas_sync_service_js_1.agendaActiva)(c));
+        let resultado;
+        if (!conector) {
+            // Sin la agenda activada: no hay nada que mostrar (y no es «cero»).
+            resultado = (0, incumplidas_plan_js_1.armarIncumplidas)([], periodo, null, agenda_periodo_js_1.aIso, (0, agenda_ventana_js_1.hoyEnBogota)(new Date()), false);
+        }
+        else {
+            const [filas, estado] = await Promise.all([
+                incumplidasRepo.resumenPorEntidad({ ...periodo, conectorId: conector.id, entidadId: params.entidadId, diaSemana: params.diaSemana }),
+                incumplidasRepo.leerEstado(conector.id),
+            ]);
+            resultado = (0, incumplidas_plan_js_1.armarIncumplidas)(filas, periodo, estado, agenda_periodo_js_1.aIso, (0, agenda_ventana_js_1.hoyEnBogota)(new Date()), true);
         }
         await cacheSet(cacheKey, resultado, TTL_REPORTES);
         return resultado;

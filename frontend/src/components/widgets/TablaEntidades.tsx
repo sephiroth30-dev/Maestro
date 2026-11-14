@@ -32,6 +32,58 @@ interface TablaEntidadesProps {
    * promedio de los últimos 3 meses de esa EPS.
    */
   agenda?: ProyeccionEntidades | null;
+  /**
+   * Citas incumplidas por EPS, por la misma clave (`claveEntidad`). Con ella la tabla gana la columna
+   * **Incumplidas**, ordenable: sirve para ver en qué EPS hay más y darles seguimiento.
+   */
+  incumplidas?: IncumplidasTabla | null;
+}
+
+export interface IncumplidasFila {
+  incumplidas: number;
+  cumplidas: number;
+  /** Incumplidas ÷ (cumplidas + incumplidas), en %; `null` sin citas resueltas. */
+  pct: number | null;
+  /** Pocas citas resueltas: el % no es fiable. */
+  muestraPequena: boolean;
+}
+
+export interface IncumplidasTabla {
+  porClave: Map<string, IncumplidasFila>;
+  /** Mayor número de incumplidas: la barrita de cada fila se dibuja contra él. */
+  maximo: number;
+  /** % global del periodo: referencia para ver qué EPS está por encima. */
+  pctGlobal: number | null;
+}
+
+function CeldaIncumplidas({ n, maximo }: { n: number; maximo: number }): React.ReactElement {
+  if (n <= 0) return <span className="tabla-comp-nuevo" title="Sin citas incumplidas en el periodo">—</span>;
+  return (
+    <span className="tabla-incumpl" title={`${n} ${n === 1 ? 'cita incumplida' : 'citas incumplidas'}`}>
+      <strong className="tabla-incumpl-n">{formatNumber(n)}</strong>
+      <span className="tabla-incumpl-barra"><i style={{ width: `${maximo > 0 ? Math.max((n / maximo) * 100, 4) : 0}%` }} /></span>
+    </span>
+  );
+}
+
+/**
+ * % de incumplimiento de una EPS. Colores neutros salvo el énfasis en rosa de las que están claramente por encima del
+ * global; con pocas citas resueltas se atenúa (3 de 5 es 60 % y no dice nada).
+ */
+function CeldaPctIncumplidas({ f, pctGlobal }: { f: IncumplidasFila | undefined; pctGlobal: number | null }): React.ReactElement {
+  if (!f || f.pct === null) return <span className="tabla-comp-nuevo" title="Sin citas resueltas en el periodo">—</span>;
+  const alto = !f.muestraPequena && pctGlobal !== null && f.pct >= pctGlobal * 1.25 && f.pct - pctGlobal >= 2;
+  const txt = `${f.pct.toFixed(1).replace('.', ',')} %`;
+  return (
+    <span
+      className={`tabla-pct-inc${alto ? ' tabla-pct-inc--alto' : ''}${f.muestraPequena ? ' tabla-pct-inc--tenue' : ''}`}
+      title={f.muestraPequena
+        ? `Solo ${f.incumplidas + f.cumplidas} citas resueltas: el porcentaje no es fiable`
+        : `${f.incumplidas} incumplidas de ${f.incumplidas + f.cumplidas} citas resueltas${pctGlobal !== null ? ` (global ${pctGlobal.toFixed(1).replace('.', ',')} %)` : ''}`}
+    >
+      {txt}
+    </span>
+  );
 }
 
 export interface ProyeccionEntidades {
@@ -186,11 +238,11 @@ const columnasBase: ColumnaEntidad[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId, comparacion, agenda }: TablaEntidadesProps): React.ReactElement {
+export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId, comparacion, agenda, incumplidas }: TablaEntidadesProps): React.ReactElement {
   // Las columnas se arman dentro del componente porque la de comparación
   // depende del mes elegido; antes eran una constante de módulo.
   const columns = useMemo((): ColumnaEntidad[] => {
-    if (!comparacion && !agenda) return columnasBase;
+    if (!comparacion && !agenda && !incumplidas) return columnasBase;
 
     // Todo lo que se añade va justo después de "Valor Bruto", que es la cifra
     // con la que se compara y a la que se suma lo agendado.
@@ -253,8 +305,27 @@ export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId,
 
     const i = columnasBase.findIndex((c) => 'accessorKey' in c && c.accessorKey === 'valor_bruto');
     const corte = i >= 0 ? i + 1 : columnasBase.length;
-    return [...columnasBase.slice(0, corte), ...extra, ...columnasBase.slice(corte)];
-  }, [comparacion, agenda]);
+    const armadas = [...columnasBase.slice(0, corte), ...extra, ...columnasBase.slice(corte)];
+
+    // «Incumplidas» y su % van justo antes de «Participación», que cierra la fila.
+    if (incumplidas) {
+      const cols = [
+        colHelper.accessor((r) => incumplidas.porClave.get(claveEntidad(r))?.incumplidas ?? 0, {
+          id: 'incumplidas',
+          header: 'Incumplidas',
+          cell: (info) => <CeldaIncumplidas n={info.getValue()} maximo={incumplidas.maximo} />,
+        }),
+        colHelper.accessor((r) => incumplidas.porClave.get(claveEntidad(r))?.pct ?? -1, {
+          id: 'pctIncumplidas',
+          header: '% incumpl.',
+          cell: (info) => <CeldaPctIncumplidas f={incumplidas.porClave.get(claveEntidad(info.row.original))} pctGlobal={incumplidas.pctGlobal} />,
+        }),
+      ];
+      const p = armadas.findIndex((c) => 'accessorKey' in c && c.accessorKey === 'participacion_pct');
+      armadas.splice(p >= 0 ? p : armadas.length, 0, ...cols);
+    }
+    return armadas;
+  }, [comparacion, agenda, incumplidas]);
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'valor_bruto', desc: true },

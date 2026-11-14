@@ -1,4 +1,5 @@
 import { type AgendaResultado } from './agenda-periodo.js';
+import { type IncumplidasResultado } from './incumplidas-plan.js';
 export interface KpisResult {
     facturacion_bruta: number;
     presupuesto: number;
@@ -136,6 +137,21 @@ declare class ReportesService {
         entidadId?: string;
         diaSemana?: number;
     }): Promise<AgendaResultado>;
+    /**
+     * Citas INCUMPLIDAS (estado I de Medifolios) por EPS, siguiendo el mismo filtro que los KPIs: mes o rango,
+     * entidad y día de la semana. Cuenta citas por el día de la CITA. No depende de la fuente activa de consumos.
+     *
+     * Sin la agenda activada no hay nada guardado (o lo guardado quedó viejo): se responde vacío con
+     * `cobertura.estado = null`, para que la pantalla diga «sin sincronizar» y no «0 incumplidas».
+     */
+    getIncumplidas(params: {
+        mesIdx: number;
+        anio: number;
+        startDate?: string;
+        endDate?: string;
+        entidadId?: string;
+        diaSemana?: number;
+    }): Promise<IncumplidasResultado>;
     /**
      * Meses con datos, para el selector de Reportes.
      *

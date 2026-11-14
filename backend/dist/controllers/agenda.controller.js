@@ -38,6 +38,7 @@ const auth_middleware_js_1 = require("../middlewares/auth.middleware.js");
 const rbac_middleware_js_1 = require("../middlewares/rbac.middleware.js");
 const conectores_repo_js_1 = require("../repositories/conectores.repo.js");
 const repo = __importStar(require("../repositories/agenda.repo.js"));
+const incumplidasRepo = __importStar(require("../repositories/incumplidas.repo.js"));
 const citas_sync_service_js_1 = require("../services/citas-sync.service.js");
 const agenda_backtest_service_js_1 = require("../services/agenda-backtest.service.js");
 /** Una evaluación «corriendo» más vieja que esto se dio por interrumpida (reinicio del servidor). */
@@ -64,12 +65,13 @@ async function agendaRoutes(fastify) {
         if (!conector) {
             return reply.send({ configurada: false, conector: null });
         }
-        const [estado, resumen, sinEntidad, sinPrecio, backtest] = await Promise.all([
+        const [estado, resumen, sinEntidad, sinPrecio, backtest, incumplidas] = await Promise.all([
             repo.leerEstadoSync(conector.id),
             repo.resumenCitas(),
             repo.conveniosSinEntidad(),
             repo.citasSinPrecioPorReferencia(),
             repo.leerBacktest(conector.id),
+            incumplidasRepo.leerEstado(conector.id).catch(() => null),
         ]);
         // Interpretación de los permisos: el 403 de Medifolios es lo que más conviene
         // ver claro, porque se arregla pidiendo un permiso, no tocando código.
@@ -86,6 +88,7 @@ async function agendaRoutes(fastify) {
             conveniosSinEntidad: sinEntidad,
             citasSinPrecio: sinPrecio,
             backtest: backtestVigente(backtest),
+            incumplidas,
         });
     });
     // POST /api/diagnostico/agenda/sincronizar  (en segundo plano: tarda ~1 minuto)

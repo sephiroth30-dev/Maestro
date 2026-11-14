@@ -5,13 +5,14 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell, ReferenceLine, CartesianGrid,
 } from 'recharts';
-import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendenciaAnio, useServicios, useAgenda, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
+import { useKpis, useEntidades, useCumplimientoSemanal, useDiasSemana, useTendenciaAnio, useServicios, useAgenda, useIncumplidas, useMesesDisponibles, invalidarReportes } from '../api/reportes.js';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DiaSemanaRow, EntidadRow, SemanaRow, TendenciaRow, AgendaEntidad } from '../api/reportes.js';
 import KpiCard from '../components/widgets/KpiCard.js';
+import KpiIncumplidas from '../components/widgets/KpiIncumplidas.js';
 import ChartCumplimiento from '../components/widgets/ChartCumplimiento.js';
 import ChartMixPagador from '../components/widgets/ChartMixPagador.js';
-import TablaEntidades, { claveEntidad } from '../components/widgets/TablaEntidades.js';
+import TablaEntidades, { claveEntidad, type IncumplidasTabla, type IncumplidasFila } from '../components/widgets/TablaEntidades.js';
 import TablaServicios from '../components/widgets/TablaServicios.js';
 import { tipoLabel } from '../components/widgets/tipoLabel.js';
 import ResumenComparativo from '../components/widgets/ResumenComparativo.js';
@@ -587,6 +588,9 @@ export default function Reportes(): React.ReactElement {
   // Period dates are never changed — dia_semana is an additive filter on the same period
   const kpisQ         = useKpis(selected.mes, selected.anio, selectedEntidadId ?? undefined, periodStart, periodEnd, diaSemana);
   const entidadesQ    = useEntidades(selected.mes, selected.anio, periodStart, periodEnd, diaSemana);
+  // Citas incumplidas por EPS: siguen el mismo filtro que las demás (mes, año, rango, semana, día, día de la
+  // semana y entidad). Es un conteo de CITAS por el día de la cita, no de facturación.
+  const incumplidasQ  = useIncumplidas(selected.mes, selected.anio, periodStart, periodEnd, selectedEntidadId ?? undefined, diaSemana);
 
   // ─── Proyección por agenda ──────────────────────────────────────────────────
   //
@@ -798,16 +802,48 @@ export default function Reportes(): React.ReactElement {
   // Una EPS puede tener citas agendadas y NADA facturado todavía en el periodo
   // (un convenio que arranca, o la primera semana del mes). Sin estas filas
   // quedaría fuera de la tabla justo cuando más importa verla.
+  // Lo mismo vale para una EPS con citas INCUMPLIDAS y nada facturado: justo la que se quiere seguir.
+  const incumplidasPorClave = useMemo(() => {
+    const m = new Map<string, { id: string | null; entidad: string; tipo: string; inc: number; cum: number }>();
+    for (const e of incumplidasQ.data?.por_entidad ?? []) {
+      const k = claveEntidad({ id: e.entidad_id, entidad: e.entidad });
+      const prev = m.get(k);
+      m.set(k, prev
+        ? { ...prev, inc: prev.inc + e.incumplidas, cum: prev.cum + e.cumplidas }
+        : { id: e.entidad_id, entidad: e.entidad, tipo: e.tipo, inc: e.incumplidas, cum: e.cumplidas });
+    }
+    return m;
+  }, [incumplidasQ.data]);
+  // Las columnas solo se muestran si hay datos de verdad (agenda activada y algo ya cargado). El % se recalcula
+  // aquí si el servidor devolviera varias filas de una misma EPS (se sumaron arriba).
+  const incumplidasTabla = useMemo((): IncumplidasTabla | null => {
+    const d = incumplidasQ.data;
+    if (!d || d.cobertura.estado === null || d.cobertura.estado === 'nunca' || d.cobertura.desde === null) return null;
+    // Un periodo entero anterior a lo cargado no tiene conteo (la tarjeta dice «—»): la tabla tampoco muestra ceros.
+    if (d.periodo.hasta < d.cobertura.desde) return null;
+    let maximo = 0;
+    const porClave = new Map<string, IncumplidasFila>();
+    for (const [k, v] of incumplidasPorClave) {
+      const resueltas = v.inc + v.cum;
+      porClave.set(k, { incumplidas: v.inc, cumplidas: v.cum, pct: resueltas > 0 ? Math.round((v.inc / resueltas) * 1000) / 10 : null, muestraPequena: resueltas < 10 });
+      if (v.inc > maximo) maximo = v.inc;
+    }
+    return { porClave, maximo, pctGlobal: d.total.pct };
+  }, [incumplidasQ.data, incumplidasPorClave]);
+
   const filasSoloAgenda = useMemo((): EntidadRow[] => {
-    if (!agendaPorClave) return [];
     const facturadas = new Set(filasFacturadas.map(claveEntidad));
-    return [...agendaPorClave.entries()]
-      .filter(([k]) => !facturadas.has(k))
-      .map(([, a]) => ({
-        id: a.entidad_id, entidad: a.entidad, tipo: a.tipo, es_grupo: false,
-        cantidad: 0, valor_bruto: 0, participacion_pct: 0,
-      }));
-  }, [agendaPorClave, filasFacturadas]);
+    const sinFacturar = new Map<string, EntidadRow>();
+    for (const [k, a] of agendaPorClave ?? []) {
+      if (!facturadas.has(k)) sinFacturar.set(k, { id: a.entidad_id, entidad: a.entidad, tipo: a.tipo, es_grupo: false, cantidad: 0, valor_bruto: 0, participacion_pct: 0 });
+    }
+    for (const [k, v] of incumplidasTabla ? incumplidasPorClave : []) {
+      if (!facturadas.has(k) && !sinFacturar.has(k) && v.inc > 0) {
+        sinFacturar.set(k, { id: v.id, entidad: v.entidad, tipo: v.tipo, es_grupo: false, cantidad: 0, valor_bruto: 0, participacion_pct: 0 });
+      }
+    }
+    return [...sinFacturar.values()];
+  }, [agendaPorClave, incumplidasPorClave, incumplidasTabla, filasFacturadas]);
 
   // Sin filas sintéticas devuelve la MISMA referencia que antes (la de la
   // consulta): con el interruptor apagado nada se recalcula de más.
@@ -992,8 +1028,25 @@ export default function Reportes(): React.ReactElement {
       // Las filas que solo existen por la agenda (valor facturado 0) no son
       // facturación: exportarlas mostraría EPS con 0 atenciones y $0, e inflaría
       // el «Se exportan N filas». El documento no tiene columnas de agenda.
-      entidades: tableRows.filter((r) => !clavesSoloAgenda.has(claveEntidad(r))),
+      // Las filas que solo existen por la agenda no se exportan, SALVO las que tienen incumplidas: esas sí son un dato
+      // que se quiere ver (y dejarlas fuera haría que el total del documento quedara por debajo del de la tarjeta).
+      entidades: tableRows.filter((r) => !clavesSoloAgenda.has(claveEntidad(r)) || (incumplidasTabla?.porClave.get(claveEntidad(r))?.incumplidas ?? 0) > 0),
       entidadesAll: filasFacturadas,
+      incumplidas: incumplidasTabla
+        ? {
+            de: (r: EntidadRow) => {
+              const f = incumplidasTabla.porClave.get(claveEntidad(r));
+              return { incumplidas: f?.incumplidas ?? 0, cumplidas: f?.cumplidas ?? 0, pct: f?.pct ?? null };
+            },
+            pctGlobal: incumplidasTabla.pctGlobal,
+            // No se exporta una cifra corta sin decirlo.
+            nota: incumplidasQ.data && !incumplidasQ.data.cobertura.completa && incumplidasQ.data.cobertura.desde
+              ? `Las citas incumplidas están cargadas ${incumplidasQ.data.cobertura.hasta ? `del ${incumplidasQ.data.cobertura.desde} al ${incumplidasQ.data.cobertura.hasta}` : `desde el ${incumplidasQ.data.cobertura.desde}`}: fuera de ese tramo el conteo puede quedar corto.`
+              : incumplidasQ.data?.cobertura.estado === 'error'
+                ? 'La última sincronización de citas incumplidas falló: las cifras pueden estar desactualizadas.'
+                : null,
+          }
+        : null,
       servicios: serviciosQ.data,
       isAnioMode,
       isRangoMode,
@@ -1003,7 +1056,7 @@ export default function Reportes(): React.ReactElement {
   }, [
     filterMode, periodLabel, diaLabel, groupLabel, selectedTipo, selectedEntidadName,
     kpisQ.data, flujoPct, diasQ.data, cumplimientoQ.data, tendenciaAnio,
-    tableRows, filasFacturadas, clavesSoloAgenda, serviciosQ.data, isAnioMode, isRangoMode,
+    tableRows, filasFacturadas, clavesSoloAgenda, incumplidasTabla, serviciosQ.data, isAnioMode, isRangoMode,
   ]);
 
   return (
@@ -1260,7 +1313,7 @@ export default function Reportes(): React.ReactElement {
       {isCompactMode ? (
         <>
           {/* KPI Row: Bruta + Atenciones + Ticket (sin Cumplimiento — no aplica) */}
-          <div className="kpi-grid kpi-grid--3">
+          <div className="kpi-grid kpi-grid--4">
             {kpisQ.isLoading ? (
               <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
             ) : kpisQ.data ? (
@@ -1274,6 +1327,7 @@ export default function Reportes(): React.ReactElement {
                   icon={<BarChart2 size={16} />} color="amber" />
               </>
             ) : null}
+            <KpiIncumplidas data={incumplidasQ.data} cargando={incumplidasQ.isLoading} error={incumplidasQ.isError} actualizando={incumplidasQ.isPlaceholderData} />
           </div>
 
           {/* Bar chart + Mix Pagador lado a lado */}
@@ -1305,8 +1359,8 @@ export default function Reportes(): React.ReactElement {
         <>
           {/* ── MODO NORMAL: layout completo ── */}
 
-          {/* KPI Row 1 — 4 cards */}
-          <div className="kpi-grid kpi-grid--4">
+          {/* KPI Row 1 — 4 cards + citas incumplidas */}
+          <div className="kpi-grid kpi-grid--5">
             {kpisQ.isLoading ? (
               <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
             ) : kpisQ.data ? (
@@ -1337,6 +1391,7 @@ export default function Reportes(): React.ReactElement {
                   icon={<BarChart2 size={16} />} color="amber" />
               </>
             ) : null}
+            <KpiIncumplidas data={incumplidasQ.data} cargando={incumplidasQ.isLoading} error={incumplidasQ.isError} actualizando={incumplidasQ.isPlaceholderData} />
           </div>
 
           {/* Totales de los dos periodos frente a frente (solo con "Comparar" activo) */}
@@ -1464,6 +1519,7 @@ export default function Reportes(): React.ReactElement {
              selectedEntidadId={selectedEntidadId}
              comparacion={compEntidades}
              agenda={agendaEntidades}
+             incumplidas={incumplidasTabla}
            />
          ) : null}
       </div>

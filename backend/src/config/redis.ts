@@ -37,7 +37,7 @@ export async function disconnectRedis(): Promise<void> {
 const PREFIJO_FUENTE = /^f:[^:]+:/;
 
 export function flushReportesCache(): void {
-  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:', 'agenda:'];
+  const prefixes = ['kpis:', 'entidades:', 'cumplimiento:', 'diasemana:', 'tendencia:', 'servicios:', 'agenda:', 'incumplidas:'];
   for (const key of memCache.keys()) {
     const sinFuente = key.replace(PREFIJO_FUENTE, '');
     if (prefixes.some((p) => sinFuente.startsWith(p))) {

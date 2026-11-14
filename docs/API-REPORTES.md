@@ -41,6 +41,36 @@ resto. Caché: 60 s, con el prefijo de la fuente activa.
 
 ---
 
+## GET /api/reportes/incumplidas
+
+Citas **incumplidas** (estado `I` de Medifolios) por EPS y su **% de incumplimiento** sobre las citas resueltas. Mismos parámetros que `kpis` (`mes_idx`+`anio` o `start_date`+`end_date`, `entidad_id`,
+`dia_semana`). Cuenta citas por el **día de la cita**, no facturación. ADMISIONES queda atado al mes en curso. Caché de 60 s (prefijo `incumplidas:`).
+
+```ts
+{
+  total: { incumplidas: number; cumplidas: number; resueltas: number; pct: number | null };   // suma de por_entidad; pct = incumplidas ÷ resueltas
+  por_entidad: Array<{
+    entidad_id: string | null; entidad: string; tipo: string;
+    cumplidas: number; incumplidas: number;
+    resueltas: number;                 // cumplidas + incumplidas: el denominador del %
+    pct: number | null;                // incumplidas ÷ resueltas, en % con un decimal; null sin citas resueltas
+    muestra_pequena: boolean;          // menos de 10 resueltas: el % no es fiable
+  }>;                                  // de más incumplidas a menos (empate: por nombre)
+  periodo: { desde: string; hasta: string };                  // el rango consultado (YYYY-MM-DD)
+  cobertura: {
+    desde: string | null;              // primer día cargado
+    hasta: string | null;              // último día cargado
+    completa: boolean;                 // ¿lo cargado cubre todo el periodo? (día de margen solo si el periodo llega a hoy)
+    actualizado_en: string | null;     // ISO
+    estado: 'nunca' | 'ok' | 'error' | null;   // null = agenda sin activar; 'nunca' = activada pero sin sincronizar: «sin datos», no «0»
+  };
+}
+```
+
+Ver `docs/CITAS-INCUMPLIDAS.md`.
+
+---
+
 ## GET /api/reportes/kpis
 
 Retorna KPIs del mes seleccionado.

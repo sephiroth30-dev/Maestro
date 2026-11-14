@@ -1813,6 +1813,14 @@ body,
   grid-template-columns: repeat(4, 1fr);
 }
 
+.kpi-grid--5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* Cinco tarjetas en una fila: el valor grande se encoge con el ancho de la ventana (va ANTES de los @media: ganan por orden). */
+.kpi-grid--5 .kpi-card { padding: 1.1rem 1.1rem; }
+.kpi-grid--5 .kpi-card-value { font-size: clamp(1.25rem, 1.5vw, 1.85rem); }
+
 .kpi-grid--3 {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -1881,16 +1889,32 @@ body,
 }
 
 @media (max-width: 1100px) {
-  .kpi-grid--4 {
+  .kpi-grid--4,
+  .kpi-grid--5 {
     grid-template-columns: repeat(2, 1fr);
   }
+  .kpi-grid--5 > :nth-child(5) { grid-column: span 2; }
+  .kpi-grid--5 .kpi-card-value { font-size: 1.85rem; }
+}
+
+/*
+ * Cinco tarjetas en una fila: el valor grande se encoge con el ancho de la ventana para que una cifra de
+ * 13 caracteres («$ 139.657.155») quepa en ~210 px. Por debajo de 1280 px se pasa a 3 columnas, y la quinta
+ * ocupa el resto de la segunda fila (así no queda un hueco al lado).
+ */
+@media (max-width: 1279px) and (min-width: 1101px) {
+  .kpi-grid--5 { grid-template-columns: repeat(3, 1fr); }
+  .kpi-grid--5 > :nth-child(5) { grid-column: span 2; }
+  .kpi-grid--5 .kpi-card-value { font-size: 1.85rem; }
 }
 
 @media (max-width: 640px) {
   .kpi-grid--4,
+  .kpi-grid--5,
   .kpi-grid--3 {
     grid-template-columns: 1fr;
   }
+  .kpi-grid--5 > :nth-child(5) { grid-column: auto; }
 }
 
 /*
@@ -6158,3 +6182,22 @@ body,
 @media (max-width: 560px) {
   .mapeo-campos__fila { grid-template-columns: 1fr; gap: 3px; }
 }
+
+
+/* ─── Citas incumplidas ─────────────────────────────────────────────────────── */
+.kpi-incumpl-top { list-style: none; margin: var(--space-2) 0 0; padding: var(--space-2) 0 0; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px; }
+.kpi-incumpl-top li { display: flex; justify-content: space-between; gap: var(--space-2); font-size: 0.8rem; color: #475569; }
+.kpi-incumpl-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.kpi-incumpl-cifras { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
+.kpi-incumpl-pct { color: #64748b; font-size: 0.72rem; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+.kpi-incumpl-pct--tenue { color: #cbd5e1; }
+.kpi-incumpl-top strong { color: #be123c; font-variant-numeric: tabular-nums; }
+
+.tabla-incumpl { display: flex; flex-direction: column; gap: 3px; min-width: 56px; }
+.tabla-incumpl-n { color: #be123c; font-variant-numeric: tabular-nums; }
+.tabla-incumpl-barra { display: block; height: 4px; background: #ffe4e6; border-radius: 99px; overflow: hidden; }
+.tabla-incumpl-barra i { display: block; height: 100%; background: #f43f5e; border-radius: 99px; }
+
+.tabla-pct-inc { font-variant-numeric: tabular-nums; color: #475569; }
+.tabla-pct-inc--alto { color: #be123c; font-weight: 700; }
+.tabla-pct-inc--tenue { color: #cbd5e1; }

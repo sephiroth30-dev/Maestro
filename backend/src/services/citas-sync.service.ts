@@ -12,6 +12,7 @@ import { RestConfigSchema } from '../connectors/rest.connector.js';
 import * as repo from '../repositories/agenda.repo.js';
 import * as tvRepo from '../repositories/tv.repo.js';
 import { actualizarCitasDia } from './citas-dia.service.js';
+import { sincronizarIncumplidas } from './incumplidas-sync.service.js';
 import type { Conector } from '@prisma/client';
 
 /**
@@ -39,6 +40,8 @@ const CITAS_REINTENTO_MS = 30 * 60_000;
 
 /** Cuándo falló por última vez la lectura de las citas de HOY (para la TV), por conector. En memoria. */
 const fallosTv = new Map<string, number>();
+/** Ídem para las incumplidas (Reportes). */
+const fallosIncumplidas = new Map<string, number>();
 
 export interface ResultadoCitasSync {
   ok: boolean;
@@ -307,6 +310,29 @@ export async function sincronizarCitas(conectorId: string, opciones: { manual?: 
         logger.warn('Citas de hoy para la TV: no se pudieron actualizar', { conectorId, error: msg });
         // Que el fallo SE VEA (Diagnóstico y la propia pantalla), no solo en el registro del servidor.
         await repo.guardarEstadoSync(conectorId, { tvEstado: 'error', tvError: msg.slice(0, 600), tvActualizado: new Date().toISOString() }).catch(() => undefined);
+      }
+    }
+
+    // El resumen de citas CUMPLIDAS e INCUMPLIDAS (tarjeta, columna y % de Reportes): ventana de 7 días en cada
+    // vuelta, el mes anterior una vez al día y un mes más de histórico por vuelta. También va después del «ok» de
+    // la agenda y NUNCA la estropea; tras un fallo espera 30 min (el botón manual lo salta y acepta respuestas
+    // que reducen mucho lo guardado).
+    const falloInc = fallosIncumplidas.get(conectorId);
+    if (opciones.manual || falloInc === undefined || Date.now() - falloInc > CITAS_REINTENTO_MS) {
+      try {
+        await sincronizarIncumplidas({
+          conectorId, ahora, hoy,
+          pedir: (desde, hasta, estado) => pedirCitas(conector, cfg, { fechaInicial: desde, fechaFinal: hasta, estadoCita: estado }),
+          entidadDe: (f) => enriquecerCita(f, resolutores, epsPorConvenio).entidadId,
+          forzar: opciones.manual === true,
+        });
+        fallosIncumplidas.delete(conectorId);
+      } catch (err) {
+        fallosIncumplidas.set(conectorId, Date.now());
+        logger.warn('Incumplidas: no se pudieron actualizar', { conectorId, error: err instanceof Error ? err.message : String(err) });
+      } finally {
+        // También con fallo parcial (una tarea guardada y otra no): la tarjeta no debe seguir con lo anterior hasta 60 s.
+        flushReportesCache();
       }
     }
     return resultado;

@@ -212,6 +212,25 @@ export default function SeccionAgenda(): React.ReactElement {
           </div>
         </div>
 
+        {/* Citas incumplidas (columna y tarjeta de Reportes) */}
+        <h4 style={{ margin: '16px 0 4px' }}>Citas incumplidas (Reportes)</h4>
+        <div data-testid="agenda-incumplidas" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          {data.incumplidas?.estado === 'ok'
+            ? <CheckCircle size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: 2 }} />
+            : <AlertTriangle size={15} style={{ color: data.incumplidas?.estado === 'error' ? '#ef4444' : '#94a3b8', flexShrink: 0, marginTop: 2 }} />}
+          <div>
+            {data.incumplidas?.estado === 'ok' && <>Cargadas del {data.incumplidas.desde ?? '—'} al {data.incumplidas.hasta ?? '—'} · última sincronización {fechaLocal(data.incumplidas.ultimaOk)}</>}
+            {data.incumplidas?.estado === 'error' && <>
+              La última sincronización falló (se conserva lo cargado; desde el {data.incumplidas.desde ?? '—'}).
+              <div style={{ color: '#64748b', fontSize: 12 }}>{data.incumplidas.error}</div>
+            </>}
+            {(!data.incumplidas || data.incumplidas.estado === 'nunca') && <>Aún no se han sincronizado (corre tras cada sincronización de citas).</>}
+            <div style={{ color: '#64748b', fontSize: 12 }}>
+              Se guardan cuántas citas cumplidas e incumplidas hay por día y EPS (para el % de incumplimiento). Cada vuelta recarga los últimos 7 días, una vez al día el mes anterior, y suma un mes más de histórico hasta el 1 de enero del año anterior.
+            </div>
+          </div>
+        </div>
+
         {/* Permisos */}
         <h4 style={{ margin: '16px 0 4px' }}>Permisos del usuario de la API</h4>
         <Permiso nombre="Citas" codigo="01010202" estado={data.permisos?.citas ?? 'desconocido'} />

@@ -270,6 +270,39 @@ const MIGRATIONS = [
       ADD COLUMN tv_actualizado DATETIME NULL`,
         columna: { tabla: 'agenda_sync', columna: 'tv_estado' },
     },
+    // Resumen de las citas CUMPLIDAS e INCUMPLIDAS (estados C e I de Medifolios) por día y por EPS: cuántas de cada una.
+    // Sin datos de pacientes ni una fila por cita. Con él Reportes cuenta las incumplidas y calcula su % por EPS
+    // siguiendo todos los filtros (mes, semana, día, rango, día de la semana). `fecha_dia` es el día de la CITA.
+    // `entidad_id` va vacío ('') cuando la cita no se pudo vincular a una EPS (entonces se agrupa por convenio).
+    {
+        id: 'm29_citas_resumen_dia',
+        sql: `CREATE TABLE IF NOT EXISTS citas_resumen_dia (
+      conector_id VARCHAR(36) NOT NULL,
+      fecha_dia DATE NOT NULL,
+      entidad_id VARCHAR(36) NOT NULL DEFAULT '',
+      convenio_nombre VARCHAR(100) NOT NULL DEFAULT '',
+      cumplidas INT NOT NULL DEFAULT 0,
+      incumplidas INT NOT NULL DEFAULT 0,
+      PRIMARY KEY (conector_id, fecha_dia, entidad_id, convenio_nombre),
+      KEY idx_resumen_dia (fecha_dia),
+      KEY idx_resumen_entidad (entidad_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    // Hasta dónde llega lo cargado (un tramo sin huecos, `desde`–`hasta`) y cómo salió la última sincronización.
+    {
+        id: 'm30_incumplidas_sync',
+        sql: `CREATE TABLE IF NOT EXISTS incumplidas_sync (
+      conector_id VARCHAR(36) NOT NULL,
+      desde DATE NULL,
+      hasta DATE NULL,
+      ultimo_diario DATE NULL,
+      ultimo_intento DATETIME NULL,
+      ultima_ok DATETIME NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'nunca',
+      error TEXT NULL,
+      PRIMARY KEY (conector_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
     // Una foto de las cifras del día en cada sincronización: con ellas se dibuja el gráfico de lo
     // facturado hoy como una línea real y se compara con el mismo momento del día anterior. Sin datos
     // de pacientes. Se conservan 60 días.

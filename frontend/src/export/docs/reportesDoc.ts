@@ -34,6 +34,16 @@ export interface ReportesDocInput {
   entidades: EntidadRow[];
   /** Filas sin filtros cliente: es lo que alimenta el donut en pantalla. */
   entidadesAll: EntidadRow[];
+  /**
+   * Citas incumplidas de una fila de la tabla y su %; si no viene, el documento no lleva las columnas.
+   * `nota` avisa de una cobertura incompleta o de un error en la carga (no se exporta una cifra corta sin decirlo).
+   */
+  incumplidas?: {
+    de: (r: EntidadRow) => { incumplidas: number; cumplidas: number; pct: number | null };
+    /** % global del periodo (el de la tarjeta), solo para avisar si el del TOTAL del documento difiere. */
+    pctGlobal: number | null;
+    nota?: string | null;
+  } | null;
   servicios: ServiciosResult | undefined;
   isAnioMode: boolean;
   isRangoMode: boolean;
@@ -219,17 +229,34 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
   // ── Facturación por entidad ────────────────────────────────────────────────
   const valorFiltrado = i.entidades.reduce((s, r) => s + r.valor_bruto, 0);
   const valorPeríodo = i.entidadesAll.reduce((s, r) => s + r.valor_bruto, 0);
+  // El TOTAL de las incumplidas y su % salen de las MISMAS filas exportadas: así la fila TOTAL cuadra con lo que se ve
+  // en el archivo. Si el % global del periodo (el de la tarjeta) difiere, se dice.
+  const totalIncumpl = { inc: 0, cum: 0, pct: null as number | null };
+  if (i.incumplidas) {
+    for (const r of i.entidades) { const f = i.incumplidas.de(r); totalIncumpl.inc += f.incumplidas; totalIncumpl.cum += f.cumplidas; }
+    const res = totalIncumpl.inc + totalIncumpl.cum;
+    totalIncumpl.pct = res > 0 ? Math.round((totalIncumpl.inc / res) * 1000) / 10 : null;
+  }
+  const difiere = i.incumplidas && totalIncumpl.pct !== null && i.incumplidas.pctGlobal !== null && Math.abs(totalIncumpl.pct - i.incumplidas.pctGlobal) >= 0.1;
+  const notaIncumplidas = [
+    i.incumplidas?.nota ?? null,
+    difiere ? `El % de incumplidas del TOTAL se calcula con las filas de esta tabla (${String(totalIncumpl.pct).replace('.', ',')} %); el del periodo completo es ${String(i.incumplidas!.pctGlobal).replace('.', ',')} %.` : null,
+  ].filter(Boolean).join(' ');
   if (i.entidades.length > 0) {
     sections.push(
       defineTable<EntidadRow>({
         id: 'entidades',
         title: 'Facturación por entidad',
-        note: `Se exportan las ${i.entidades.length} filas del filtro actual, no solo las visibles en pantalla.`,
+        note: `Se exportan las ${i.entidades.length} filas del filtro actual, no solo las visibles en pantalla.${notaIncumplidas ? ` ${notaIncumplidas}` : ''}`,
         columns: [
           { key: 'entidad', header: 'Entidad', accessor: (r) => r.entidad, width: 34 },
           { key: 'tipo', header: 'Tipo', accessor: (r) => (r.es_grupo ? `${r.tipo} (caja)` : r.tipo) },
           { key: 'cantidad', header: 'Atenciones', accessor: (r) => r.cantidad, format: 'number' },
           { key: 'valor', header: 'Valor bruto', accessor: (r) => r.valor_bruto, format: 'currency', money: true },
+          ...(i.incumplidas ? [
+            { key: 'incumpl', header: 'Citas incumplidas', accessor: (r: EntidadRow) => i.incumplidas!.de(r).incumplidas, format: 'number' as const },
+            { key: 'pctIncumpl', header: '% incumplidas', accessor: (r: EntidadRow) => i.incumplidas!.de(r).pct, format: 'percent' as const },
+          ] : []),
           { key: 'part', header: 'Participación', accessor: (r) => r.participacion_pct, format: 'percent' },
         ],
         rows: i.entidades,
@@ -238,6 +265,7 @@ export function buildReportesDoc(i: ReportesDocInput): ExportDoc {
           values: {
             cantidad: i.entidades.reduce((s, r) => s + r.cantidad, 0),
             valor: valorFiltrado,
+            ...(i.incumplidas ? { incumpl: totalIncumpl.inc, pctIncumpl: totalIncumpl.pct } : {}),
             // Recalculado sobre el total del período: sumar los porcentajes ya
             // redondeados de la API da 100,3 % con muchas entidades.
             part: valorPeríodo > 0 ? (valorFiltrado / valorPeríodo) * 100 : null,

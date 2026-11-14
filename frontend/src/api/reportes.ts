@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, type UseMutationResult, type QueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type UseMutationResult, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from './client.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -202,6 +202,75 @@ export interface AgendaEntidad {
    * proyectado para saber si la EPS va por encima o por debajo de lo normal.
    */
   promedio_3m: number | null;
+}
+
+export interface IncumplidasEntidad {
+  entidad_id: string | null;
+  entidad: string;
+  tipo: string;
+  cumplidas: number;
+  incumplidas: number;
+  /** Cumplidas + incumplidas: las citas que ya se resolvieron (el denominador del %). */
+  resueltas: number;
+  /** Incumplidas ÷ resueltas, en %. `null` sin citas resueltas. */
+  pct: number | null;
+  /** Menos de 10 citas resueltas: el % no es fiable. */
+  muestra_pequena: boolean;
+}
+
+export interface IncumplidasResult {
+  total: { incumplidas: number; cumplidas: number; resueltas: number; pct: number | null };
+  /** De la que más incumplidas tiene a la que menos. */
+  por_entidad: IncumplidasEntidad[];
+  periodo: { desde: string; hasta: string };
+  cobertura: {
+    /** Primer día cargado; `null` si aún no se ha sincronizado nada. */
+    desde: string | null;
+    /** Último día cargado; `null` si aún no se ha sincronizado nada. */
+    hasta: string | null;
+    /** ¿Lo cargado cubre todo el periodo? Si no, el conteo puede quedar corto. */
+    completa: boolean;
+    actualizado_en: string | null;
+    /** `null` = la agenda de citas no está activada; `nunca` = activada pero sin sincronizar. */
+    estado: 'nunca' | 'ok' | 'error' | null;
+  };
+}
+
+/**
+ * Citas incumplidas (estado I de Medifolios) por EPS. Mismos parámetros que `useKpis`: mes o rango, entidad y
+ * día de la semana, así la tarjeta y la columna de la tabla siguen el filtro aplicado.
+ */
+export function useIncumplidas(
+  mesIdx: number,
+  anio: number,
+  startDate?: string,
+  endDate?: string,
+  entidadId?: string,
+  diaSemana?: number,
+) {
+  const params = new URLSearchParams();
+  if (startDate && endDate) {
+    params.set('start_date', startDate);
+    params.set('end_date', endDate);
+  } else {
+    params.set('mes_idx', String(mesIdx));
+    params.set('anio', String(anio));
+  }
+  if (entidadId) params.set('entidad_id', entidadId);
+  if (diaSemana !== undefined) params.set('dia_semana', String(diaSemana));
+
+  return useQuery<IncumplidasResult>({
+    queryKey: ['incumplidas', mesIdx, anio, startDate, endDate, entidadId, diaSemana],
+    queryFn: async () => {
+      const response = await apiClient.get<IncumplidasResult>(`/reportes/incumplidas?${params}`);
+      return response.data;
+    },
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+    // Al cambiar de filtro se conserva lo anterior mientras llega lo nuevo: sin esto la columna de la tabla
+    // desaparecía un instante y la tabla perdía el orden por «Incumplidas».
+    placeholderData: keepPreviousData,
+  });
 }
 
 export interface AgendaDia {
@@ -441,6 +510,15 @@ export interface AgendaDiagnostico {
   resumen?: { citas: number; conPrecio: number; sinPrecio: number; sinEntidad: number };
   conveniosSinEntidad?: Array<{ convenio: string; citas: number }>;
   citasSinPrecio?: Array<{ referencia: string; convenio: string; citas: number }>;
+  /** Citas incumplidas (Reportes): hasta dónde llega lo cargado y cómo salió la última sincronización. */
+  incumplidas?: {
+    desde: string | null;
+    hasta: string | null;
+    ultimoDiario: string | null;
+    ultimaOk: string | null;
+    estado: 'nunca' | 'ok' | 'error';
+    error: string | null;
+  } | null;
   backtest?: {
     estado: 'nunca' | 'corriendo' | 'ok' | 'error';
     iniciado: string | null;
@@ -606,6 +684,7 @@ export const CLAVES_REPORTES = [
   'contribucion', 'diagnostico',
   // La agenda cambia con cada sincronización de citas y de consumos.
   'agenda',
+  'incumplidas',
   // Un cargue puede estrenar un mes que antes no existía; sin esto el selector
   // seguiría sin ofrecerlo hasta recargar la página.
   'meses-disponibles',

@@ -53,6 +53,7 @@ const rest_connector_js_1 = require("../connectors/rest.connector.js");
 const repo = __importStar(require("../repositories/agenda.repo.js"));
 const tvRepo = __importStar(require("../repositories/tv.repo.js"));
 const citas_dia_service_js_1 = require("./citas-dia.service.js");
+const incumplidas_sync_service_js_1 = require("./incumplidas-sync.service.js");
 /**
  * Sincronización de las citas PENDIENTES de Medifolios.
  *
@@ -76,6 +77,8 @@ const CONVENIOS_REINTENTO_MS = 6 * 3_600_000;
 const CITAS_REINTENTO_MS = 30 * 60_000;
 /** Cuándo falló por última vez la lectura de las citas de HOY (para la TV), por conector. En memoria. */
 const fallosTv = new Map();
+/** Ídem para las incumplidas (Reportes). */
+const fallosIncumplidas = new Map();
 function configAgenda(conector) {
     if (conector.tipo !== 'REST_API')
         return null;
@@ -306,6 +309,30 @@ async function sincronizarCitas(conectorId, opciones = {}) {
                 logger_js_1.logger.warn('Citas de hoy para la TV: no se pudieron actualizar', { conectorId, error: msg });
                 // Que el fallo SE VEA (Diagnóstico y la propia pantalla), no solo en el registro del servidor.
                 await repo.guardarEstadoSync(conectorId, { tvEstado: 'error', tvError: msg.slice(0, 600), tvActualizado: new Date().toISOString() }).catch(() => undefined);
+            }
+        }
+        // El resumen de citas CUMPLIDAS e INCUMPLIDAS (tarjeta, columna y % de Reportes): ventana de 7 días en cada
+        // vuelta, el mes anterior una vez al día y un mes más de histórico por vuelta. También va después del «ok» de
+        // la agenda y NUNCA la estropea; tras un fallo espera 30 min (el botón manual lo salta y acepta respuestas
+        // que reducen mucho lo guardado).
+        const falloInc = fallosIncumplidas.get(conectorId);
+        if (opciones.manual || falloInc === undefined || Date.now() - falloInc > CITAS_REINTENTO_MS) {
+            try {
+                await (0, incumplidas_sync_service_js_1.sincronizarIncumplidas)({
+                    conectorId, ahora, hoy,
+                    pedir: (desde, hasta, estado) => pedirCitas(conector, cfg, { fechaInicial: desde, fechaFinal: hasta, estadoCita: estado }),
+                    entidadDe: (f) => (0, agenda_enriquecer_js_1.enriquecerCita)(f, resolutores, epsPorConvenio).entidadId,
+                    forzar: opciones.manual === true,
+                });
+                fallosIncumplidas.delete(conectorId);
+            }
+            catch (err) {
+                fallosIncumplidas.set(conectorId, Date.now());
+                logger_js_1.logger.warn('Incumplidas: no se pudieron actualizar', { conectorId, error: err instanceof Error ? err.message : String(err) });
+            }
+            finally {
+                // También con fallo parcial (una tarea guardada y otra no): la tarjeta no debe seguir con lo anterior hasta 60 s.
+                (0, redis_js_1.flushReportesCache)();
             }
         }
         return resultado;

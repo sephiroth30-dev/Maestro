@@ -3,7 +3,7 @@ id: reportes
 titulo: Reportes
 modulo: reportes
 orden: 40
-claves: proyeccion, agenda, citas agendadas, agendado, proyectado, facturacion, filtros, entidad, eps, servicio, dia de la semana, rango de fechas, detalle, comparar, comparacion, año anterior, interanual, variacion, meses
+claves: incumplidas, incumplimiento, inasistencia, no asistieron, proyeccion, agenda, citas agendadas, agendado, proyectado, facturacion, filtros, entidad, eps, servicio, dia de la semana, rango de fechas, detalle, comparar, comparacion, año anterior, interanual, variacion, meses
 ---
 
 ## Para qué sirve
@@ -120,6 +120,20 @@ Cómo leerla con criterio:
 
 Un administrador revisa que todo funcione en **Configuración → Diagnóstico → Proyección por
 agenda** (permisos de la API, citas cargadas, convenios sin EPS y la precisión del método).
+
+## Citas incumplidas
+
+La tarjeta **Citas Incumplidas** y las columnas **Incumplidas** y **% incumpl.** de la tabla por entidad cuentan las citas que **no se cumplieron** (el
+paciente no llegó), siguiendo **todos los filtros**: mes, año, rango, semana, día, día de la semana y entidad. Sirven para ver **en qué EPS hay más** y darles
+seguimiento: pulsa el encabezado de una columna para poner arriba la que más tiene (en cantidad o en proporción).
+
+- Cuenta **citas** (no dinero), por el **día de la cita**. No incluye imagenología ni canceladas.
+- **El %** es incumplidas ÷ (cumplidas + incumplidas): sobre las citas ya resueltas, no sobre las pendientes. La tarjeta da el % global; la tabla, el de cada EPS (en
+  rosa si está claramente por encima del global). Con menos de 10 citas el % sale atenuado: no es fiable.
+- Una EPS puede salir con incumplidas aunque no haya facturado nada en el periodo.
+- Los meses anteriores se van cargando de a uno cada 15 minutos. Si el periodo que miras no está entero en lo cargado, la tarjeta avisa
+  («Cargado desde…», «Cargado hasta…»): el conteo puede quedar corto. Si dice **«—»** no es cero: aún no se ha sincronizado (o el periodo es anterior a lo cargado).
+- Si pasan más de 2 horas sin sincronizar en horario de trabajo, la tarjeta avisa que puede estar desactualizada.
 
 ## Las tablas
 

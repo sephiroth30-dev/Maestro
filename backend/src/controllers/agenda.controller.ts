@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/rbac.middleware.js';
 import { conectoresRepo } from '../repositories/conectores.repo.js';
 import * as repo from '../repositories/agenda.repo.js';
+import * as incumplidasRepo from '../repositories/incumplidas.repo.js';
 import { agendaActiva, sincronizarCitasConCandado } from '../services/citas-sync.service.js';
 import { iniciarBacktest } from '../services/agenda-backtest.service.js';
 
@@ -42,12 +43,13 @@ export async function agendaRoutes(fastify: FastifyInstance): Promise<void> {
     if (!conector) {
       return reply.send({ configurada: false, conector: null });
     }
-    const [estado, resumen, sinEntidad, sinPrecio, backtest] = await Promise.all([
+    const [estado, resumen, sinEntidad, sinPrecio, backtest, incumplidas] = await Promise.all([
       repo.leerEstadoSync(conector.id),
       repo.resumenCitas(),
       repo.conveniosSinEntidad(),
       repo.citasSinPrecioPorReferencia(),
       repo.leerBacktest(conector.id),
+      incumplidasRepo.leerEstado(conector.id).catch(() => null),
     ]);
 
     // Interpretación de los permisos: el 403 de Medifolios es lo que más conviene
@@ -66,6 +68,7 @@ export async function agendaRoutes(fastify: FastifyInstance): Promise<void> {
       conveniosSinEntidad: sinEntidad,
       citasSinPrecio: sinPrecio,
       backtest: backtestVigente(backtest),
+      incumplidas,
     });
   });
 

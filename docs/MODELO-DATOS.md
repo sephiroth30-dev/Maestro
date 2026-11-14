@@ -26,6 +26,8 @@ antes de escribir una consulta o prometer un reporte.
 | `convenios_eps` | Catálogo `codConvenio → EPS` de Medifolios (`GET /catalogos/convenios`), con la entidad vinculada si casa. |
 | `agenda_backtest` | Último backtest de la valoración (estado y resultado JSON por EPS). |
 | `citas_dia` | Las citas de **hoy** en cualquier estado (P pendiente, C cumplida, I incumplida), con su hora, para la pantalla de TV. **Sin datos de pacientes.** Se reemplaza entera en cada sincronización de citas. |
+| `citas_resumen_dia` | Resumen de las citas **cumplidas e incumplidas** (estados `C` e `I` de Medifolios) por día de la cita y EPS: cuántas de cada una. **Sin datos de pacientes ni una fila por cita.** Alimenta la tarjeta, la columna «Incumplidas» y el % de Reportes. Se recarga por rangos (ver `docs/CITAS-INCUMPLIDAS.md`). |
+| `incumplidas_sync` | Hasta dónde llega lo cargado (un tramo sin huecos, `desde`–`hasta`), la última pasada diaria y cómo salió la última sincronización. |
 | `tv_serie` | Una **foto** de las cifras del día (facturado hoy, atendidas, pendientes, incumplidas) en cada sincronización de citas: alimenta la línea del día y la comparación con ayer a la misma hora de la pantalla de TV. Sin datos de pacientes; 60 días. |
 | `tv_movimientos` | Lo que se movió entre dos lecturas (citas atendidas, incumplidas, agendadas, facturado). Se **detecta** al sincronizar; no es un evento en tiempo real. Se conservan 48 h. |
 | `audit_log` | Registro de acciones. |

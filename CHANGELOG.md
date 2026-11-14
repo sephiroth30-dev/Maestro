@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.16] - 2026-11-14
+
+### Added
+- **Citas incumplidas en Reportes.** Tarjeta «Citas Incumplidas» (total del periodo y las 3 EPS con más) y **columna «Incumplidas» en la tabla por EPS** (ordenable, con barrita), que siguen **todos los filtros**: mes, año, rango, semana, día, día de la semana y entidad. Una EPS con incumplidas y nada facturado también aparece en la tabla. Va en la exportación. Ver `docs/CITAS-INCUMPLIDAS.md`.
+- `GET /api/reportes/incumplidas`; tablas `citas_resumen_dia` (cumplidas e incumplidas por día y EPS, **sin datos de pacientes**) e `incumplidas_sync`.
+- **Con su porcentaje:** la tarjeta da el **% global** de incumplimiento («10,7 % de 870 citas resueltas») y la tabla una columna **«% incumpl.»** por EPS (ordenable; en rosa las claramente por encima del global; atenuado con menos de 10 citas resueltas). El % es incumplidas ÷ (cumplidas + incumplidas): las pendientes no entran.
+- **Carga:** en cada sincronización de citas (mismo candado y credencial, después de la agenda y de la TV, sin estorbarlas) se piden las citas **cumplidas e incumplidas** de la ventana de los últimos 7 días (cada vuelta), el mes anterior (una vez al día) y **un mes más de histórico por vuelta** hasta el 1 de enero del año anterior. Se guarda un **resumen por día y EPS**, no una fila por cita. Unos ~20 s extra por vuelta, ~1 min la pasada diaria. Una respuesta sospechosa (vacía o diezma lo guardado; o, en una primera carga, muchas incumplidas y ninguna cumplida) no se acepta: se conserva lo anterior (el botón manual sí la acepta).
+- **Cobertura sin mentir:** lo cargado es un tramo sin huecos; la pasada diaria va antes que la ventana (unos días sin sincronizar no pierden lo cargado) y tras más de un mes sin sincronizar se reinicia en vez de afirmar un mes con semanas vacías. Defectos encontrados por la revisión independiente, con prueba.
+- **Honestidad:** sin sincronizar la tarjeta dice «—», nunca «0»; si el periodo empieza antes de lo cargado avisa «Cargado desde…: el conteo puede quedar corto»; el estado y el error se ven en Configuración → Diagnóstico.
+- La fila de tarjetas de Reportes pasa a **cinco** (se adapta al ancho de la ventana); en modo compacto (día o EPS) pasa a cuatro.
+
+### Fixed (revisión independiente, antes de subir)
+- Tarjeta: con el primer intento fallido (sin nada cargado) decía «0»; ahora «—» y el motivo. «La agenda no está activada» ya no sale cuando sí lo está y solo falta sincronizar. Avisa si lleva sin sincronizar más de 2 h en horario de trabajo.
+- Exportación: ya no deja fuera las EPS con incumplidas y sin facturación (el total del documento quedaba por debajo del de la tarjeta), y lleva una nota si la cobertura es incompleta.
+- Segunda revisión independiente: el orden diaria→ventana evita perder la cobertura tras unos días parado; un periodo cerrado ya no se da por «completo» con el último día sin cargar; la guarda también protege la **primera** carga de cada mes; convenios que difieren solo en mayúsculas o tildes ya no pisan filas al guardar; el aviso de cobertura distingue «falta el principio» de «falta el final»; un periodo anterior a lo cargado dice «—» (tarjeta y tabla); el aviso de «desactualizado» solo salta en horario de trabajo y pasadas 2 h (antes: 12 h, y avisaba cada mañana); el TOTAL y el % de incumplidas de la exportación salen de las mismas filas exportadas.
+- La guarda contra respuestas vacías ya no puede bloquear la sincronización para siempre (el botón manual la salta). La caché se vacía también con un fallo parcial. Un empate en el top 3 ya no cambia de orden entre llamadas. Al cambiar de filtro la columna ya no desaparece ni pierde el orden. Orden del CSS de las tarjetas.
+
+### Estado
+- **Las consultas SQL nuevas no se pudieron ejecutar en el entorno de desarrollo** (sin MySQL): el primer día en producción es la prueba real. Los meses antiguos tardan en aparecer (un mes por vuelta).
+
+---
+
 ## [1.9.15] - 2026-11-12
 
 ### Changed
