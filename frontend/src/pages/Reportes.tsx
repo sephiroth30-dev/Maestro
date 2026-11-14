@@ -814,8 +814,8 @@ export default function Reportes(): React.ReactElement {
     }
     return m;
   }, [incumplidasQ.data]);
-  // Las columnas solo se muestran si hay datos de verdad (agenda activada y algo ya cargado). El % se recalcula
-  // aquí si el servidor devolviera varias filas de una misma EPS (se sumaron arriba).
+  // La columna solo se muestra si hay datos de verdad (agenda activada y algo ya cargado). Si el servidor devolviera
+  // varias filas de una misma EPS, ya se sumaron arriba.
   const incumplidasTabla = useMemo((): IncumplidasTabla | null => {
     const d = incumplidasQ.data;
     if (!d || d.cobertura.estado === null || d.cobertura.estado === 'nunca' || d.cobertura.desde === null) return null;
@@ -824,11 +824,10 @@ export default function Reportes(): React.ReactElement {
     let maximo = 0;
     const porClave = new Map<string, IncumplidasFila>();
     for (const [k, v] of incumplidasPorClave) {
-      const resueltas = v.inc + v.cum;
-      porClave.set(k, { incumplidas: v.inc, cumplidas: v.cum, pct: resueltas > 0 ? Math.round((v.inc / resueltas) * 1000) / 10 : null, muestraPequena: resueltas < 10 });
+      porClave.set(k, { incumplidas: v.inc });
       if (v.inc > maximo) maximo = v.inc;
     }
-    return { porClave, maximo, pctGlobal: d.total.pct };
+    return { porClave, maximo };
   }, [incumplidasQ.data, incumplidasPorClave]);
 
   const filasSoloAgenda = useMemo((): EntidadRow[] => {
@@ -1036,9 +1035,8 @@ export default function Reportes(): React.ReactElement {
         ? {
             de: (r: EntidadRow) => {
               const f = incumplidasTabla.porClave.get(claveEntidad(r));
-              return { incumplidas: f?.incumplidas ?? 0, cumplidas: f?.cumplidas ?? 0, pct: f?.pct ?? null };
+              return { incumplidas: f?.incumplidas ?? 0 };
             },
-            pctGlobal: incumplidasTabla.pctGlobal,
             // No se exporta una cifra corta sin decirlo.
             nota: incumplidasQ.data && !incumplidasQ.data.cobertura.completa && incumplidasQ.data.cobertura.desde
               ? `Las citas incumplidas están cargadas ${incumplidasQ.data.cobertura.hasta ? `del ${incumplidasQ.data.cobertura.desde} al ${incumplidasQ.data.cobertura.hasta}` : `desde el ${incumplidasQ.data.cobertura.desde}`}: fuera de ese tramo el conteo puede quedar corto.`

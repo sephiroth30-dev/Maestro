@@ -41,19 +41,12 @@ interface TablaEntidadesProps {
 
 export interface IncumplidasFila {
   incumplidas: number;
-  cumplidas: number;
-  /** Incumplidas ÷ (cumplidas + incumplidas), en %; `null` sin citas resueltas. */
-  pct: number | null;
-  /** Pocas citas resueltas: el % no es fiable. */
-  muestraPequena: boolean;
 }
 
 export interface IncumplidasTabla {
   porClave: Map<string, IncumplidasFila>;
   /** Mayor número de incumplidas: la barrita de cada fila se dibuja contra él. */
   maximo: number;
-  /** % global del periodo: referencia para ver qué EPS está por encima. */
-  pctGlobal: number | null;
 }
 
 function CeldaIncumplidas({ n, maximo }: { n: number; maximo: number }): React.ReactElement {
@@ -62,26 +55,6 @@ function CeldaIncumplidas({ n, maximo }: { n: number; maximo: number }): React.R
     <span className="tabla-incumpl" title={`${n} ${n === 1 ? 'cita incumplida' : 'citas incumplidas'}`}>
       <strong className="tabla-incumpl-n">{formatNumber(n)}</strong>
       <span className="tabla-incumpl-barra"><i style={{ width: `${maximo > 0 ? Math.max((n / maximo) * 100, 4) : 0}%` }} /></span>
-    </span>
-  );
-}
-
-/**
- * % de incumplimiento de una EPS. Colores neutros salvo el énfasis en rosa de las que están claramente por encima del
- * global; con pocas citas resueltas se atenúa (3 de 5 es 60 % y no dice nada).
- */
-function CeldaPctIncumplidas({ f, pctGlobal }: { f: IncumplidasFila | undefined; pctGlobal: number | null }): React.ReactElement {
-  if (!f || f.pct === null) return <span className="tabla-comp-nuevo" title="Sin citas resueltas en el periodo">—</span>;
-  const alto = !f.muestraPequena && pctGlobal !== null && f.pct >= pctGlobal * 1.25 && f.pct - pctGlobal >= 2;
-  const txt = `${f.pct.toFixed(1).replace('.', ',')} %`;
-  return (
-    <span
-      className={`tabla-pct-inc${alto ? ' tabla-pct-inc--alto' : ''}${f.muestraPequena ? ' tabla-pct-inc--tenue' : ''}`}
-      title={f.muestraPequena
-        ? `Solo ${f.incumplidas + f.cumplidas} citas resueltas: el porcentaje no es fiable`
-        : `${f.incumplidas} incumplidas de ${f.incumplidas + f.cumplidas} citas resueltas${pctGlobal !== null ? ` (global ${pctGlobal.toFixed(1).replace('.', ',')} %)` : ''}`}
-    >
-      {txt}
     </span>
   );
 }
@@ -307,18 +280,13 @@ export default function TablaEntidades({ rows, onEntityClick, selectedEntidadId,
     const corte = i >= 0 ? i + 1 : columnasBase.length;
     const armadas = [...columnasBase.slice(0, corte), ...extra, ...columnasBase.slice(corte)];
 
-    // «Incumplidas» y su % van justo antes de «Participación», que cierra la fila.
+    // «Incumplidas» va justo antes de «Participación», que cierra la fila.
     if (incumplidas) {
       const cols = [
         colHelper.accessor((r) => incumplidas.porClave.get(claveEntidad(r))?.incumplidas ?? 0, {
           id: 'incumplidas',
           header: 'Incumplidas',
           cell: (info) => <CeldaIncumplidas n={info.getValue()} maximo={incumplidas.maximo} />,
-        }),
-        colHelper.accessor((r) => incumplidas.porClave.get(claveEntidad(r))?.pct ?? -1, {
-          id: 'pctIncumplidas',
-          header: '% incumpl.',
-          cell: (info) => <CeldaPctIncumplidas f={incumplidas.porClave.get(claveEntidad(info.row.original))} pctGlobal={incumplidas.pctGlobal} />,
         }),
       ];
       const p = armadas.findIndex((c) => 'accessorKey' in c && c.accessorKey === 'participacion_pct');

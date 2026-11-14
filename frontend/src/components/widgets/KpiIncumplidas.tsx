@@ -5,8 +5,6 @@ import { formatNumber } from './KpiCard.js';
 import { fechaCorta } from './agenda.js';
 import { enHorarioLaboral, horaBogota, HORA_INICIO } from '../../lib/tv.js';
 
-/** Cuántas EPS se listan en la tarjeta: las que más incumplidas tienen, para darles seguimiento. */
-const TOP = 3;
 /** Más de esto sin sincronizar, EN HORARIO DE TRABAJO, y se avisa: el conteo ya no crece. */
 const HORAS_VIEJO = 2;
 /** Al abrir la jornada la primera sincronización tarda un poco (L–S desde las 6:07): no se avisa antes. */
@@ -42,12 +40,9 @@ export function avisoCobertura(
   return null;
 }
 
-export const pct1 = (p: number | null | undefined): string => (p === null || p === undefined ? '—' : `${p.toFixed(1).replace('.', ',')} %`);
-
 /**
  * Tarjeta de citas INCUMPLIDAS (estado I de Medifolios): las que no se cumplieron, en el periodo y con el filtro
- * aplicado, y su % sobre las citas ya resueltas (cumplidas + incumplidas). Lista las EPS con más incumplidas, que
- * son las que conviene seguir.
+ * aplicado. Una sola cifra, como las demás tarjetas; el desglose por EPS está en la columna «Incumplidas» de la tabla.
  *
  * Cuenta CITAS (por el día de la cita), no facturación. No dice «0» cuando no hay datos: sin sincronizar o con un
  * error se avisa, porque «0 incumplidas» y «no sé» no se pueden ver igual.
@@ -59,7 +54,6 @@ export default function KpiIncumplidas({ data, cargando, error, actualizando = f
   /** Se muestran las cifras del filtro anterior mientras llegan las del nuevo (`keepPreviousData`). */
   actualizando?: boolean;
 }): React.ReactElement {
-  const top = data ? data.por_entidad.filter((e) => e.incumplidas > 0).slice(0, TOP) : [];
   const c = data?.cobertura;
   // Sin cobertura (nada cargado) no hay conteo que mostrar, aunque el último intento haya fallado: «0» sería mentira.
   const sinDatos = Boolean(data) && (c?.estado === null || c?.estado === 'nunca' || c?.desde === null);
@@ -100,25 +94,7 @@ export default function KpiIncumplidas({ data, cargando, error, actualizando = f
       ) : (
         <>
           <div className="kpi-card-value" data-testid="incumplidas-total">{formatNumber(data.total.incumplidas)}</div>
-          <div className="kpi-card-periodo" data-testid="incumplidas-pct">
-            {data.total.pct === null
-              ? 'sin citas resueltas en el periodo'
-              : <><strong>{pct1(data.total.pct)}</strong> de {formatNumber(data.total.resueltas)} citas resueltas</>}
-          </div>
-
-          {top.length > 0 && (
-            <ul className="kpi-incumpl-top" data-testid="incumplidas-top">
-              {top.map((e) => (
-                <li key={e.entidad_id ?? e.entidad} title={`${formatNumber(e.incumplidas)} de ${formatNumber(e.resueltas)} citas resueltas`}>
-                  <span className="kpi-incumpl-nombre">{e.entidad}</span>
-                  <span className="kpi-incumpl-cifras">
-                    <strong>{formatNumber(e.incumplidas)}</strong>
-                    <span className={e.muestra_pequena ? 'kpi-incumpl-pct kpi-incumpl-pct--tenue' : 'kpi-incumpl-pct'}>{pct1(e.pct)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="kpi-card-periodo" data-testid="incumplidas-sub">citas que no se cumplieron</div>
 
           {c?.estado === 'error' && (
             <div className="kpi-card-agenda-aviso" title="Se muestra lo último que se cargó bien. El motivo está en Configuración → Diagnóstico.">

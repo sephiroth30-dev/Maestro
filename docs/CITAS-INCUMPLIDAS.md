@@ -1,31 +1,31 @@
-# Citas incumplidas y su porcentaje, por EPS
+# Citas incumplidas, por EPS
 
-> **Para qué sirve.** Ver cuántas citas **no se cumplieron** (estado `I` de Medifolios) y **qué porcentaje** son de las citas ya resueltas, en total y
-> **por EPS**, siguiendo los mismos filtros que el resto de Reportes, para identificar en qué EPS hay más y hacerles seguimiento.
+> **Para qué sirve.** Ver cuántas citas **no se cumplieron** (estado `I` de Medifolios), en total y **por EPS**, siguiendo los mismos filtros que el resto de
+> Reportes, para identificar en qué EPS hay más y hacerles seguimiento.
+>
+> **Sin porcentaje, a propósito.** Una versión inicial mostraba también un %, pero se retiró: dependía de qué citas se cuentan como «resueltas» (las pendientes y
+> las no marcadas no entran) y de cuánto histórico esté cargado, y leído sin esa explicación («32 %», ¿de las citas de esa EPS o del total?) era ambiguo. Se muestra solo
+> lo que es un hecho: cuántas citas incumplidas. El API sigue devolviendo `cumplidas`, `resueltas` y `pct` por si se retoma, pero la pantalla no los usa.
 
 ## Dónde se ve
 
 En **Reportes**:
 
-- **Tarjeta «Citas Incumplidas»** (quinta de la fila de arriba): el total de incumplidas del periodo, el **% global** («10,7 % de 870 citas resueltas») y
-  las **tres EPS con más** incumplidas, cada una con su %.
-- **Columnas «Incumplidas» y «% incumpl.»** en la tabla *Facturación por Entidad*. Las dos son ordenables: un clic en «Incumplidas» pone arriba la EPS con
-  más; un clic en «% incumpl.», la que más incumple en proporción. El % de las EPS claramente por encima del global va en rosa.
+- **Tarjeta «Citas Incumplidas»** (quinta de la fila de arriba): una sola cifra, el total de citas incumplidas del periodo, como las demás tarjetas.
+- **Columna «Incumplidas»** en la tabla *Facturación por Entidad*: cuántas citas incumplidas tuvo **esa EPS** en el periodo, con una barrita contra la que más tiene.
+  Es ordenable: un clic en el encabezado pone arriba la EPS con más.
 - Una EPS con incumplidas y **nada facturado** también aparece en la tabla.
-- Ambas columnas van en la **exportación** (PDF/Excel/CSV), con una nota si lo cargado no cubre todo el periodo.
+- La columna va en la **exportación** (PDF/Excel/CSV), con una nota si lo cargado no cubre todo el periodo.
 
 **Sigue todos los filtros:** mes, año, rango, atajos (hoy, ayer, esta semana…), semana, día, **día de la semana** y **entidad** (con una EPS elegida, la
 tarjeta cuenta solo esa EPS). La tarjeta y las columnas salen de la misma consulta: el total de la tarjeta es la suma de las filas.
 
 ## Qué cuenta (y qué no)
 
-- **Incumplidas** = citas de agenda en estado `I`. **% de incumplimiento = incumplidas ÷ (cumplidas + incumplidas)**: se calcula sobre las citas que ya se
-  **resolvieron**. Las pendientes (estado `P`) no entran: todavía no se sabe qué pasará con ellas. Una cita pendiente con fecha pasada que nadie marcó
-  tampoco cuenta ni como cumplida ni como incumplida.
+- **Incumplidas** = citas de agenda en estado `I`. Las pendientes (estado `P`) no cuentan: todavía no se sabe qué pasará con ellas, y una cita pendiente con
+  fecha pasada que nadie marcó no es incumplida hasta que se marque.
 - Cuenta **citas**, no facturación, **por el día de la cita** (`fechaInicioCita`), no por el día en que se marcó.
 - Igual que la agenda, **no incluye imagenología ni canceladas**.
-- **Con pocas citas el % no dice nada** (3 de 5 es 60 %): con menos de 10 citas resueltas el % de esa EPS se muestra atenuado y con un aviso. Un % sin ninguna
-  cita resuelta sale «—», nunca 0.
 - **Sin datos de pacientes ni una fila por cita:** se guarda un **resumen por día y EPS** (cuántas cumplidas y cuántas incumplidas).
 
 ## Cómo se carga
@@ -88,4 +88,3 @@ Backend: `services/incumplidas-plan.ts` (qué pedir, cobertura, resumen y % ; l�
   que una corrección tardía no se refleja.
 - Las citas que **no se pudieron vincular a una EPS** al guardarse (alias faltante, catálogo de convenios sin permiso) quedan agrupadas por el nombre de su convenio; las de meses que ya no
   se recargan no se re-vinculan aunque luego se agregue el alias.
-- No es un porcentaje de la agenda ni de lo facturado: es de las citas resueltas.
