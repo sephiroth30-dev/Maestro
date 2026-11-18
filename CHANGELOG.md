@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Sin publicar] - 2026-11-18
+
+### Added
+- **Agentes de Claude Code del proyecto** (`.claude/agents/`): `explore` (Haiku, solo lectura) y `coder` (Sonnet, implementa un plan ya definido, sin commit ni deploy), y la regla de reparto de modelos en `CLAUDE.md`. Solo afecta al desarrollo, no a la aplicación. Ver `docs/AGENTES.md`.
+
+### Changed
+- **Citas incumplidas en Reportes:** se retiró el porcentaje de incumplimiento (era ambiguo) y el top 3 de EPS de la tarjeta; la tarjeta muestra solo el total y la tabla, el conteo por EPS. La fila de cinco tarjetas ya no se desborda (5 columnas desde 1400 px, 3 + 2 por debajo). Detalle en la entrada 1.9.16 y en `docs/CITAS-INCUMPLIDAS.md`.
+
+---
+
 ## [1.9.16] - 2026-11-14
 
 ### Added
