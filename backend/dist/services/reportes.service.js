@@ -563,15 +563,26 @@ class ReportesService {
      *
      * Se cachea como todo lo demás —y con el mismo prefijo de fuente— porque es
      * un agrupado sobre la tabla entera y lo pide cada carga de la pantalla.
+     *
+     * Con la agenda activa se suman los meses futuros que ya tienen citas (marcados
+     * `futuro: true`, con 0 facturado): así se puede ver cuánto hay agendado antes
+     * de que exista una sola atención. Esa parte NO se cachea: el horizonte cambia
+     * con cada sincronización (cada 15 min) y la caché solo guarda lo del repositorio.
      */
     async getMesesDisponibles() {
         const cacheKey = 'meses-disponibles';
-        const cached = await cacheGet(cacheKey);
-        if (cached)
-            return cached;
-        const result = await repo.getMesesDisponibles();
-        await cacheSet(cacheKey, result, TTL_REPORTES);
-        return result;
+        let reales = await cacheGet(cacheKey);
+        if (!reales) {
+            reales = await repo.getMesesDisponibles();
+            await cacheSet(cacheKey, reales, TTL_REPORTES);
+        }
+        // Misma regla que `getAgenda`: con la agenda desactivada las citas guardadas
+        // están viejas y no se ofrecen meses por ellas.
+        const activos = await conectores_repo_js_1.conectoresRepo.findAllActive();
+        if (!activos.some((c) => (0, citas_sync_service_js_1.agendaActiva)(c)))
+            return (0, agenda_periodo_js_1.agregarMesesFuturos)(reales, null);
+        const horizonte = await agendaRepo.horizonteAgenda();
+        return (0, agenda_periodo_js_1.agregarMesesFuturos)(reales, horizonte);
     }
 }
 exports.reportesService = new ReportesService();

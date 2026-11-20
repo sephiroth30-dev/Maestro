@@ -5,9 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Sin publicar] - 2026-11-18
+## [Sin publicar] - 2026-11-19
 
 ### Added
+- **Meses futuros con agenda en el selector de Reportes.** Con la agenda activa, el selector «Mes» ofrece también los meses que ya tienen citas agendadas aunque aún no tengan atenciones (p. ej. «Diciembre 2026 (agenda)»), para ver cuánto hay agendado y el proyectado. El mes por defecto sigue siendo el último con datos, y estos meses no sirven como destino de «Comparar» ni cuentan como año con datos. `GET /api/reportes/meses-disponibles` devuelve `futuro: true` en esos meses (se calculan en cada llamada con el horizonte de la agenda; no se cachean).
 - **Agentes de Claude Code del proyecto** (`.claude/agents/`): `explore` (Haiku, solo lectura) y `coder` (Sonnet, implementa un plan ya definido, sin commit ni deploy), y la regla de reparto de modelos en `CLAUDE.md`. Solo afecta al desarrollo, no a la aplicación. Ver `docs/AGENTES.md`.
 
 ### Changed

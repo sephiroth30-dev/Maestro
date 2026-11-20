@@ -16,14 +16,16 @@ en X, a Y entidad, en Z período?».
 Arriba a la derecha hay dos modos:
 
 - **Mes** — los meses **del año en curso** que tienen datos cargados, del más reciente al
-  más antiguo.
+  más antiguo. Si la agenda de citas está activa, también aparecen los **meses próximos que ya
+  tienen citas agendadas**, marcados «(agenda)»: sin facturado todavía, muestran cuánto hay
+  agendado y el proyectado. El mes que se abre por defecto sigue siendo el último con datos.
 - **Año** — todos los **años que tienen datos cargados**, incluido el histórico. Al elegir
   uno, las tarjetas suman el año completo y los gráficos muestran **meses completos**
   (de enero a diciembre) en lugar de días o semanas. El año en curso se mide **a la fecha**
   (de enero a hoy).
 - **Rango** — fechas exactas, o los atajos *Hoy*, *Ayer*, *Esta semana*, *Sem. pasada*.
 
-> La lista sale de los datos, no del calendario: un mes sin nada cargado no aparece. Si
+> La lista sale de los datos, no del calendario: un mes sin nada cargado ni agendado no aparece. Si
 > falta un mes que debería estar, el problema está en la fuente, no en este selector.
 >
 > Los meses de años anteriores no se eligen como mes principal, pero **sí están disponibles

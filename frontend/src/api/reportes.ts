@@ -334,10 +334,14 @@ export interface MesDisponible {
   mes: number;
   total: number;
   atenciones: number;
+  /** `true` = mes sin atenciones que solo aparece porque ya tiene citas agendadas. */
+  futuro?: boolean;
 }
 
 /**
  * Los meses que de verdad tienen datos, del más reciente al más antiguo.
+ * Con la agenda activa también trae los meses futuros que ya tienen citas
+ * (`futuro: true`, con 0 facturado).
  *
  * El selector de Reportes los calculaba antes en el navegador ("los seis
  * anteriores a hoy"), así que ofrecía meses vacíos y escondía el historial.

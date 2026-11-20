@@ -9,6 +9,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.periodoDeAgenda = periodoDeAgenda;
 exports.mesesCerradosPrevios = mesesCerradosPrevios;
+exports.mesesFuturosConAgenda = mesesFuturosConAgenda;
+exports.agregarMesesFuturos = agregarMesesFuturos;
 exports.aIso = aIso;
 exports.armarAgenda = armarAgenda;
 exports.agendaVacia = agendaVacia;
@@ -47,6 +49,56 @@ function mesesCerradosPrevios(hoy, n = 3) {
         out.push({ anio: t.getUTCFullYear(), mes: t.getUTCMonth() + 1 });
     }
     return out;
+}
+/**
+ * Meses SIN atenciones que ya tienen agenda: los posteriores al último mes con
+ * datos, hasta el mes del horizonte (la fecha de la última cita cargada)
+ * inclusive. Del más reciente al más antiguo.
+ *
+ * Sin atenciones no hay último mes y sin horizonte no hay agenda: en ambos casos
+ * no se ofrece nada. Un horizonte que no pasa del último mes con datos tampoco
+ * agrega nada.
+ */
+function mesesFuturosConAgenda(ultimoMesConDatos, horizonte) {
+    if (!ultimoMesConDatos || !horizonte)
+        return [];
+    const m = /^(\d{4})-(\d{2})/.exec(horizonte);
+    if (!m)
+        return [];
+    const anioH = Number(m[1]);
+    const mesH = Number(m[2]);
+    if (mesH < 1 || mesH > 12)
+        return [];
+    const out = [];
+    let anio = ultimoMesConDatos.anio;
+    let mes = ultimoMesConDatos.mes;
+    // Se avanza un mes a la vez hasta el del horizonte; el tope evita un bucle
+    // largo si el último mes con datos viniera corrupto.
+    for (let i = 0; i < 24; i++) {
+        mes += 1;
+        if (mes > 12) {
+            mes = 1;
+            anio += 1;
+        }
+        if (anio > anioH || (anio === anioH && mes > mesH))
+            break;
+        out.push({ anio, mes, total: 0, atenciones: 0, futuro: true });
+    }
+    return out.reverse();
+}
+/**
+ * Lista del selector: los meses reales (marcados `futuro: false`) más los meses
+ * futuros con agenda que aún no estén en ella. Orden anio DESC, mes DESC.
+ * `reales` ya viene ordenado así desde el repositorio, pero no se depende de eso.
+ */
+function agregarMesesFuturos(reales, horizonte) {
+    const lista = reales.map((r) => ({ ...r, futuro: false }));
+    const ultimo = reales.reduce((acc, r) => (!acc || r.anio > acc.anio || (r.anio === acc.anio && r.mes > acc.mes) ? { anio: r.anio, mes: r.mes } : acc), null);
+    for (const f of mesesFuturosConAgenda(ultimo, horizonte)) {
+        if (!lista.some((r) => r.anio === f.anio && r.mes === f.mes))
+            lista.push(f);
+    }
+    return lista.sort((a, b) => b.anio - a.anio || b.mes - a.mes);
 }
 /** `'YYYY-MM-DD HH:MM:SS'` (UTC, del pool) → ISO. `null` si no hay o no se entiende. */
 function aIso(s) {

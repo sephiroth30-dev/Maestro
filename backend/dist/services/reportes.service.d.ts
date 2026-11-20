@@ -1,4 +1,4 @@
-import { type AgendaResultado } from './agenda-periodo.js';
+import { type AgendaResultado, type MesDisponibleFila } from './agenda-periodo.js';
 import { type IncumplidasResultado } from './incumplidas-plan.js';
 export interface KpisResult {
     facturacion_bruta: number;
@@ -157,13 +157,13 @@ declare class ReportesService {
      *
      * Se cachea como todo lo demás —y con el mismo prefijo de fuente— porque es
      * un agrupado sobre la tabla entera y lo pide cada carga de la pantalla.
+     *
+     * Con la agenda activa se suman los meses futuros que ya tienen citas (marcados
+     * `futuro: true`, con 0 facturado): así se puede ver cuánto hay agendado antes
+     * de que exista una sola atención. Esa parte NO se cachea: el horizonte cambia
+     * con cada sincronización (cada 15 min) y la caché solo guarda lo del repositorio.
      */
-    getMesesDisponibles(): Promise<Array<{
-        anio: number;
-        mes: number;
-        total: number;
-        atenciones: number;
-    }>>;
+    getMesesDisponibles(): Promise<MesDisponibleFila[]>;
 }
 export declare const reportesService: ReportesService;
 export {};

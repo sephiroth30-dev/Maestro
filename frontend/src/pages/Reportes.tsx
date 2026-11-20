@@ -40,6 +40,8 @@ interface MesAnio {
   mes: number;
   anio: number;
   label: string;
+  /** Mes sin atenciones que se ofrece solo porque ya tiene citas agendadas. */
+  futuro?: boolean;
 }
 
 function etiquetaMes(mes: number, anio: number): string {
@@ -462,24 +464,31 @@ export default function Reportes(): React.ReactElement {
   // selector no ofrece meses vacíos y sí ofrece todo el historial, que es lo
   // que hace falta para comparar contra el mismo mes del año pasado.
   const mesesQ = useMesesDisponibles();
-  // La lista COMPLETA sigue haciendo falta aunque el selector no la muestre:
-  // el año anterior tiene que existir como destino de la comparación.
-  const mesesTodos: MesAnio[] = useMemo(() => {
+  // El servidor también manda los meses FUTUROS con agenda (`futuro: true`, sin
+  // atenciones). Esos se ofrecen en el selector principal para ver lo agendado,
+  // pero no son destino de comparación ni cuentan como año con datos.
+  const mesesConFuturos: MesAnio[] = useMemo(() => {
     const dato = mesesQ.data;
     if (!dato || dato.length === 0) return mesesDeRespaldo();
-    return dato.map((m) => ({ mes: m.mes, anio: m.anio, label: etiquetaMes(m.mes, m.anio) }));
+    return dato.map((m) => ({ mes: m.mes, anio: m.anio, label: etiquetaMes(m.mes, m.anio), futuro: m.futuro === true }));
   }, [mesesQ.data]);
+  // La lista COMPLETA de meses con datos sigue haciendo falta aunque el selector
+  // no la muestre: el año anterior tiene que existir como destino de la comparación.
+  const mesesTodos: MesAnio[] = useMemo(
+    () => mesesConFuturos.filter((m) => !m.futuro),
+    [mesesConFuturos],
+  );
 
   // El selector principal ofrece solo el año en curso. Si ese año aún no tiene
   // datos (primeros días de enero, por ejemplo), cae al último año con datos
   // para no quedar vacío.
   const meses: MesAnio[] = useMemo(() => {
     const anioActual = new Date().getFullYear();
-    const delAnio = mesesTodos.filter((m) => m.anio === anioActual);
+    const delAnio = mesesConFuturos.filter((m) => m.anio === anioActual);
     if (delAnio.length > 0) return delAnio;
     const ultimo = mesesTodos[0]?.anio;
-    return mesesTodos.filter((m) => m.anio === ultimo);
-  }, [mesesTodos]);
+    return mesesConFuturos.filter((m) => m.anio === ultimo);
+  }, [mesesConFuturos, mesesTodos]);
 
   // El mes elegido se guarda por su VALOR, no por su posición: la lista llega
   // del servidor y cambia de tamaño al cargarse, así que un índice guardado
@@ -496,7 +505,8 @@ export default function Reportes(): React.ReactElement {
       const anio = hoy.getFullYear();
       return { mes, anio, label: etiquetaMes(mes, anio) };
     }
-    const masReciente = meses[0]!;
+    // Por omisión, el más reciente CON datos: un mes futuro solo se ve si se elige.
+    const masReciente = meses.find((m) => !m.futuro) ?? meses[0]!;
     if (!mesElegido) return masReciente;
     const i = indiceDeMes(meses, mesElegido.mes, mesElegido.anio);
     return i >= 0 ? meses[i]! : masReciente;
@@ -1096,7 +1106,7 @@ export default function Reportes(): React.ReactElement {
                 >
                   {meses.map((m) => (
                     <option key={`${m.anio}-${m.mes}`} value={indiceDeMes(meses, m.mes, m.anio)}>
-                      {m.label}
+                      {m.futuro ? `${m.label} (agenda)` : m.label}
                     </option>
                   ))}
                 </select>

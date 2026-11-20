@@ -29,6 +29,38 @@ export declare function mesesCerradosPrevios(hoy: string, n?: number): Array<{
     anio: number;
     mes: number;
 }>;
+/** Un mes del selector de Reportes. `futuro` = sin atenciones, existe solo porque ya tiene citas agendadas. */
+export interface MesDisponibleFila {
+    anio: number;
+    mes: number;
+    total: number;
+    atenciones: number;
+    futuro?: boolean;
+}
+/**
+ * Meses SIN atenciones que ya tienen agenda: los posteriores al último mes con
+ * datos, hasta el mes del horizonte (la fecha de la última cita cargada)
+ * inclusive. Del más reciente al más antiguo.
+ *
+ * Sin atenciones no hay último mes y sin horizonte no hay agenda: en ambos casos
+ * no se ofrece nada. Un horizonte que no pasa del último mes con datos tampoco
+ * agrega nada.
+ */
+export declare function mesesFuturosConAgenda(ultimoMesConDatos: {
+    anio: number;
+    mes: number;
+} | null, horizonte: string | null): MesDisponibleFila[];
+/**
+ * Lista del selector: los meses reales (marcados `futuro: false`) más los meses
+ * futuros con agenda que aún no estén en ella. Orden anio DESC, mes DESC.
+ * `reales` ya viene ordenado así desde el repositorio, pero no se depende de eso.
+ */
+export declare function agregarMesesFuturos(reales: Array<{
+    anio: number;
+    mes: number;
+    total: number;
+    atenciones: number;
+}>, horizonte: string | null): MesDisponibleFila[];
 export interface FilaEntidadAgenda {
     entidadId: string | null;
     entidad: string;
