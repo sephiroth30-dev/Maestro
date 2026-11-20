@@ -10,6 +10,8 @@ import { useAuthStore } from './stores/authStore.js';
 import { useAuth } from './hooks/useAuth.js';
 import { useInactivityLogout } from './hooks/useInactivityLogout.js';
 import Login from './pages/Login.js';
+import OlvideContrasena from './pages/OlvideContrasena.js';
+import RestablecerContrasena from './pages/RestablecerContrasena.js';
 import Dashboard from './pages/Dashboard.js';
 import Reportes from './pages/Reportes.js';
 import Pacientes from './pages/Pacientes.js';
@@ -266,6 +268,12 @@ export default function App(): ReactElement {
               </PublicRoute>
             }
           />
+
+          {/* Recuperación de contraseña: públicas y SIN PublicRoute, para que quien ya tenga
+              sesión abierta también pueda usar el enlace del correo. Sin AppLayout, así que
+              el cierre por inactividad no actúa aquí. */}
+          <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
 
           {/* Protected routes */}
           <Route

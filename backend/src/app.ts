@@ -41,7 +41,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger.info('Incoming request', {
       requestId: request.id,
       method: request.method,
-      url: request.url,
+      // Sin la query: /restablecer-contrasena?token=… lleva el token del correo y no debe quedar en logs.
+      url: request.url.split('?')[0],
       ip: request.ip,
     });
   });
@@ -76,7 +77,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger.info('Request completed', {
       requestId: request.id,
       method: request.method,
-      url: request.url,
+      url: request.url.split('?')[0],
       statusCode: reply.statusCode,
     });
   });

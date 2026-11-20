@@ -98,6 +98,24 @@ Controls:
 
 ---
 
+### Correo saliente (restablecer contraseña)
+
+**Opcionales.** Sin ellas la app funciona igual, pero «¿Olvidaste tu contraseña?» **no envía correos** (el servidor deja un aviso en el log con los nombres de lo que falta; el usuario ve la misma confirmación de siempre).
+
+| Variable | Qué es |
+|---|---|
+| `APP_URL` | Dirección pública del dashboard, sin barra final (`https://dashboard.neurofic.com`). Es la **única** base de los enlaces de los correos. |
+| `SMTP_HOST` | Servidor de correo saliente del buzón (en Hostinger suele ser `smtp.hostinger.com`). |
+| `SMTP_PORT` | `587` (STARTTLS, por defecto) o `465` (TLS directo, con `SMTP_SECURE=true`). |
+| `SMTP_SECURE` | `true` solo para el 465. |
+| `SMTP_USER` | Cuenta de correo que envía (p. ej. `no-responder@neurofic.com`). |
+| `SMTP_PASS` | Contraseña de ese buzón. **Secreto:** solo en las variables de entorno del hosting, nunca en el repositorio. |
+| `SMTP_FROM` | Remitente visible; por defecto `Neurofic <SMTP_USER>`. |
+
+Hacen falta `APP_URL`, `SMTP_HOST`, `SMTP_USER` y `SMTP_PASS`. Requiere Node 20 o superior (`nodemailer`).
+
+---
+
 ### CORS_ORIGIN
 
 **Required** | Type: `string` (valid URL)

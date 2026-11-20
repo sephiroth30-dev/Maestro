@@ -42,7 +42,8 @@ async function buildApp() {
         logger_js_1.logger.info('Incoming request', {
             requestId: request.id,
             method: request.method,
-            url: request.url,
+            // Sin la query: /restablecer-contrasena?token=… lleva el token del correo y no debe quedar en logs.
+            url: request.url.split('?')[0],
             ip: request.ip,
         });
     });
@@ -77,7 +78,7 @@ async function buildApp() {
         logger_js_1.logger.info('Request completed', {
             requestId: request.id,
             method: request.method,
-            url: request.url,
+            url: request.url.split('?')[0],
             statusCode: reply.statusCode,
         });
     });

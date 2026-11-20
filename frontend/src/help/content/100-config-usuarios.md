@@ -37,7 +37,7 @@ Dos que conviene mirar dos veces: **`aprobar`** es el que autoriza dinero, y
 ## Otras acciones
 
 - **Editar** — cambiar nombre, módulos o estado.
-- **Restablecer contraseña** — genera una temporal y cierra la sesión activa de esa persona.
+- **Restablecer contraseña** — tú escribes una contraseña nueva (mínimo 8 caracteres) y se cierra la sesión activa de esa persona. Cada persona también puede recuperar su acceso sola desde el inicio de sesión con **«¿Olvidaste tu contraseña?»**: recibe un enlace por correo (válido 30 minutos, un solo uso) y elige la nueva.
 - **Eliminar** — en realidad **desactiva**: la cuenta no puede entrar, pero su historial se
   conserva en Auditoría y en las liquidaciones donde participó.
 

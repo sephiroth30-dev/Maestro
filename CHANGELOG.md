@@ -8,10 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Sin publicar] - 2026-11-19
 
 ### Added
+- **Restablecer contraseña de forma autónoma.** «¿Olvidaste tu contraseña?» en el inicio de sesión ahora lleva a una pantalla donde la persona escribe su correo y recibe un **enlace por correo** (válido 30 minutos, de un solo uso) para elegir una contraseña nueva, sin pasar por el administrador. Al cambiarla se cierran todas sus sesiones abiertas. Seguridad: la respuesta es idéntica exista o no el correo; en la base solo se guarda el hash del enlace; el enlace se arma con `APP_URL` y nunca con la petición; límites por IP y por usuario; el token no queda en logs ni en el historial del navegador. Endpoints `POST /api/auth/forgot-password` y `/reset-password`, tabla `password_resets` (migración m31) y dependencia `nodemailer`. **Requiere configurar el correo saliente** (`APP_URL`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`; ver `docs/ENV.md`): sin eso no se envía nada. Ver `docs/API-AUTH.md`.
 - **Meses futuros con agenda en el selector de Reportes.** Con la agenda activa, el selector «Mes» ofrece también los meses que ya tienen citas agendadas aunque aún no tengan atenciones (p. ej. «Diciembre 2026 (agenda)»), para ver cuánto hay agendado y el proyectado. El mes por defecto sigue siendo el último con datos, y estos meses no sirven como destino de «Comparar» ni cuentan como año con datos. `GET /api/reportes/meses-disponibles` devuelve `futuro: true` en esos meses (se calculan en cada llamada con el horizonte de la agenda; no se cachean).
 - **Agentes de Claude Code del proyecto** (`.claude/agents/`): `explore` (Haiku, solo lectura) y `coder` (Sonnet, implementa un plan ya definido, sin commit ni deploy), y la regla de reparto de modelos en `CLAUDE.md`. Solo afecta al desarrollo, no a la aplicación. Ver `docs/AGENTES.md`.
 
 ### Changed
+- La ayuda de Usuarios decía que «Restablecer contraseña» genera una temporal; en realidad la escribe el administrador. Corregido.
 - **Citas incumplidas en Reportes:** se retiró el porcentaje de incumplimiento (era ambiguo) y el top 3 de EPS de la tarjeta; la tarjeta muestra solo el total y la tabla, el conteo por EPS. La fila de cinco tarjetas ya no se desborda (5 columnas desde 1400 px, 3 + 2 por debajo). Detalle en la entrada 1.9.16 y en `docs/CITAS-INCUMPLIDAS.md`.
 
 ---

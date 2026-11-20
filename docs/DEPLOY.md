@@ -59,6 +59,13 @@ PORT=3001
 NODE_ENV=production
 LOG_LEVEL=info
 CORS_ORIGIN=*
+# Restablecer contraseña por correo (opcional; ver docs/ENV.md)
+APP_URL=https://dashboard.neurofic.com
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=<buzón que envía>
+SMTP_PASS=<contraseña del buzón>
 COMMIT_SHA=<opcional; lo muestra /api/version>
 ```
 

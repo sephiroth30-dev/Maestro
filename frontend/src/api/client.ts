@@ -35,11 +35,19 @@ export const apiClient: AxiosInstance = axios.create({
   timeout: 15_000,
 });
 
+/**
+ * Rutas públicas de recuperación de contraseña: no llevan token de sesión y un
+ * 4xx en ellas nunca debe disparar el refresco de token ni el cierre de sesión.
+ */
+function esRutaPublicaRecuperacion(url: string | undefined): boolean {
+  return url === '/auth/forgot-password' || url === '/auth/reset-password';
+}
+
 // ─── Request interceptor: inject Authorization header ─────────────────────────
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = _authStore?.accessToken;
-    if (token && config.headers) {
+    if (token && config.headers && !esRutaPublicaRecuperacion(config.url)) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
@@ -74,6 +82,7 @@ apiClient.interceptors.response.use(
 
     if (
       error.response?.status === 401 &&
+      !esRutaPublicaRecuperacion(originalRequest.url) &&
       !originalRequest._retry &&
       _authStore
     ) {

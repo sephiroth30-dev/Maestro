@@ -1,4 +1,4 @@
-import { rawLogin, rawRefresh, rawLogout, rawGetMe } from './client.js';
+import { apiClient, rawLogin, rawRefresh, rawLogout, rawGetMe } from './client.js';
 import type {
   LoginResponse,
   RefreshResponse,
@@ -31,4 +31,24 @@ export async function logout(refreshToken: string): Promise<void> {
 
 export async function getMe(): Promise<User> {
   return rawGetMe();
+}
+
+// ─── Recuperación de contraseña (rutas públicas, sin token de sesión) ─────────
+
+/** Pide el enlace de restablecimiento. El servidor responde 200 exista o no el correo. */
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+  return response.data;
+}
+
+/** Fija la nueva contraseña con el token recibido por correo. 400 si es inválido o caducó. */
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>('/auth/reset-password', {
+    token,
+    newPassword,
+  });
+  return response.data;
 }

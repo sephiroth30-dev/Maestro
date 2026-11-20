@@ -303,6 +303,23 @@ const MIGRATIONS = [
       PRIMARY KEY (conector_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     },
+    // Enlaces de «Olvidé mi contraseña». Solo se guarda el SHA-256 del token (nunca el token). Un solo uso
+    // (`used_at`) y caducan a los 30 min (`expires_at`). `ip` es la de quien lo pidió, solo para auditoría.
+    {
+        id: 'm31_password_resets',
+        sql: `CREATE TABLE IF NOT EXISTS password_resets (
+      id VARCHAR(36) NOT NULL,
+      usuario_id VARCHAR(36) NOT NULL,
+      token_hash VARCHAR(64) NOT NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      expires_at DATETIME(3) NOT NULL,
+      used_at DATETIME(3) NULL,
+      ip VARCHAR(45) NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY uk_password_resets_token_hash (token_hash),
+      KEY idx_password_resets_usuario (usuario_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
     // Una foto de las cifras del día en cada sincronización: con ellas se dibuja el gráfico de lo
     // facturado hoy como una línea real y se compara con el mismo momento del día anterior. Sin datos
     // de pacientes. Se conservan 60 días.

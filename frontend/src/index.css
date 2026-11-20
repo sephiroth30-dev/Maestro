@@ -275,6 +275,7 @@ body,
 .login-reset-link {
   display: block;
   margin: 10px auto 0;
+  text-align: center;
   background: transparent;
   border: none;
   color: #3b82f6;
@@ -286,34 +287,38 @@ body,
 }
 .login-reset-link:hover { color: #1d4ed8; }
 
-.login-reset-info {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 12px 14px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  color: #1e3a5f;
-  line-height: 1.45;
-  position: relative;
+.login-reset-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
-.login-reset-close {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: #93c5fd;
-  padding: 2px;
-  border-radius: 4px;
-  line-height: 1;
-  position: absolute;
-  top: 8px;
-  right: 8px;
+/* Aviso informativo / de éxito en las pantallas de recuperación de contraseña */
+.login-info,
+.login-success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  margin-bottom: var(--space-5);
 }
-.login-reset-close:hover { color: #3b82f6; }
+.login-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a5f;
+}
+.login-success {
+  background: var(--color-success-light);
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.login-info p,
+.login-success p { margin: 0 0 var(--space-2); }
+.login-info p:last-child,
+.login-success p:last-child { margin-bottom: 0; }
 
 .login-footer {
   margin-top: var(--space-6);

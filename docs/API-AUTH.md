@@ -164,6 +164,35 @@ Authorization: Bearer <accessToken>
 
 ---
 
+### POST /api/auth/forgot-password
+
+Public. «Olvidé mi contraseña»: envía por correo un enlace de un solo uso para elegir una contraseña nueva.
+
+**Body** `{ "email": "usuario@neurofic.com" }`
+
+**Response 200** (siempre, exista o no el correo, y aunque falle el envío; no se espera al SMTP)
+```json
+{ "message": "Si el correo está registrado, te enviamos un enlace para restablecer tu contraseña." }
+```
+
+**Response 400** — el correo no tiene formato válido. **429** — más de 5 solicitudes en 15 min desde la misma IP.
+
+Reglas: solo usuarios activos y no eliminados; mínimo 60 s entre un correo y otro y máximo 5 por hora por usuario (si se pasa, se omite en silencio); un enlace nuevo invalida los anteriores. El enlace es `APP_URL/restablecer-contrasena?token=…` y se construye **solo** con la variable `APP_URL` (nunca con el `Host` de la petición). Sin `APP_URL` o sin SMTP configurado no se envía nada y se deja un aviso en el log, pero la respuesta es la misma.
+
+### POST /api/auth/reset-password
+
+Public. Fija la contraseña nueva con el token del correo. **No inicia sesión.**
+
+**Body** `{ "token": "…", "newPassword": "mínimo 8, máximo 128 caracteres" }`
+
+**Response 200** `{ "message": "Contraseña actualizada. Ya puedes iniciar sesión." }`
+
+**Response 400** — token desconocido, usado, caducado o de un usuario inactivo (todos responden igual: `El enlace no es válido o ya caducó. Solicita uno nuevo.`), o contraseña fuera de rango (en ese caso el enlace **no** se gasta). **429** — más de 10 intentos en 15 min por IP.
+
+Seguridad: el token son 32 bytes aleatorios; en la base solo se guarda su SHA-256 (tabla `password_resets`, migración `m31`). Caduca a los 30 min y se consume con un `UPDATE … WHERE used_at IS NULL AND expires_at > NOW()` atómico, así que con dos clics a la vez gana uno solo. Al cambiar la contraseña se invalidan los demás enlaces pendientes y se **cierran todas las sesiones** del usuario. Ni el token ni el enlace se registran en logs ni en auditoría (los logs de petición omiten la query). Auditoría: `SOLICITUD_RESET_PASSWORD` y `RESET_PASSWORD_AUTOSERVICIO`.
+
+---
+
 ## JWT Token Lifecycle
 
 ```
